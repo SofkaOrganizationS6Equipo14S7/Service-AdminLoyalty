@@ -65,9 +65,9 @@ Este repositorio sigue el flujo **ASDD**: toda funcionalidad nueva se ejecuta en
 ### Instructions (path-scoped)
 | Scope | Ruta | Se aplica a |
 |---|---|---|
-| Backend | `.github/instructions/backend.instructions.md` | `backend/**/*.py` |
+| Backend | `.github/instructions/backend.instructions.md` | `backend/src/**/*.java` |
 | Frontend | `.github/instructions/frontend.instructions.md` | `frontend/src/**/*.{js,jsx}` |
-| Tests | `.github/instructions/tests.instructions.md` | `backend/tests/**` · `frontend/src/__tests__/**` |
+| Tests | `.github/instructions/tests.instructions.md` | `backend/src/test/**` · `frontend/src/__tests__/**` |
 
 ### Lineamientos y Contexto
 | Documento | Ruta |

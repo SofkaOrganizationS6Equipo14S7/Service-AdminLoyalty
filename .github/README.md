@@ -180,7 +180,7 @@ Inyectadas automáticamente por Copilot cuando el archivo activo coincide:
 
 | Archivo activo | Instructions aplicadas |
 |---|---|
-| `backend/**/*.py` (o equivalente) | `instructions/backend.instructions.md` |
+| `backend/src/**/*.java` (o equivalente) | `instructions/backend.instructions.md` |
 | `frontend/src/**/*.{js,jsx}` (o equivalente) | `instructions/frontend.instructions.md` |
 | `backend/tests/**` / `frontend/src/__tests__/**` | `instructions/tests.instructions.md` |
 
@@ -244,7 +244,7 @@ Project Root/
     ├── prompts/                     ← 8 prompts (/nombre en Copilot Chat)
     │
     ├── instructions/                ← aplicadas automáticamente por contexto de archivo
-    │   ├── backend.instructions.md  ← applyTo: backend/**
+    │   ├── backend.instructions.md  ← applyTo: backend/src/**/*.java
     │   ├── frontend.instructions.md ← applyTo: frontend/src/**
     │   └── tests.instructions.md   ← applyTo: tests/**
     │

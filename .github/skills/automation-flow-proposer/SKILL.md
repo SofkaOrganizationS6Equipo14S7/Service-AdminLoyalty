@@ -36,8 +36,8 @@ PARA APLICACIONES WEB (E2E):
   Cypress    → Si ya existe en el proyecto
 
 PARA APIs REST (sin UI):
-  pytest + httpx → Para backend Python/FastAPI
-  Supertest      → Para backends Node.js
+  JUnit + MockMvc    → Para backend Java/Spring Boot
+  Supertest         → Para backends Node.js
 
 PARA PERFORMANCE:
   k6             → Si hay SLAs definidos
