@@ -32,4 +32,4 @@ Implementa el frontend para el feature especificado, siguiendo la spec aprobada.
 - USAR CSS Modules exclusivamente — sin frameworks CSS globales.
 - El estado de autenticación SIEMPRE viene de `useAuth` hook.
 - Las variables de entorno deben usar prefijo `VITE_`.
-- Firebase tokens se obtienen del usuario actual y se envían como `Bearer` en el header de Authorization.
+- El token JWT se obtiene del hook `useAuth` y se envía como `Bearer` en el header de Authorization.
