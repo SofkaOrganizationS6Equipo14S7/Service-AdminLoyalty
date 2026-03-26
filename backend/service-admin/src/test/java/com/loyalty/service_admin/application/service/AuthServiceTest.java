@@ -12,6 +12,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mindrot.jbcrypt.BCrypt;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -31,13 +32,16 @@ class AuthServiceTest {
 
     private UserEntity validUser;
     private UserEntity inactiveUser;
+    private static final String PLAIN_PASSWORD = "admin123";
 
     @BeforeEach
     void setUp() {
+        String hashedPassword = BCrypt.hashpw(PLAIN_PASSWORD, BCrypt.gensalt());
+        
         validUser = UserEntity.builder()
                 .id(1L)
                 .username("admin")
-                .password("admin123")
+                .password(hashedPassword)
                 .role("ADMIN")
                 .active(true)
                 .createdAt(Instant.now())
@@ -47,7 +51,7 @@ class AuthServiceTest {
         inactiveUser = UserEntity.builder()
                 .id(2L)
                 .username("inactive")
-                .password("password123")
+                .password(BCrypt.hashpw("password123", BCrypt.gensalt()))
                 .role("USER")
                 .active(false)
                 .createdAt(Instant.now())
@@ -59,7 +63,7 @@ class AuthServiceTest {
     @DisplayName("Login exitoso retorna token JWT válido")
     void testLogin_success_returnsToken() {
         // Arrange
-        LoginRequest request = new LoginRequest("admin", "admin123");
+        LoginRequest request = new LoginRequest("admin", PLAIN_PASSWORD);
         when(userRepository.findByUsername("admin")).thenReturn(Optional.of(validUser));
 
         // Act

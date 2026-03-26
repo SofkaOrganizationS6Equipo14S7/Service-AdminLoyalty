@@ -8,6 +8,7 @@ import com.loyalty.service_admin.domain.repository.UserRepository;
 import com.loyalty.service_admin.infrastructure.exception.UnauthorizedException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.mindrot.jbcrypt.BCrypt;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -18,10 +19,6 @@ import java.util.Base64;
 /**
  * Servicio de autenticación.
  * Gestiona login, logout y validación de tokens.
- * 
- * IMPORTANTE: En esta versión v1, los tokens NO se invalidan en backend.
- * El logout se realiza limpiando localStorage en el frontend.
- * En futuras versiones se implementará token blacklist.
  */
 @Service
 @RequiredArgsConstructor
@@ -54,8 +51,8 @@ public class AuthService {
             throw new UnauthorizedException("Usuario no válido");
         }
         
-        // Validar password (comparación plain text en v1, será hashing en v2)
-        if (!user.getPassword().equals(request.password())) {
+        // Validar password usando BCrypt
+        if (!BCrypt.checkpw(request.password(), user.getPassword())) {
             log.warn("Intento de login fallido: password incorrecto para usuario {}", request.username());
             throw new UnauthorizedException("Credenciales inválidas");
         }
