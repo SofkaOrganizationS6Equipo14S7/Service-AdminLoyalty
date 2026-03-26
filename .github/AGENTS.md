@@ -62,7 +62,7 @@ Los agentes deben cargar estos archivos como **primer paso** antes de generar cu
 |---|---|---|
 | Lineamientos de Desarrollo | `.github/docs/guidelines/dev-guidelines.md` | Backend Developer, Frontend Developer, Database Agent |
 | Lineamientos QA | `.github/docs/guidelines/qa-guidelines.md` | Test Engineer Backend, Test Engineer Frontend, QA Agent |
-| **Technical Architecture (LOYALTY)** | `.github/docs/guidelines/technical-architecture.md` | Backend Developer, Database Agent |
+| Technical Architecture | `.github/docs/guidelines/technical-architecture.md` | Backend Developer, Database Agent |
 | Reglas de Oro | `.github/AGENTS.md` | Todos (siempre activas) |
 | Definition of Done | `.github/copilot-instructions.md` | Test Engineer Backend, Test Engineer Frontend, QA Agent, Orchestrator |
 | Definition of Ready | `.github/copilot-instructions.md` | Spec Generator, Orchestrator |

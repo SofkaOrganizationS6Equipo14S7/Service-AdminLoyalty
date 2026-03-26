@@ -1,6 +1,6 @@
 ---
 name: implement-backend
-description: Implementa un feature completo en el backend. Requiere spec con status APPROVED en .github/specs/.
+description: Implementa un feature completo en el backend Spring Boot. Requiere spec con status APPROVED en .github/specs/.
 argument-hint: "<nombre-feature>"
 ---
 
@@ -8,29 +8,38 @@ argument-hint: "<nombre-feature>"
 
 ## Prerequisitos
 1. Leer spec: `.github/specs/<feature>.spec.md` — sección 2 (modelos, endpoints)
-2. Leer stack: `.github/instructions/backend.instructions.md`
-3. Leer arquitectura: `.github/instructions/backend.instructions.md`
+2. Leer stack y arquitectura: `.github/instructions/backend.instructions.md`
 
 ## Orden de implementación
 ```
-models → repositories → services → routes → registrar en punto de entrada
+entities → repositories → services → controllers → excepción
 ```
 
 | Capa | Responsabilidad |
 |------|-----------------|
-| **Models / Schemas** | Validación de tipos e input/output (Create, Update, Response, Document) |
-| **Repositories** | Acceso a DB — queries CRUD sin lógica de negocio |
-| **Services** | Lógica de negocio pura — orquesta repositorios |
-| **Routes / Controllers** | Parsing HTTP + DI + delegar al service |
+| **Entities** | Mapping a tabla DB (JPA) |
+| **DTOs** | Input/output (Java Records) |
+| **Repositories** | Acceso a datos (`JpaRepository`) |
+| **Services** | Lógica de negocio (`@Service`) |
+| **Controllers** | Endpoints HTTP (`@RestController`) |
+| **Excepciones** | Custom exceptions + `@RestControllerAdvice` |
 
-## Patrón de DI (obligatorio en routes)
-- Inyectar dependencias en la firma del handler (no instanciar inline en el cuerpo)
-- El service recibe el repo por parámetro; el router instancia ambos
+## Dependency Injection (obligatorio)
+Usar **Constructor Injection**. Spring inyecta automáticamente.
 
-Ver patrones específicos del stack en `.github/instructions/backend.instructions.md`.
+```java
+@RestController
+public class FeatureController {
+    private final FeatureService service;
+
+    public FeatureController(FeatureService service) {
+        this.service = service;
+    }
+}
+```
 
 ## Reglas
-Ver `.claude/rules/backend.md` — async, naming, errores, timestamps.
+Ver `.github/instructions/backend.instructions.md` — DTOs como Records, Virtual Threads, BigDecimal, Flyway.
 
 ## Restricciones
 - Solo directorio de backend del proyecto. No tocar frontend.
