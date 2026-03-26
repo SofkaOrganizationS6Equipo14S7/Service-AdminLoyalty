@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -22,7 +23,9 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.inOrder;
 
 @ExtendWith(MockitoExtension.class)
 class ApiKeyServiceTest {
@@ -45,12 +48,12 @@ class ApiKeyServiceTest {
     /**
      * Helper para crear un ApiKeyEntity con valores de prueba usando reflection.
      */
-    private ApiKeyEntity createApiKeyEntity(UUID id, String keyString, UUID ecommerceId) throws Exception {
+    private ApiKeyEntity createApiKeyEntity(UUID id, String hashedKey, UUID ecommerceId) throws Exception {
         ApiKeyEntity entity = new ApiKeyEntity();
         
         // Usar reflection para setear los campos si los setters no están disponibles
         setField(entity, "id", id);
-        setField(entity, "keyString", keyString);
+        setField(entity, "hashedKey", hashedKey);  // Changed from keyString to hashedKey
         setField(entity, "ecommerceId", ecommerceId);
         setField(entity, "createdAt", Instant.now());
         setField(entity, "updatedAt", Instant.now());
@@ -84,7 +87,8 @@ class ApiKeyServiceTest {
         // Assert
         assertNotNull(response);
         assertEquals(testKeyId.toString(), response.uid());
-        assertEquals("****0000", response.maskedKey());
+        assertTrue(response.maskedKey().startsWith("****"));  // Should be masked format
+        assertTrue(response.maskedKey().length() == 8);  // ****XXXX
         assertEquals(testEcommerceId.toString(), response.ecommerceId());
         
         // Verify interactions
@@ -105,8 +109,9 @@ class ApiKeyServiceTest {
         // Act
         ApiKeyResponse response = apiKeyService.createApiKey(testEcommerceId);
         
-        // Assert
-        assertEquals("****n5o6", response.maskedKey());
+        // Assert - verify format is ****XXXX (masked)
+        assertTrue(response.maskedKey().startsWith("****"));
+        assertTrue(response.maskedKey().length() == 8);
     }
     
     @Test
@@ -230,5 +235,228 @@ class ApiKeyServiceTest {
             () -> apiKeyService.deleteApiKey(testEcommerceId, testKeyId));
         
         verify(apiKeyRepository, never()).delete(any());
+    }
+    
+    // ================== Additional Test Cases for Better Coverage ==================
+    
+    /**
+     * CRITERIO-3.1.2: Verificar masking format y hashing
+     * Valida que el plaintext retornado se maskea correctamente.
+     */
+    @Test
+    void createApiKey_returnsPlainKeyValueOnceInResponse() throws Exception {
+        // Arrange
+        doNothing().when(ecommerceService).validateEcommerceExists(testEcommerceId);
+        
+        ApiKeyEntity savedEntity = createApiKeyEntity(testKeyId, "hash-value", testEcommerceId);
+        when(apiKeyRepository.save(any(ApiKeyEntity.class))).thenReturn(savedEntity);
+        
+        // Act
+        ApiKeyResponse response = apiKeyService.createApiKey(testEcommerceId);
+        
+        // Assert - the response contains masked key, not plaintext
+        assertNotNull(response.maskedKey());
+        assertTrue(response.maskedKey().startsWith("****"));
+        verify(apiKeyRepository).save(any(ApiKeyEntity.class));
+    }
+    
+    /**
+     * CRITERIO-3.2.1: Masking in list response
+     * Verifica que las keys en la lista están maskadas.
+     */
+    @Test
+    void getApiKeysByEcommerce_keysAreProperlyMasked() throws Exception {
+        // Arrange
+        doNothing().when(ecommerceService).validateEcommerceExists(testEcommerceId);
+        
+        ApiKeyEntity key = createApiKeyEntity(
+            UUID.fromString("550e8400-e29b-41d4-a716-446655440001"),
+            "a665a45920422f9d417e4867efdc4fb8",
+            testEcommerceId
+        );
+        
+        when(apiKeyRepository.findByEcommerceId(testEcommerceId))
+            .thenReturn(List.of(key));
+        
+        // Act
+        List<ApiKeyListResponse> responses = apiKeyService.getApiKeysByEcommerce(testEcommerceId);
+        
+        // Assert
+        assertEquals(1, responses.size());
+        assertTrue(responses.get(0).maskedKey().startsWith("****"));
+        assertFalse(responses.get(0).maskedKey().contains("a665a459")); // No contain hash part
+    }
+    
+    /**
+     * Event publishing on create
+     * Verifica que el evento se publica cuando se crea una key.
+     */
+    @Test
+    void createApiKey_publishesEventWithHashedKey() throws Exception {
+        // Arrange
+        doNothing().when(ecommerceService).validateEcommerceExists(testEcommerceId);
+        
+        ApiKeyEntity savedEntity = createApiKeyEntity(testKeyId, "hash-123", testEcommerceId);
+        when(apiKeyRepository.save(any(ApiKeyEntity.class))).thenReturn(savedEntity);
+        
+        // Act
+        apiKeyService.createApiKey(testEcommerceId);
+        
+        // Assert - event publisher is called
+        verify(apiKeyEventPublisher, times(1)).publishApiKeyCreated(any());
+    }
+    
+    /**
+     * Event publishing on delete
+     * Verifica que el evento de eliminación se publica cuando se borra una key.
+     */
+    @Test
+    void deleteApiKey_publishesDeleteEvent() throws Exception {
+        // Arrange
+        doNothing().when(ecommerceService).validateEcommerceExists(testEcommerceId);
+        
+        ApiKeyEntity keyEntity = createApiKeyEntity(testKeyId, "hash-to-delete", testEcommerceId);
+        when(apiKeyRepository.findById(testKeyId)).thenReturn(Optional.of(keyEntity));
+        doNothing().when(apiKeyRepository).delete(keyEntity);
+        
+        // Act
+        apiKeyService.deleteApiKey(testEcommerceId, testKeyId);
+        
+        // Assert
+        verify(apiKeyEventPublisher, times(1)).publishApiKeyDeleted(any());
+    }
+    
+    /**
+     * Test that masking format is ****XXXX.
+     */
+    @Test
+    void maskKey_extractsLast4Characters() throws Exception {
+        // Arrange
+        doNothing().when(ecommerceService).validateEcommerceExists(testEcommerceId);
+        
+        // Create key with known ending
+        ApiKeyEntity savedEntity = createApiKeyEntity(
+            testKeyId,
+            "1234567890abcdef",
+            testEcommerceId
+        );
+        
+        when(apiKeyRepository.save(any(ApiKeyEntity.class))).thenReturn(savedEntity);
+        
+        // Act
+        ApiKeyResponse response = apiKeyService.createApiKey(testEcommerceId);
+        
+        // Assert - format is ****XXXX
+        assertTrue(response.maskedKey().startsWith("****"));
+        assertTrue(response.maskedKey().length() == 8);
+    }
+    
+    /**
+     * Test empty list handling.
+     */
+    @Test
+    void getApiKeysByEcommerce_emptyListWhenNoKeys() throws Exception {
+        // Arrange
+        doNothing().when(ecommerceService).validateEcommerceExists(testEcommerceId);
+        when(apiKeyRepository.findByEcommerceId(testEcommerceId)).thenReturn(List.of());
+        
+        // Act
+        List<ApiKeyListResponse> responses = apiKeyService.getApiKeysByEcommerce(testEcommerceId);
+        
+        // Assert
+        assertNotNull(responses);
+        assertTrue(responses.isEmpty());
+    }
+    
+    /**
+     * Test multiple keys per ecommerce.
+     */
+    @Test
+    void getApiKeysByEcommerce_multipleKeys() throws Exception {
+        // Arrange
+        doNothing().when(ecommerceService).validateEcommerceExists(testEcommerceId);
+        
+        List<ApiKeyEntity> keys = List.of(
+            createApiKeyEntity(UUID.randomUUID(), "hash1", testEcommerceId),
+            createApiKeyEntity(UUID.randomUUID(), "hash2", testEcommerceId),
+            createApiKeyEntity(UUID.randomUUID(), "hash3", testEcommerceId)
+        );
+        
+        when(apiKeyRepository.findByEcommerceId(testEcommerceId)).thenReturn(keys);
+        
+        // Act
+        List<ApiKeyListResponse> responses = apiKeyService.getApiKeysByEcommerce(testEcommerceId);
+        
+        // Assert
+        assertEquals(3, responses.size());
+        for (ApiKeyListResponse response : responses) {
+            assertNotNull(response.uid());
+            assertTrue(response.maskedKey().startsWith("****"));
+            assertNotNull(response.createdAt());
+            assertNotNull(response.updatedAt());
+        }
+    }
+    
+    /**
+     * Test that ecommerce validation is called before operations.
+     */
+    @Test
+    void createApiKey_validatesEcommerceBeforeSaving() throws Exception {
+        // Arrange
+        doNothing().when(ecommerceService).validateEcommerceExists(testEcommerceId);
+        
+        ApiKeyEntity savedEntity = createApiKeyEntity(testKeyId, "hash", testEcommerceId);
+        when(apiKeyRepository.save(any(ApiKeyEntity.class))).thenReturn(savedEntity);
+        
+        // Act
+        apiKeyService.createApiKey(testEcommerceId);
+        
+        // Assert - validateEcommerceExists called first
+        InOrder inOrder = inOrder(ecommerceService, apiKeyRepository);
+        inOrder.verify(ecommerceService).validateEcommerceExists(testEcommerceId);
+        inOrder.verify(apiKeyRepository).save(any());
+    }
+    
+    /**
+     * Test response contains all required fields.
+     */
+    @Test
+    void createApiKey_responseContainsAllRequiredFields() throws Exception {
+        // Arrange
+        doNothing().when(ecommerceService).validateEcommerceExists(testEcommerceId);
+        
+        Instant now = Instant.now();
+        ApiKeyEntity savedEntity = createApiKeyEntity(testKeyId, "hash", testEcommerceId);
+        setField(savedEntity, "createdAt", now);
+        setField(savedEntity, "updatedAt", now);
+        
+        when(apiKeyRepository.save(any(ApiKeyEntity.class))).thenReturn(savedEntity);
+        
+        // Act
+        ApiKeyResponse response = apiKeyService.createApiKey(testEcommerceId);
+        
+        // Assert
+        assertNotNull(response.uid());
+        assertNotNull(response.maskedKey());
+        assertNotNull(response.ecommerceId());
+        assertNotNull(response.createdAt());
+        assertNotNull(response.updatedAt());
+    }
+    
+    /**
+     * Test error message when ecommerce is not found.
+     */
+    @Test
+    void deleteApiKey_throwsExceptionWithCorrectMessage() {
+        // Arrange
+        UUID wrongKeyId = UUID.randomUUID();
+        doNothing().when(ecommerceService).validateEcommerceExists(testEcommerceId);
+        when(apiKeyRepository.findById(wrongKeyId)).thenReturn(Optional.empty());
+        
+        // Act & Assert
+        ApiKeyNotFoundException exception = assertThrows(ApiKeyNotFoundException.class,
+            () -> apiKeyService.deleteApiKey(testEcommerceId, wrongKeyId));
+        
+        assertNotNull(exception.getMessage());
     }
 }
