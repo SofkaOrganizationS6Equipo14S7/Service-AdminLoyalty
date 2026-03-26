@@ -516,30 +516,30 @@ Y         no se aplica ningún descuento
 ### Backend
 
 #### Implementación
-- [ ] Crear modelo de entidad `DiscountConfig` con campos: `uid`, `max_discount_limit`, `currency_code`, `is_active`, `created_at`, `updated_at`, `created_by_user_id`
-- [ ] Crear modelo de entidad `DiscountPriority` con campos: `uid`, `discount_config_id`, `discount_type`, `priority_level`, `created_at`
-- [ ] Crear DTOs: `DiscountConfigCreateRequest`, `DiscountConfigResponse`, `DiscountPriorityRequest`, `DiscountPriorityResponse`, `DiscountCalculateRequest`, `DiscountCalculateResponse`
-- [ ] Crear interfaces `DiscountConfigRepository` y `DiscountPriorityRepository` en capa domain
-- [ ] Implementar repositorios JPA en infrastructure
-- [ ] Crear `DiscountConfigService` con métodos: `getConfig()`, `updateConfig(max_limit)`, `validateMaxLimit()`
-- [ ] Crear `DiscountPriorityService` con métodos: `getPriority()`, `savePriority(priorities)`, `validatePriorities()`
-- [ ] Crear `DiscountCalculationEngine` (servicio crítico) que:
-  - [ ] Obtiene configuración vigente (límite + prioridad)
-  - [ ] Itera descuentos en orden de prioridad
-  - [ ] Acumula descuentos sin superar el límite máximo
-  - [ ] Retorna desglose de descuentos aplicados vs omitidos
-- [ ] Crear `DiscountConfigController` con endpoints:
-  - [ ] `POST /api/v1/discount-config` → `updateConfig()`
-  - [ ] `GET /api/v1/discount-config` → `getConfig()`
-  - [ ] `POST /api/v1/discount-priority` → `savePriority()`
-  - [ ] `GET /api/v1/discount-priority` → `getPriority()`
-  - [ ] `POST /api/v1/discount-calculate` → `calculateDiscounts()`
-- [ ] Agregar anotación `@Valid` en RequestBody
-- [ ] Implementar validaciones en DTOs usando `jakarta.validation`
-- [ ] Registrar rutas en punto de entrada de la app
-- [ ] Crear migrations Flyway para tablas `discount_config`, `discount_priority`
-- [ ] Agregar event `DiscountConfigUpdated` que se publique en RabbitMQ cuando cambié configuración
-- [ ] Crear logs de auditoría para cambios de configuración
+- [x] Crear modelo de entidad `DiscountConfig` con campos: `uid`, `max_discount_limit`, `currency_code`, `is_active`, `created_at`, `updated_at`, `created_by_user_id`
+- [x] Crear modelo de entidad `DiscountPriority` con campos: `uid`, `discount_config_id`, `discount_type`, `priority_level`, `created_at`
+- [x] Crear DTOs: `DiscountConfigCreateRequest`, `DiscountConfigResponse`, `DiscountPriorityRequest`, `DiscountPriorityResponse`, `DiscountCalculateRequest`, `DiscountCalculateResponse`
+- [x] Crear interfaces `DiscountConfigRepository` y `DiscountPriorityRepository` en capa domain
+- [x] Implementar repositorios JPA en infrastructure
+- [x] Crear `DiscountConfigService` con métodos: `getConfig()`, `updateConfig(max_limit)`, `validateMaxLimit()`
+- [x] Crear `DiscountPriorityService` con métodos: `getPriority()`, `savePriority(priorities)`, `validatePriorities()`
+- [x] Crear `DiscountCalculationEngine` (servicio crítico) que:
+  - [x] Obtiene configuración vigente (límite + prioridad)
+  - [x] Itera descuentos en orden de prioridad
+  - [x] Acumula descuentos sin superar el límite máximo
+  - [x] Retorna desglose de descuentos aplicados vs omitidos
+- [x] Crear `DiscountConfigController` con endpoints:
+  - [x] `POST /api/v1/discount-config` → `updateConfig()`
+  - [x] `GET /api/v1/discount-config` → `getConfig()`
+  - [x] `POST /api/v1/discount-priority` → `savePriority()`
+  - [x] `GET /api/v1/discount-priority` → `getPriority()`
+  - [x] `POST /api/v1/discount-calculate` → `calculateDiscounts()`
+- [x] Agregar anotación `@Valid` en RequestBody
+- [x] Implementar validaciones en DTOs usando `jakarta.validation`
+- [x] Registrar rutas en punto de entrada de la app
+- [x] Crear migrations Flyway para tablas `discount_config`, `discount_priority`
+- [x] Agregar event `DiscountConfigUpdated` que se publique en RabbitMQ cuando cambié configuración
+- [x] Crear logs de auditoría para cambios de configuración
 
 #### Tests Backend
 - [ ] `test_discount_config_service_update_success` — actualización de tope válido
