@@ -1,6 +1,6 @@
 ---
 id: SPEC-003
-status: IMPLEMENTED
+status: APPROVED
 feature: api-keys
 created: 2026-03-25
 updated: 2026-03-26
@@ -11,7 +11,7 @@ related-specs: []
 
 # Spec: Gestión y Validación de API Keys
 
-> **Estado:** `DRAFT` → aprobar con `status: APPROVED` antes de iniciar implementación.
+> **Estado:** `APPROVED` — Implementación completada y validada.
 > **Ciclo de vida:** DRAFT → APPROVED → IN_PROGRESS → IMPLEMENTED → DEPRECATED
 
 ---
