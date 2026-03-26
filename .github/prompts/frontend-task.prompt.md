@@ -26,7 +26,7 @@ Implementa el frontend para el feature especificado, siguiendo la spec aprobada.
    - `frontend/src/components/` — componentes reutilizables
    - `frontend/src/pages/` — página + CSS Module
 4. **Registra la ruta** en `frontend/src/App.jsx`.
-5. **Verifica** el build: `cd frontend && npm run build`
+5. **Verifica** el build: `cd frontend && pnpm run build`
 
 ## Restricciones:
 - USAR CSS Modules exclusivamente — sin frameworks CSS globales.
