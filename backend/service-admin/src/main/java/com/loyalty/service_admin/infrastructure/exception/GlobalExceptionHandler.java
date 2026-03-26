@@ -2,11 +2,13 @@ package com.loyalty.service_admin.infrastructure.exception;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.time.Instant;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Handler global de excepciones.
@@ -56,6 +58,27 @@ public class GlobalExceptionHandler {
                 "status", HttpStatus.UNAUTHORIZED.value(),
                 "error", "Unauthorized",
                 "message", e.getMessage()
+            ));
+    }
+    
+    /**
+     * Maneja errores de validación en argumentos.
+     */
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<Map<String, Object>> handleMethodArgumentNotValid(MethodArgumentNotValidException e) {
+        String errors = e.getBindingResult()
+            .getFieldErrors()
+            .stream()
+            .map(error -> error.getField() + ": " + error.getDefaultMessage())
+            .collect(Collectors.joining(", "));
+        
+        return ResponseEntity
+            .status(HttpStatus.BAD_REQUEST)
+            .body(Map.of(
+                "timestamp", Instant.now(),
+                "status", HttpStatus.BAD_REQUEST.value(),
+                "error", "Bad Request",
+                "message", "Validation failed: " + errors
             ));
     }
     
