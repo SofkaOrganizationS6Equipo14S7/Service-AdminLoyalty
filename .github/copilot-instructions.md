@@ -110,20 +110,20 @@ Términos canónicos a usar en specs, código y mensajes:
 
 | Término | Definición | Sinónimos rechazados |
 |---------|-----------|---------------------|
-| **Usuario** (`user`) | Persona autenticada mediante Firebase | Persona, cliente |
+| **Usuario** (`user`) | Persona autenticada mediante credenciales (email + password) en el service-admin | Persona, cliente |
 | **Perfil** (`profile`) | Datos personales y configuración del Usuario | Cuenta, ficha |
-| **UID** (`uid`) | Identificador único provisto por Firebase Auth | ID técnico, `_id` |
+| **UID** (`uid`) | Identificador único generado por el sistema (UUID) | ID técnico, `_id` |
 | **Pregunta Frecuente** (`faq`) | Par pregunta-respuesta publicado para consulta | Artículo de ayuda |
 | **Pregunta** (`question`) | Texto de la pregunta dentro de una FAQ | Título |
 | **Respuesta** (`answer`) | Texto de la respuesta dentro de una FAQ | Descripción, contenido |
 | **Dashboard** | Pantalla principal con métricas (solo lectura) | Inicio |
 | **Modo Oscuro** (`dark mode`) | Tema visual alternativo con colores oscuros | Modo noche |
-| **Token** (`idToken`) | Token Firebase en header `Authorization: Bearer` | Contraseña, sesión |
+| **Token** (`token`) | Token JWT generado por el backend en header `Authorization: Bearer` | Contraseña, sesión |
 | **Administrador** | Rol con permisos completos | Superusuario |
 | `created_at` | Timestamp de creación en UTC | Fecha alta |
 | `updated_at` | Timestamp de última actualización en UTC | Fecha modificación |
 
-**Reglas:** `uid` siempre de Firebase. `FAQ` = par completo. Timestamps en snake_case. `Dashboard` es solo lectura.
+**Reglas:** `uid` generado por el sistema (UUID). `FAQ` = par completo. Timestamps en snake_case. `Dashboard` es solo lectura.
 
 ---
 
