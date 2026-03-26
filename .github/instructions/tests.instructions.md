@@ -109,6 +109,34 @@ describe('LoginPage', () => {
 
 ---
 
+## Flujo de Commits y Code Review
+
+**Después de completar cada funcionalidad (backend, frontend o test), se DEBE hacer commit.**
+
+1. **No hacer múltiples funcionalidades en un solo commit** — cada feature/tarea en commit separado
+2. **Formato de commit obligatorio**:
+   ```
+   tipo(alcance): descripción corta
+   ```
+   - `tipo`: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`
+   - `alcance`: módulo o funcionalidad afectada
+   - `descripción`: en presente, max 50 caracteres
+
+   **Ejemplos:**
+   - `test(auth): add login validation tests`
+   - `test(api-key): add create/delete test cases`
+   - `test(integration): add e2e login flow`
+   - `fix(test): resolve flaky test on logout`
+
+3. **Workflow obligatorio**:
+   ```
+   Implementar tests → Commit → Code Review del usuario → Approve → Continuar siguiente feature
+   ```
+
+4. **El usuario debe aprobar cada commit** antes de continuar con la siguiente funcionalidad.
+
+---
+
 > Para quality gates, pirámide de testing, TDD y nomenclatura Gherkin, ver `.github/docs/guidelines/dev-guidelines.md` y `.github/docs/guidelines/qa-guidelines.md`.
 
 ### Estructura AAA obligatoria

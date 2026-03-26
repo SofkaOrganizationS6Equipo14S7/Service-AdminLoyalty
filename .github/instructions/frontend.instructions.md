@@ -64,3 +64,31 @@ Las rutas se registran en `src/App.jsx`:
 - Un componente por archivo.
 - Props tipadas con JSDoc si son complejas.
 - No lógica de negocio en los componentes — delegar a hooks o servicios.
+
+---
+
+## Flujo de Commits y Code Review
+
+**Después de completar cada funcionalidad (backend, frontend o test), se DEBE hacer commit.**
+
+1. **No hacer múltiples funcionalidades en un solo commit** — cada feature/tarea en commit separado
+2. **Formato de commit obligatorio**:
+   ```
+   tipo(alcance): descripción corta
+   ```
+   - `tipo`: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`
+   - `alcance`: módulo o funcionalidad afectada
+   - `descripción`: en presente, max 50 caracteres
+
+   **Ejemplos:**
+   - `feat(login): add login form component`
+   - `fix(dashboard): resolve routing error on logout`
+   - `docs(readme): update frontend setup guide`
+   - `test(auth): add useAuth hook tests`
+
+3. **Workflow obligatorio**:
+   ```
+   Implementar feature → Commit → Code Review del usuario → Approve → Continuar siguiente feature
+   ```
+
+4. **El usuario debe aprobar cada commit** antes de continuar con la siguiente funcionalidad.

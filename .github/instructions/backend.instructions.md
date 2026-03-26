@@ -73,4 +73,32 @@ public class DiscountController {
 
 ---
 
+## Flujo de Commits y Code Review
+
+**Después de completar cada funcionalidad (backend, frontend o test), se DEBE hacer commit.**
+
+1. **No hacer múltiples funcionalidades en un solo commit** — cada feature/tarea en commit separado
+2. **Formato de commit obligatorio**:
+   ```
+   tipo(alcance): descripción corta
+   ```
+   - `tipo`: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`
+   - `alcance`: módulo o funcionalidad affected
+   - `descripción`: en presente, max 50 caracteres
+
+   **Ejemplos:**
+   - `feat(auth): add login endpoint with JWT token`
+   - `fix(api-key): resolve validation error on create`
+   - `docs(readme): update API documentation`
+   - `test(auth): add login validation tests`
+
+3. **Workflow obligatorio**:
+   ```
+   Implementar feature → Commit → Code Review del usuario → Approve → Continuar siguiente feature
+   ```
+
+4. **El usuario debe aprobar cada commit** antes de continuar con la siguiente funcionalidad.
+
+---
+
 > Para estándares de código, seguridad y observabilidad, ver `.github/docs/guidelines/dev-guidelines.md`
