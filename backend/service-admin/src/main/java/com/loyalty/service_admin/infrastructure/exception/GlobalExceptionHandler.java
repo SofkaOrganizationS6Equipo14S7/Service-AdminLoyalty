@@ -1,5 +1,6 @@
 package com.loyalty.service_admin.infrastructure.exception;
 
+import io.jsonwebtoken.JwtException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -12,6 +13,9 @@ import java.util.stream.Collectors;
 
 /**
  * Handler global de excepciones.
+ * 
+ * Maneja todas las excepciones de la aplicación y las convierte en respuestas HTTP consistentes.
+ * Cumple con SPEC-001 v1.1 para manejo de JwtException.
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -94,6 +98,22 @@ public class GlobalExceptionHandler {
                 "status", HttpStatus.BAD_REQUEST.value(),
                 "error", "Bad Request",
                 "message", "Validation failed: " + errors
+            ));
+    }
+    
+    /**
+     * Maneja excepciones de JWT (inválido, expirado, etc.).
+     * Cumple con SPEC-001 v1.1 para validación de tokens.
+     */
+    @ExceptionHandler(JwtException.class)
+    public ResponseEntity<Map<String, Object>> handleJwtException(JwtException e) {
+        return ResponseEntity
+            .status(HttpStatus.UNAUTHORIZED)
+            .body(Map.of(
+                "timestamp", Instant.now().toString(),
+                "status", HttpStatus.UNAUTHORIZED.value(),
+                "error", "Unauthorized",
+                "message", "Token no válido o expirado"
             ));
     }
     
