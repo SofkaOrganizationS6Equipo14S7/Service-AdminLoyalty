@@ -24,7 +24,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity
             .status(HttpStatus.NOT_FOUND)
             .body(Map.of(
-                "timestamp", Instant.now(),
+                "timestamp", Instant.now().toString(),
                 "status", HttpStatus.NOT_FOUND.value(),
                 "error", "Not Found",
                 "message", e.getMessage()
@@ -39,7 +39,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity
             .status(HttpStatus.NOT_FOUND)
             .body(Map.of(
-                "timestamp", Instant.now(),
+                "timestamp", Instant.now().toString(),
                 "status", HttpStatus.NOT_FOUND.value(),
                 "error", "Not Found",
                 "message", e.getMessage()
@@ -54,9 +54,54 @@ public class GlobalExceptionHandler {
         return ResponseEntity
             .status(HttpStatus.UNAUTHORIZED)
             .body(Map.of(
-                "timestamp", Instant.now(),
+                "timestamp", Instant.now().toString(),
                 "status", HttpStatus.UNAUTHORIZED.value(),
                 "error", "Unauthorized",
+                "message", e.getMessage()
+            ));
+    }
+    
+    /**
+     * Maneja cuando no se encuentra un recurso genérico.
+     */
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleResourceNotFound(ResourceNotFoundException e) {
+        return ResponseEntity
+            .status(HttpStatus.NOT_FOUND)
+            .body(Map.of(
+                "timestamp", Instant.now().toString(),
+                "status", HttpStatus.NOT_FOUND.value(),
+                "error", "Not Found",
+                "message", e.getMessage()
+            ));
+    }
+    
+    /**
+     * Maneja solicitudes con datos inválidos.
+     */
+    @ExceptionHandler(BadRequestException.class)
+    public ResponseEntity<Map<String, Object>> handleBadRequest(BadRequestException e) {
+        return ResponseEntity
+            .status(HttpStatus.BAD_REQUEST)
+            .body(Map.of(
+                "timestamp", Instant.now().toString(),
+                "status", HttpStatus.BAD_REQUEST.value(),
+                "error", "Bad Request",
+                "message", e.getMessage()
+            ));
+    }
+    
+    /**
+     * Maneja cuando ocurren excepciones de argumento (IllegalArgumentException).
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, Object>> handleIllegalArgument(IllegalArgumentException e) {
+        return ResponseEntity
+            .status(HttpStatus.BAD_REQUEST)
+            .body(Map.of(
+                "timestamp", Instant.now().toString(),
+                "status", HttpStatus.BAD_REQUEST.value(),
+                "error", "Bad Request",
                 "message", e.getMessage()
             ));
     }
@@ -75,7 +120,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity
             .status(HttpStatus.BAD_REQUEST)
             .body(Map.of(
-                "timestamp", Instant.now(),
+                "timestamp", Instant.now().toString(),
                 "status", HttpStatus.BAD_REQUEST.value(),
                 "error", "Bad Request",
                 "message", "Validation failed: " + errors
@@ -90,7 +135,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity
             .status(HttpStatus.INTERNAL_SERVER_ERROR)
             .body(Map.of(
-                "timestamp", Instant.now(),
+                "timestamp", Instant.now().toString(),
                 "status", HttpStatus.INTERNAL_SERVER_ERROR.value(),
                 "error", "Internal Server Error",
                 "message", e.getMessage()
