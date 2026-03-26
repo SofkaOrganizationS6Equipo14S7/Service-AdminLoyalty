@@ -1,6 +1,6 @@
 ---
 id: SPEC-001
-status: IN_PROGRESS
+status: IMPLEMENTED
 feature: discount-limit
 created: 2026-03-26
 updated: 2026-03-26
@@ -11,8 +11,10 @@ related-specs: []
 
 # Spec: Límite y Prioridad de Descuentos
 
-> **Estado:** `DRAFT` → aprobar con `status: APPROVED` antes de iniciar implementación.
+> **Estado:** `IMPLEMENTED`
 > **Ciclo de vida:** DRAFT → APPROVED → IN_PROGRESS → IMPLEMENTED → DEPRECATED
+> **Fecha de implementación:** 2026-03-26
+> **Servicio:** service-engine (8081)
 
 ---
 
@@ -619,4 +621,212 @@ Y         no se aplica ningún descuento
 
 ---
 
-**FIN DE ESPECIFICACIÓN**
+## 9. IMPLEMENTACIÓN ✅
+
+### Resumen de Entrega
+
+**Status:** IMPLEMENTED ✅  
+**Fecha:** 2026-03-26  
+**Sprint:** ASDD Fase 2 (Backend)  
+**Commits:**
+- `refactor(discount-limit): move discount logic from admin to engine service`
+- `feat(discount-limit): complete backend implementation with service-engine services and RabbitMQ integration`
+- `fix(auth): create Authentication token in SecurityContext for API Key validation`
+
+### Arquitectura Implementada
+
+#### Service Boundaries (Clean Architecture)
+- **service-admin (8080)**: Authentication, API Keys, User Management
+- **service-engine (8081)**: Discount Config, Priority Management, Calculation Engine
+
+#### Layers Implementados (DDD)
+```
+├─ Domain Layer (JPA Entities + Repositories)
+│  ├─ DiscountConfigEntity: UUID, maxDiscountLimit (BigDecimal), currencyCode, isActive
+│  ├─ DiscountPriorityEntity: UUID, discountConfigId, discountType, priorityLevel
+│  ├─ DiscountConfigRepository: Custom query findByIsActiveTrue()
+│  └─ DiscountPriorityRepository: Queries by config + priority ordering
+│
+├─ Application Layer (Services + DTOs)
+│  ├─ DiscountConfigService: CRUD + validation (maxDiscountLimit > 0)
+│  ├─ DiscountPriorityService: savePriorities() + validation (sequential 1..N)
+│  ├─ DiscountCalculationEngine: calculateDiscounts() - CORE ALGORITHM
+│  └─ 6 Java Records DTOs (Request/Response)
+│
+├─ Presentation Layer (REST Controllers)
+│  └─ DiscountConfigController: 5 endpoints
+│     ├─ POST /api/v1/discount/config → 201 Created
+│     ├─ GET /api/v1/discount/config → 200 OK
+│     ├─ POST /api/v1/discount/priority → 201 Created
+│     ├─ GET /api/v1/discount/priority → 200 OK
+│     └─ POST /api/v1/discount/calculate → 200 OK
+│
+└─ Infrastructure Layer
+   ├─ Database: V3 + V4 Flyway migrations (PostgreSQL)
+   ├─ Cache: Caffeine 10-minute TTL
+   ├─ Events: RabbitMQ (Publisher + Consumer)
+   ├─ Security: ApiKeyAuthenticationFilter (FIXED - creates SecurityContext token)
+   └─ Exceptions: ResourceNotFoundException (404), BadRequestException (400)
+```
+
+### Algoritmo de Cálculo Implementado ✅
+
+```java
+// Entrada: transactionId, discounts[]
+// Lógica:
+1. Obtener config vigente (throw 409 si no existe)
+2. Obtener prioridades vigentes (throw 409 si no existe)
+3. Crear mapa de prioridad por tipo de descuento
+4. Calcular sum de descuentos originales
+5. Ordenar por priorityLevel (1 = máxima)
+6. Iterar acumulando hasta maxDiscountLimit
+7. Retornar desglose: original vs aplicado, totales, exceeded flag
+```
+
+**Precisión:** Todos los cálculos usados `BigDecimal` (nunca float/double)
+
+### Endpoints Implementados ✅
+
+#### Configuration Management
+- `POST /api/v1/discount/config`
+  - Input: `{ maxDiscountLimit: 100.00, currencyCode: "USD" }`
+  - Output: 201 Created con config uid + metadata
+  - Behavior: Desactiva config anterior, crea nueva activa
+
+- `GET /api/v1/discount/config`
+  - Output: 200 OK con config activa
+  - Error: 404 si no existe
+
+#### Priority Management
+- `POST /api/v1/discount/priority`
+  - Input: `{ discountConfigId, priorities: [{ type, level }] }`
+  - Validation: Sequential 1..N, no duplicates per type, per level
+  - Output: 201 Created
+  - Error: 400 si secuencia inválida, 409 si config no existe
+
+- `GET /api/v1/discount/priority`
+  - Output: 200 OK con prioridades en orden
+  - Error: 404 si no existen
+
+#### Calculation Engine
+- `POST /api/v1/discount/calculate`
+  - Input: `{ transactionId, discounts: [{ type, amount }] }`
+  - Output: 200 OK
+    ```json
+    {
+      "transaction_id": "...",
+      "original_discounts": [...],
+      "applied_discounts": [...],
+      "total_original": 150.00,
+      "total_applied": 100.00,
+      "max_discount_limit": 100.00,
+      "limit_exceeded": true,
+      "calculated_at": "2026-03-26T..."
+    }
+    ```
+  - Error: 409 si config/priorities no existen
+
+### Problemas Identificados y Corregidos 🔧
+
+#### Issue #1: API Key validation sin Authentication context
+- **Síntoma:** 403 Forbidden con API Key válida
+- **Raíz Cause:** `ApiKeyAuthenticationFilter` validaba key pero no creaba `Authentication` en `SecurityContext`
+- **Solución:** Implementar `UsernamePasswordAuthenticationToken` + `SecurityContextHolder.setAuthentication()`
+- **Commit:** `fix(auth): create Authentication token in SecurityContext for API Key validation`
+- **Status:** ✅ FIXED
+
+#### Issue #2: Architectural mismatch (discount en service-admin)
+- **Síntoma:** Discount config + calculation en servicio equivocado
+- **Raíz Cause:** Malentendimiento de boundaries (admin ≠ engine)
+- **Solución:** Mover TODO a service-engine, admin solo autentica/autoriza
+- **Commit:** `refactor(discount-limit): move discount logic from admin to engine service`
+- **Status:** ✅ FIXED
+
+### Event-Driven Communication ✅
+
+**RabbitMQ Integration:**
+- Exchange: `discount-exchange` (Direct)
+- Topic: `discount.config.updated`
+- Queue: `discount.config.queue`
+- DLX: `discount-dlx` (Dead Letter Exchange)
+- DLQ: `discount.config.dlq`
+
+**Flow:**
+1. DiscountConfigService.updateConfig() persiste en BD
+2. DiscountConfigEventPublisher publica evento
+3. DiscountConfigConsumer escucha + invalida Caffeine cache
+4. Próximas lecturas recargan de BD con datos actualizados
+
+### Cache Strategy ✅
+
+- **Store:** Caffeine in-memory cache
+- **TTL:** 10 minutos
+- **Keys:** discount_config, discount_priority
+- **Invalidation:** RabbitMQ event + manual clear via consumer
+
+### Security Implementation ✅
+
+**Authentication (service-engine):**
+- Header: `Authorization: Bearer {API_KEY}`
+- Validation: Caffeine cache lookup
+- Context: SecurityContextHolder with UsernamePasswordAuthenticationToken
+- Session: Stateless (SessionCreationPolicy.STATELESS)
+
+**Endpoints:** Todos requieren `@authenticated` + valid API Key
+
+### Testing Status
+
+**Manual Testing:** ✅ Ready (see TESTING_GUIDE.md)  
+**Automated Tests:** ⏳ Pending (Flyway/H2 compatibility issue)  
+**Frontend Tests:** ❌ Pending (frontend not yet implemented)
+
+### Files Created
+
+**Backend (service-engine):**
+```
+src/main/java/com/loyalty/service_engine/
+├─ domain/
+│  ├─ entity/: DiscountConfigEntity, DiscountPriorityEntity
+│  └─ repository/: DiscountConfigRepository, DiscountPriorityRepository
+├─ application/
+│  ├─ service/: DiscountConfigService, DiscountPriorityService, DiscountCalculationEngine
+│  └─ dto/: 6 Java Records (Request/Response)
+├─ presentation/
+│  └─ controller/: DiscountConfigController
+└─ infrastructure/
+   ├─ config/: SecurityConfig, RabbitMQConfigEngine
+   ├─ security/: ApiKeyAuthenticationFilter (FIXED)
+   ├─ exception/: ResourceNotFoundException, BadRequestException
+   ├─ cache/: DiscountCacheConfig
+   └─ rabbitmq/: DiscountConfigEventPublisher, DiscountConfigConsumer
+
+src/main/resources/
+└─ db/migration/: V3__Create_discount_config_table.sql, V4__Create_discount_priority_table.sql
+```
+
+**Documentation:**
+```
+├─ ENDPOINTS_SUMMARY.md: Resumen de todos los endpoints + ejemplos
+├─ TESTING_GUIDE.md: Guía paso-a-paso para probar manualmente
+└─ .github/specs/discount-limit.spec.md: Este archivo (actualizado)
+```
+
+### Próximos Pasos (Frontend + Testing)
+
+- [ ] **Frontend (React):** Componentes para admin dashboard
+  - DiscountConfigForm: Input maxLimit + confirm
+  - DiscountPriorityEditor: Drag-drop reordenar tipos + levels
+  - DiscountCalculationDashboard: Visualizar cálculos x transacción
+  
+- [ ] **Automated Testing:** Resolver Flyway/H2 compatibility
+  - Unit tests: Services + validation
+  - Integration tests: Controllers + E2E
+  
+- [ ] **Performance Testing:** k6 load testing plan
+  - Throughput: X requests/sec
+  - Latency: p95, p99
+  - Cache hit ratio analysis
+
+---
+
+**IMPLEMENTACIÓN COMPLETADA ✅**
