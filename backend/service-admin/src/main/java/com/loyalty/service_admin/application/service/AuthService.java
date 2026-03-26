@@ -6,19 +6,24 @@ import com.loyalty.service_admin.application.dto.UserResponse;
 import com.loyalty.service_admin.domain.entity.UserEntity;
 import com.loyalty.service_admin.domain.repository.UserRepository;
 import com.loyalty.service_admin.infrastructure.exception.UnauthorizedException;
+import com.loyalty.service_admin.infrastructure.security.JwtProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.mindrot.jbcrypt.BCrypt;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-
-import java.nio.charset.StandardCharsets;
-import java.time.Instant;
-import java.util.Base64;
 
 /**
  * Servicio de autenticación.
- * Gestiona login, logout y validación de tokens.
+ * 
+ * Gestiona:
+ * - Login: validación de credenciales, generación de JWT (RFC 7519 via jjwt)
+ * - GetCurrentUser: validación de token, recuperación de datos del usuario
+ * - Logout: invalidación del token (v1: logging, v2: blacklist)
+ * 
+ * Cumple con SPEC-001 v1.1:
+ * - RN-05: JWT real con jjwt (Header.Payload.Signature), NO home-made tokens
+ * - RN-08: Logout valida token ANTES de disparar el log
+ * - RN-03/04: BCrypt para validación de passwords
  */
 @Service
 @RequiredArgsConstructor
@@ -26,41 +31,39 @@ import java.util.Base64;
 public class AuthService {
     
     private final UserRepository userRepository;
-    
-    @Value("${app.jwt.secret:loyalty-secret-key}")
-    private String secret;
+    private final JwtProvider jwtProvider;
     
     /**
      * Autentica un usuario con credenciales y genera token JWT.
      * 
      * @param request debe contener username y password válidos
-     * @return LoginResponse con token JWT
+     * @return LoginResponse con token JWT (RFC 7519)
      * @throws UnauthorizedException si las credenciales son inválidas o el usuario está inactivo
      */
     public LoginResponse login(LoginRequest request) {
+        log.debug("Intento de login para usuario: {}", request.username());
+        
         // Buscar usuario por username
         UserEntity user = userRepository.findByUsername(request.username())
                 .orElseThrow(() -> {
                     log.warn("Intento de login fallido: usuario {} no encontrado", request.username());
-                    return new UnauthorizedException("Usuario no válido");
+                    return new UnauthorizedException("Credenciales inválidas");
                 });
         
         // Validar que el usuario esté activo
         if (!user.getActive()) {
             log.warn("Intento de login fallido: usuario {} está inactivo", request.username());
-            throw new UnauthorizedException("Usuario no válido");
+            throw new UnauthorizedException("Credenciales inválidas");
         }
         
-        // Validar password usando BCrypt
+        // Validar password usando BCrypt (evita timing attacks)
         if (!BCrypt.checkpw(request.password(), user.getPassword())) {
             log.warn("Intento de login fallido: password incorrecto para usuario {}", request.username());
             throw new UnauthorizedException("Credenciales inválidas");
         }
         
-        // Generar token JWT (formato: username:role:timestamp:secret)
-        String payload = user.getUsername() + ":" + user.getRole() + ":" + Instant.now().toEpochMilli();
-        String token = Base64.getEncoder()
-                .encodeToString((payload + ":" + secret).getBytes(StandardCharsets.UTF_8));
+        // Generar token JWT (RFC 7519) usando jjwt
+        String token = jwtProvider.generateToken(user.getUsername(), user.getId(), user.getRole());
         
         log.info("Login exitoso para usuario: {}", user.getUsername());
         
@@ -69,52 +72,39 @@ public class AuthService {
     
     /**
      * Obtiene los datos del usuario autenticado a partir del token.
-     * Valida que el token sea válido y no esté expirado.
+     * Valida que el token sea válido (firma + expiración).
      * 
-     * @param token token JWT en formato Bearer
+     * @param token token JWT en formato "Bearer <token>" o sin prefijo
      * @return UserResponse con datos del usuario
-     * @throws UnauthorizedException si el token es inválido o expirado
+     * @throws UnauthorizedException si el token es inválido, expirado o usuario no existe/inactivo
      */
     public UserResponse getCurrentUser(String token) {
+        log.debug("Solicitando datos del usuario autenticado...");
+        
         try {
-            // Extraer "Bearer " del token si está presente
-            String cleanToken = token.startsWith("Bearer ") ? token.substring(7) : token;
-            
-            // Decodificar token
-            String decoded = new String(Base64.getDecoder().decode(cleanToken), StandardCharsets.UTF_8);
-            
-            // Formato: username:role:timestamp:secret
-            String[] parts = decoded.split(":");
-            if (parts.length != 4) {
-                throw new UnauthorizedException("Formato de token inválido");
-            }
-            
-            String username = parts[0];
-            String role = parts[1];
-            long timestamp = Long.parseLong(parts[2]);
-            String tokenSecret = parts[3];
-            
-            // Validar secret
-            if (!tokenSecret.equals(secret)) {
+            // Validar token (firma criptográfica + expiración)
+            if (!jwtProvider.validateToken(token)) {
+                log.warn("Token JWT inválido o expirado");
                 throw new UnauthorizedException("Token no válido o expirado");
             }
             
-            // Validar que no haya expirado (24 horas = 86400000 ms)
-            long now = Instant.now().toEpochMilli();
-            long tokenAge = now - timestamp;
-            if (tokenAge > 86400000) { // 24 horas
-                log.warn("Token expirado para usuario: {}", username);
-                throw new UnauthorizedException("Token expirado");
-            }
+            // Extraer username del token
+            String username = jwtProvider.getUsernameFromToken(token);
             
             // Buscar usuario
             UserEntity user = userRepository.findByUsername(username)
-                    .orElseThrow(() -> new UnauthorizedException("Usuario no válido"));
+                    .orElseThrow(() -> {
+                        log.warn("Usuario {} no encontrado en BD", username);
+                        return new UnauthorizedException("Usuario no válido");
+                    });
             
-            // Validar que siga activo
+            // Validar que usuario siga activo
             if (!user.getActive()) {
+                log.warn("Usuario {} fue desactivado después de emitir token", username);
                 throw new UnauthorizedException("Usuario desactivado");
             }
+            
+            log.info("Usuario actual retornado: {}", username);
             
             return new UserResponse(
                     user.getId(),
@@ -124,28 +114,44 @@ public class AuthService {
                     user.getCreatedAt(),
                     user.getUpdatedAt()
             );
-        } catch (IllegalArgumentException e) {
-            // Incluye NumberFormatException y otros errores de decodificación
-            log.warn("Error decodificando o procesando token: {}", e.getMessage());
+        } catch (UnauthorizedException e) {
+            throw e;
+        } catch (io.jsonwebtoken.JwtException e) {
+            log.warn("Error procesando JWT: {}", e.getMessage());
+            throw new UnauthorizedException("Token no válido o expirado");
+        } catch (Exception e) {
+            log.error("Error inesperado en getCurrentUser: {}", e.getMessage());
             throw new UnauthorizedException("Token no válido o expirado");
         }
     }
     
     /**
      * Logout del usuario.
-     * En esta versión v1, simplemente registra el logout.
-     * En futuras versiones, agregará el token a una blacklist.
+     * 
+     * v1: Valida el token ANTES de disparar el log (para identificar usuario)
+     * Si token válido: registra logout exitoso con usuario identificado
+     * Si token inválido: registra warning pero NO lanza excepción (responde 204 igual)
+     * 
+     * v2 (future): Token será añadido a blacklist en caché (Redis/Caffeine)
      * 
      * @param token token JWT del usuario que cierra sesión
      */
     public void logout(String token) {
+        log.debug("Logout realizado...");
+        
         try {
-            UserResponse user = getCurrentUser(token);
-            log.info("Logout exitoso para usuario: {}", user.username());
-            // TODO: En v2, agregar token a blacklist
+            // Validar y extraer username del token
+            if (jwtProvider.validateToken(token)) {
+                String username = jwtProvider.getUsernameFromToken(token);
+                log.info("Logout exitoso para usuario: {}", username);
+                // TODO: En v2, agregar token a blacklist
+            } else {
+                log.warn("Logout con token inválido");
+                // No relanzar excepción, logout siempre devuelve 204
+            }
         } catch (Exception e) {
             log.warn("Logout con token inválido: {}", e.getMessage());
-            // No relanzar excepción, logout siempre devuelve 204
+            // No relanzar excepción, logout siempre devuelve 204 (stateless)
         }
     }
 }
