@@ -17,9 +17,8 @@ applyTo: "frontend/src/**/*.{js,jsx}"
 
 ```
 src/
-  config/firebase.js      ← init Firebase (solo aquí)
   hooks/useAuth.js        ← fuente única de verdad para auth
-  services/authService.js ← Firebase signIn + POST backend
+  services/authService.js ← login/logout con credenciales (email + password)
   components/ProtectedRoute.jsx
   pages/                  ← PageName.jsx + PageName.module.css
 ```
