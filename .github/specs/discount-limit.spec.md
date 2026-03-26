@@ -542,23 +542,23 @@ Y         no se aplica ningún descuento
 - [x] Crear logs de auditoría para cambios de configuración
 
 #### Tests Backend
-- [ ] `test_discount_config_service_update_success` — actualización de tope válido
-- [ ] `test_discount_config_service_update_invalid_limit` — rechazo de tope ≤ 0
-- [ ] `test_discount_priority_service_save_unique_levels` — prioridades únicas
-- [ ] `test_discount_priority_service_save_duplicate_levels` — rechazo de duplicados
-- [ ] `test_discount_priority_service_save_not_sequential` — rechazo de secuencia inválida
-- [ ] `test_discount_calculation_engine_no_limit_exceeded` — suma válida sin exceder tope
-- [ ] `test_discount_calculation_engine_respect_priority_order` — aplicación en orden de prioridad
-- [ ] `test_discount_calculation_engine_cap_at_max_limit` — ajuste al tope máximo
-- [ ] `test_discount_calculation_engine_config_not_found` — error si no existe config
-- [ ] `test_discount_calculation_engine_bigdecimal_precision` — precisión en cálculos monetarios
-- [ ] `test_discount_config_controller_post_201` — endpoint creación retorna 201
-- [ ] `test_discount_config_controller_post_400_invalid_limit` — validación en controlador
-- [ ] `test_discount_config_controller_get_200` — endpoint GET retorna config
-- [ ] `test_discount_priority_controller_post_201` — endpoint prioridades retorna 201
-- [ ] `test_discount_priority_controller_post_400_duplicate_priority` — validación de duplicados
-- [ ] `test_discount_calculate_controller_respects_config` — endpoint cálculo respeta config
-- [ ] `test_discount_calculate_controller_409_config_not_found` — error si no existe config
+- [x] `test_discount_config_service_update_success` — actualización de tope válido
+- [x] `test_discount_config_service_update_invalid_limit` — rechazo de tope ≤ 0
+- [x] `test_discount_priority_service_save_unique_levels` — prioridades únicas
+- [x] `test_discount_priority_service_save_duplicate_levels` — rechazo de duplicados
+- [x] `test_discount_priority_service_save_not_sequential` — rechazo de secuencia inválida
+- [x] `test_discount_calculation_engine_no_limit_exceeded` — suma válida sin exceder tope
+- [x] `test_discount_calculation_engine_respect_priority_order` — aplicación en orden de prioridad
+- [x] `test_discount_calculation_engine_cap_at_max_limit` — ajuste al tope máximo
+- [x] `test_discount_calculation_engine_config_not_found` — error si no existe config
+- [x] `test_discount_calculation_engine_bigdecimal_precision` — precisión en cálculos monetarios
+- [x] `test_discount_config_controller_post_201` — endpoint creación retorna 201
+- [x] `test_discount_config_controller_post_400_invalid_limit` — validación en controlador
+- [x] `test_discount_config_controller_get_200` — endpoint GET retorna config
+- [x] `test_discount_priority_controller_post_201` — endpoint prioridades retorna 201
+- [x] `test_discount_priority_controller_post_400_duplicate_priority` — validación de duplicados
+- [x] `test_discount_calculate_controller_respects_config` — endpoint cálculo respeta config
+- [x] `test_discount_calculate_controller_409_config_not_found` — error si no existe config
 
 ### Frontend
 
