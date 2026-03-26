@@ -9,5 +9,5 @@ import java.util.UUID;
 
 @Repository
 public interface ApiKeyRepository extends JpaRepository<ApiKeyEntity, UUID> {
-    Optional<ApiKeyEntity> findByKeyString(String keyString);
+    Optional<ApiKeyEntity> findByHashedKey(String hashedKey);
 }
