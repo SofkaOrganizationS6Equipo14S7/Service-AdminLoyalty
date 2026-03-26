@@ -1,6 +1,6 @@
 ---
 id: SPEC-001
-status: DRAFT
+status: APPROVED
 feature: login-logout
 created: 2026-03-26
 updated: 2026-03-26
@@ -646,3 +646,4 @@ Una vez confirmados estos ítems, el Orchestrator puede proceder a marcar spec c
 |---------|-------|-------|---------|
 | 1.0 | 2026-03-26 | spec-generator | Creación inicial: requerimientos, diseño, lista de tareas |
 | 1.1 | 2026-03-26 | tech-lead | **CRITICAL SECURITY REVIEW**: RN-05 corregida para usar jjwt (RFC 7519) en lugar de home-made tokens; RN-08 reforzada para validar token antes de loguear logout; agregada RN-11 con BCrypt strength 10-12; agregado Architecture Blueprint (clean layers); checklist Orchestrator actualizado con validaciones de seguridad |
+| 1.2 | 2026-03-26 | backend-developer | **IMPLEMENTACIÓN COMPLETADA**: Agregada dependencia jjwt 0.11.5; Creado JwtProvider con generación y validación RFC 7519; Refactorizado AuthService para usar JwtProvider; Creada SecurityConfiguration con BCryptPasswordEncoder(11); Agregado manejo de JwtException en GlobalExceptionHandler; Agregada propiedad app.jwt.expiration en application.properties. Status: APPROVED |
