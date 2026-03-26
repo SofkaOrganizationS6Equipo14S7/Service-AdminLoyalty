@@ -5,17 +5,26 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.stats.CacheStats;
 import com.loyalty.service_engine.domain.entity.ApiKeyEntity;
 import com.loyalty.service_engine.domain.repository.ApiKeyRepository;
+import com.loyalty.service_engine.infrastructure.util.HashingUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Caché Caffeine para API Keys.
- * Estructura: {keyString → ecommerceId}
+ * Caché Caffeine para API Keys hasheadas (SHA-256).
+ * 
+ * Estructura: {hashedKey → ecommerceId}
+ * 
+ * Flujo de seguridad:
+ * 1. Admin Service publica evento con hashedKey (SHA-256)
+ * 2. Event Listener recibe el hash y lo agrega a caché + BD
+ * 3. En validación, Engine recibe plaintext en Authorization header
+ * 4. Engine hashea el plaintext con SHA-256 y busca en caché
+ * 5. Si coincide, la solicitud es válida
+ * 
  * Se sincroniza con BD y RabbitMQ.
  */
 @Component
@@ -41,7 +50,7 @@ public class ApiKeyCache {
     
     /**
      * Carga todas las API Keys desde BD y las inserta en caché.
-     * Ejecutado al startup de Engine.
+     * Ejecutado al startup de Engine (cold start).
      */
     public void loadFromDatabase() {
         try {
@@ -49,7 +58,7 @@ public class ApiKeyCache {
             List<ApiKeyEntity> keys = apiKeyRepository.findAll();
             
             for (ApiKeyEntity key : keys) {
-                cache.put(key.getKeyString(), key.getEcommerceId().toString());
+                cache.put(key.getHashedKey(), key.getEcommerceId().toString());
             }
             
             log.info("Loaded {} API Keys into cache", keys.size());
@@ -60,57 +69,74 @@ public class ApiKeyCache {
     }
     
     /**
-     * Valida si una API Key es válida.
+     * Valida si una API Key plaintext es válida.
+     * 
+     * Flujo:
+     * 1. Recibe el plaintext de Authorization: Bearer <plaintext>
+     * 2. Hashea con SHA-256
+     * 3. Busca el hash en caché
+     * 4. Retorna true si existe
+     * 
      * Búsqueda en caché (< 1ms esperado).
-     * @param keyString la clave a validar
+     * 
+     * @param plainKeyValue el plaintext de la API Key
      * @return true si la clave existe en caché, false si no
      */
-    public boolean validateKey(String keyString) {
-        if (keyString == null || keyString.isEmpty()) {
+    public boolean validateKey(String plainKeyValue) {
+        if (plainKeyValue == null || plainKeyValue.isEmpty()) {
             return false;
         }
         
-        String ecommerceId = cache.getIfPresent(keyString);
+        // 1. Hashear el plaintext recibido
+        String hashedKey = HashingUtil.sha256(plainKeyValue);
+        
+        // 2. Buscar en caché
+        String ecommerceId = cache.getIfPresent(hashedKey);
         boolean isValid = ecommerceId != null;
         
-        log.debug("API Key validation: {} - {}", 
-            keyString.substring(0, Math.min(8, keyString.length())) + "...", 
+        log.debug("API Key validation: hash={} - {}", 
+            hashedKey.substring(0, Math.min(8, hashedKey.length())) + "...", 
             isValid ? "VALID" : "INVALID");
         
         return isValid;
     }
     
     /**
-     * Obtiene el ecommerce asociado a una API Key.
-     * @param keyString la clave
+     * Obtiene el ecommerce asociado a una API Key plaintext.
+     * 
+     * @param plainKeyValue el plaintext de la API Key
      * @return ecommerceId si existe, null si no
      */
-    public String getEcommerceId(String keyString) {
-        if (keyString == null || keyString.isEmpty()) {
+    public String getEcommerceId(String plainKeyValue) {
+        if (plainKeyValue == null || plainKeyValue.isEmpty()) {
             return null;
         }
-        return cache.getIfPresent(keyString);
+        
+        // Hashear el plaintext
+        String hashedKey = HashingUtil.sha256(plainKeyValue);
+        return cache.getIfPresent(hashedKey);
     }
     
     /**
-     * Agrega una nueva API Key a caché y BD.
+     * Agrega una nueva API Key hasheada a caché y BD.
      * Llamado cuando se recibe evento API_KEY_CREATED desde RabbitMQ.
-     * @param keyString la clave
+     * 
+     * @param hashedKeyValue el hash SHA-256 (ya hasheado por Admin Service)
      * @param ecommerceId el ecommerce propietario
      */
-    public void addKey(String keyString, String ecommerceId) {
+    public void addKey(String hashedKeyValue, String ecommerceId) {
         try {
             // Insertar en BD
             ApiKeyEntity entity = new ApiKeyEntity();
-            entity.setKeyString(keyString);
+            entity.setHashedKey(hashedKeyValue);
             entity.setEcommerceId(UUID.fromString(ecommerceId));
             apiKeyRepository.save(entity);
             
             // Insertar en caché
-            cache.put(keyString, ecommerceId);
+            cache.put(hashedKeyValue, ecommerceId);
             
-            log.info("API Key added: keyString={}, ecommerceId={}",
-                keyString.substring(0, Math.min(8, keyString.length())) + "...",
+            log.info("API Key added to cache: hash={}, ecommerceId={}",
+                hashedKeyValue.substring(0, Math.min(8, hashedKeyValue.length())) + "...",
                 ecommerceId);
         } catch (Exception e) {
             log.error("Error adding API Key to cache", e);
@@ -119,21 +145,22 @@ public class ApiKeyCache {
     }
     
     /**
-     * Elimina una API Key de caché y BD.
+     * Elimina una API Key hasheada de caché y BD.
      * Llamado cuando se recibe evento API_KEY_DELETED desde RabbitMQ.
-     * @param keyString la clave a eliminar
+     * 
+     * @param hashedKeyValue el hash SHA-256 a eliminar
      */
-    public void removeKey(String keyString) {
+    public void removeKey(String hashedKeyValue) {
         try {
             // Eliminar de BD
-            apiKeyRepository.findByKeyString(keyString)
+            apiKeyRepository.findByHashedKey(hashedKeyValue)
                 .ifPresent(apiKeyRepository::delete);
             
             // Eliminar de caché
-            cache.invalidate(keyString);
+            cache.invalidate(hashedKeyValue);
             
-            log.info("API Key removed: keyString={}",
-                keyString.substring(0, Math.min(8, keyString.length())) + "...");
+            log.info("API Key removed from cache: hash={}",
+                hashedKeyValue.substring(0, Math.min(8, hashedKeyValue.length())) + "...");
         } catch (Exception e) {
             log.error("Error removing API Key from cache", e);
             throw new RuntimeException("Error removing API Key", e);

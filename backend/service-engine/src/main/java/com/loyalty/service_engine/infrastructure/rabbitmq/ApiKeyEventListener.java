@@ -54,11 +54,15 @@ public class ApiKeyEventListener {
     
     /**
      * Procesa evento de creación de API Key.
+     * Admin Service envía el hashedKey (SHA-256), nunca el plaintext.
      */
     private void handleApiKeyCreated(ApiKeyEventPayload event) {
         try {
-            apiKeyCache.addKey(event.keyString(), event.ecommerceId());
-            log.info("API Key created in cache: ecommerceId={}", event.ecommerceId());
+            // Usar hashedKey transmitido por Admin Service
+            apiKeyCache.addKey(event.hashedKey(), event.ecommerceId());
+            log.info("API Key created in cache: ecommerceId={}, hash={}",
+                event.ecommerceId(),
+                event.hashedKey().substring(0, Math.min(8, event.hashedKey().length())) + "...");
         } catch (Exception e) {
             log.error("Error handling API_KEY_CREATED event", e);
         }
@@ -66,11 +70,15 @@ public class ApiKeyEventListener {
     
     /**
      * Procesa evento de eliminación de API Key.
+     * Admin Service envía el hashedKey (SHA-256), nunca el plaintext.
      */
     private void handleApiKeyDeleted(ApiKeyEventPayload event) {
         try {
-            apiKeyCache.removeKey(event.keyString());
-            log.info("API Key removed from cache: ecommerceId={}", event.ecommerceId());
+            // Usar hashedKey transmitido por Admin Service
+            apiKeyCache.removeKey(event.hashedKey());
+            log.info("API Key removed from cache: ecommerceId={}, hash={}",
+                event.ecommerceId(),
+                event.hashedKey().substring(0, Math.min(8, event.hashedKey().length())) + "...");
         } catch (Exception e) {
             log.error("Error handling API_KEY_DELETED event", e);
         }
