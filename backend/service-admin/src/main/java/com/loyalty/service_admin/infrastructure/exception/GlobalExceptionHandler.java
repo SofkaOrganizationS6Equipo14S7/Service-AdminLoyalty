@@ -62,36 +62,6 @@ public class GlobalExceptionHandler {
     }
     
     /**
-     * Maneja cuando no se encuentra un recurso genérico.
-     */
-    @ExceptionHandler(ResourceNotFoundException.class)
-    public ResponseEntity<Map<String, Object>> handleResourceNotFound(ResourceNotFoundException e) {
-        return ResponseEntity
-            .status(HttpStatus.NOT_FOUND)
-            .body(Map.of(
-                "timestamp", Instant.now().toString(),
-                "status", HttpStatus.NOT_FOUND.value(),
-                "error", "Not Found",
-                "message", e.getMessage()
-            ));
-    }
-    
-    /**
-     * Maneja solicitudes con datos inválidos.
-     */
-    @ExceptionHandler(BadRequestException.class)
-    public ResponseEntity<Map<String, Object>> handleBadRequest(BadRequestException e) {
-        return ResponseEntity
-            .status(HttpStatus.BAD_REQUEST)
-            .body(Map.of(
-                "timestamp", Instant.now().toString(),
-                "status", HttpStatus.BAD_REQUEST.value(),
-                "error", "Bad Request",
-                "message", e.getMessage()
-            ));
-    }
-    
-    /**
      * Maneja cuando ocurren excepciones de argumento (IllegalArgumentException).
      */
     @ExceptionHandler(IllegalArgumentException.class)
