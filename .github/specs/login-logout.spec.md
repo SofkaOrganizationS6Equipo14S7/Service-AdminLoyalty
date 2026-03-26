@@ -343,44 +343,44 @@ if (token) {
 ### Backend
 
 #### Implementación
-- [ ] Verificar que `AuthService.login()` valida credenciales y genera token JWT
-- [ ] Verificar que `AuthController.login()` mapea request/response correctamente
-- [ ] Implementar `AuthController.logout()` — endpoint POST /api/v1/auth/logout
-- [ ] Crear filtro `AuthenticationFilter` — valida token en header Authorization
-- [ ] Implementar `UnauthorizedException` y manejo de error 401
-- [ ] Crear `AuthService.getCurrentUser()` — valida token y retorna usuario (GET /api/v1/auth/me)
-- [ ] Arreglar endpoint path a `/api/v1/auth/login` si actualmente es `/auth/login`
-- [ ] Registrar endpoints en Documentation (Swagger/OpenAPI si aplica)
+- [x] Verificar que `AuthService.login()` valida credenciales y genera token JWT
+- [x] Verificar que `AuthController.login()` mapea request/response correctamente
+- [x] Implementar `AuthController.logout()` — endpoint POST /api/v1/auth/logout
+- [x] Crear filtro `AuthenticationFilter` — valida token en header Authorization
+- [x] Implementar `UnauthorizedException` y manejo de error 401
+- [x] Crear `AuthService.getCurrentUser()` — valida token y retorna usuario (GET /api/v1/auth/me)
+- [x] Arreglar endpoint path a `/api/v1/auth/login` si actualmente es `/auth/login`
+- [x] Registrar endpoints en Documentation (Swagger/OpenAPI si aplica)
 
 #### Tests Backend
-- [ ] `test_authService_login_success` — happy path login
-- [ ] `test_authService_login_invalid_password_throws_401` — password incorrecto
-- [ ] `test_authService_login_user_not_found_throws_401` — usuario no existe
-- [ ] `test_authService_login_inactive_user_throws_401` — usuario desactivado
-- [ ] `test_authController_login_returns_200_with_token` — endpoint HTTP
-- [ ] `test_authController_login_missing_username_returns_400` — validación
-- [ ] `test_authController_login_missing_password_returns_400` — validación
-- [ ] `test_authController_logout_returns_204` — logout
-- [ ] `test_authController_logout_without_token_returns_401` — sin auth
-- [ ] `test_authController_getCurrentUser_returns_200` — GET /auth/me
+- [x] `test_authService_login_success` — happy path login
+- [x] `test_authService_login_invalid_password_throws_401` — password incorrecto
+- [x] `test_authService_login_user_not_found_throws_401` — usuario no existe
+- [x] `test_authService_login_inactive_user_throws_401` — usuario desactivado
+- [x] `test_authController_login_returns_200_with_token` — endpoint HTTP
+- [x] `test_authController_login_missing_username_returns_400` — validación
+- [x] `test_authController_login_missing_password_returns_400` — validación
+- [x] `test_authController_logout_returns_204` — logout
+- [x] `test_authController_logout_without_token_returns_401` — sin auth
+- [x] `test_authController_getCurrentUser_returns_200` — GET /auth/me
 - [ ] `test_authFilter_valid_token_continues_request` — filtro auth
 - [ ] `test_authFilter_missing_token_returns_401` — sin token en header
 
 ### Frontend
 
 #### Implementación
-- [ ] Crear `hooks/useAuth.js` — Context para autenticación (token, user, login, logout)
-- [ ] Crear `services/authService.js` — funciones login, logout, getCurrentUser
-- [ ] Crear `pages/LoginPage.jsx` — página con form login
-- [ ] Crear `components/LoginForm.jsx` — form username + password
-- [ ] Crear `components/ProtectedRoute.jsx` — wrapper para rutas protegidas
-- [ ] Crear `AuthProvider` en `pages/AppProvider.jsx` — wrapper de Context
-- [ ] Implementar App.jsx routing: `/login`, `/dashboard` (protegida), redirección default
-- [ ] Implementar logout en header/navbar — botón que limpia sesión
-- [ ] Implementar persistencia de token en localStorage
-- [ ] Implementar validación de token en refresh (GET /auth/me al cargar app)
-- [ ] Implementar redireccionamiento a login si token expirado (response 401)
-- [ ] Estilos CSS Modules para LoginPage.module.css, LoginForm.module.css
+- [x] Crear `hooks/useAuth.js` — Context para autenticación (token, user, login, logout)
+- [x] Crear `services/authService.js` — funciones login, logout, getCurrentUser
+- [x] Crear `pages/LoginPage.jsx` — página con form login
+- [x] Crear `components/LoginForm.jsx` — form username + password
+- [x] Crear `components/ProtectedRoute.jsx` — wrapper para rutas protegidas
+- [x] Crear `AuthProvider` en `pages/AppProvider.jsx` — wrapper de Context
+- [x] Implementar App.jsx routing: `/login`, `/dashboard` (protegida), redirección default
+- [x] Implementar logout en header/navbar — botón que limpia sesión
+- [x] Implementar persistencia de token en localStorage
+- [x] Implementar validación de token en refresh (GET /auth/me al cargar app)
+- [x] Implementar redireccionamiento a login si token expirado (response 401)
+- [x] Estilos CSS Modules para LoginPage.module.css, LoginForm.module.css
 
 #### Tests Frontend
 - [ ] `test_LoginForm_renders_username_and_password_inputs` — render UI
@@ -426,10 +426,10 @@ if (token) {
 | `UserRepository` | ✅ Existe | JPA repository con método `findByUsername()` |
 | `AuthService.login()` | ✅ Existe | Genera token Base64 (24h validity) |
 | `AuthController` | ✅ Existe | Endpoint POST /auth/login mapeado |
-| `AuthService.logout()` | ❌ No existe | Crear endpoint POST /auth/logout |
-| `Frontend LoginPage` | ❌ No existe | Implementar |
-| `Frontend useAuth hook` | ❌ No existe | Crear Context API |
-| `ProtectedRoute` | ❌ No existe | Crear componente protección |
+| `AuthService.logout()` | ✅ Implementado | Endpoint POST /auth/logout funcional |
+| `Frontend LoginPage` | ✅ Implementado | React página con form login |
+| `Frontend useAuth hook` | ✅ Implementado | Context API funcional |
+| `ProtectedRoute` | ✅ Implementado | Componente de protección de rutas |
 
 ---
 
