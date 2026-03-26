@@ -636,8 +636,8 @@ Y         no se aplica ningún descuento
 ### Arquitectura Implementada
 
 #### Service Boundaries (Clean Architecture)
-- **service-admin (8080)**: Authentication, API Keys, User Management
-- **service-engine (8081)**: Discount Config, Priority Management, Calculation Engine
+- **service-admin (8081)**: Authentication, API Keys, User Management
+- **service-engine (8082)**: Discount Config, Priority Management, Calculation Engine
 
 #### Layers Implementados (DDD)
 ```

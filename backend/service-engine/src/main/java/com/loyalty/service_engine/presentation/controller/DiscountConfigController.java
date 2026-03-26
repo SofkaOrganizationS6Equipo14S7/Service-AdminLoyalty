@@ -13,6 +13,7 @@ import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -48,18 +49,24 @@ public class DiscountConfigController {
     
     /**
      * Configura el límite máximo de descuentos.
-     * Solo administradores pueden llamar este endpoint.
+     * Solo administradores pueden llamar este endpoint (requiere JWT con ROLE_ADMIN).
      * 
      * @param request Datos de configuración (maxDiscountLimit, currencyCode)
-     * @param userId ID del usuario autenticado (desde JWT)
+     * @param authentication Authentication extraído del JWT
      * @return 201 Created con la nueva configuración
      */
     @PostMapping("/config")
     public ResponseEntity<DiscountConfigResponse> updateDiscountConfig(
         @Valid @RequestBody DiscountConfigCreateRequest request,
-        @RequestHeader("X-User-ID") UUID userId
+        Authentication authentication
     ) {
-        log.info("Updating discount config. User: {}", userId);
+        // Extraer username del JWT (está en authentication.getName())
+        String username = authentication.getName();
+        
+        // Convertir username a UUID determinístico
+        UUID userId = UUID.nameUUIDFromBytes(username.getBytes());
+        
+        log.info("Updating discount config. User: {} (ID: {})", username, userId);
         DiscountConfigResponse response = discountConfigService.updateConfig(request, userId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
