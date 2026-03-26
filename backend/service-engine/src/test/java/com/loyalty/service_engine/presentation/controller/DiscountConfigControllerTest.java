@@ -16,7 +16,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -43,13 +43,13 @@ class DiscountConfigControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
+    @MockitoBean
     private DiscountConfigService discountConfigService;
 
-    @MockBean
+    @MockitoBean
     private DiscountPriorityService discountPriorityService;
 
-    @MockBean
+    @MockitoBean
     private DiscountCalculationEngine discountCalculationEngine;
 
     @Autowired
@@ -64,7 +64,7 @@ class DiscountConfigControllerTest {
         userId = UUID.randomUUID();
         
         validConfigResponse = new DiscountConfigResponse(
-            UUID.randomUUID(),
+            UUID.randomUUID().toString(),
             new BigDecimal("100.00"),
             "USD",
             true,
@@ -77,8 +77,8 @@ class DiscountConfigControllerTest {
             UUID.randomUUID().toString(),
             Instant.now(),
             List.of(
-                new DiscountPriorityResponse.PriorityItem("LOYALTY_POINTS", 1),
-                new DiscountPriorityResponse.PriorityItem("COUPON", 2)
+                new DiscountPriorityResponse.DiscountPriority("LOYALTY_POINTS", 1),
+                new DiscountPriorityResponse.DiscountPriority("COUPON", 2)
             )
         );
     }
@@ -433,7 +433,7 @@ class DiscountConfigControllerTest {
         );
         
         DiscountConfigResponse response = new DiscountConfigResponse(
-            UUID.randomUUID(),
+            UUID.randomUUID().toString(),
             new BigDecimal("99.99"),
             "USD",
             true,

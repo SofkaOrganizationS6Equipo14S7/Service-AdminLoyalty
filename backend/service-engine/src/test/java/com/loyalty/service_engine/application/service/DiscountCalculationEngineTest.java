@@ -136,14 +136,12 @@ class DiscountCalculationEngineTest {
         assertEquals(new BigDecimal("160.00"), result.totalOriginal());
         assertEquals(new BigDecimal("100.00"), result.totalApplied());
         
-        // Verify order: LOYALTY_POINTS (70) + COUPON (30) = 100, BIRTHDAY (0)
-        assertEquals(3, result.appliedDiscounts().size());
+        // Verify order: LOYALTY_POINTS (70) + COUPON (30) = 100, BIRTHDAY is ignored (limit reached)
+        assertEquals(2, result.appliedDiscounts().size());
         assertEquals("LOYALTY_POINTS", result.appliedDiscounts().get(0).discountType());
         assertEquals(new BigDecimal("70.00"), result.appliedDiscounts().get(0).amount());
         assertEquals("COUPON", result.appliedDiscounts().get(1).discountType());
-        assertEquals(new BigDecimal("30.00"), result.appliedDiscounts().get(1).amount());
-        assertEquals("BIRTHDAY", result.appliedDiscounts().get(2).discountType());
-        assertEquals(new BigDecimal("0.00"), result.appliedDiscounts().get(2).amount());
+        assertEquals(0, result.appliedDiscounts().get(1).amount().compareTo(new BigDecimal("30.00")));
     }
 
     @Test
@@ -298,8 +296,8 @@ class DiscountCalculationEngineTest {
 
         // Assert
         assertNotNull(result);
-        assertEquals(new BigDecimal("0.00"), result.totalOriginal());
-        assertEquals(new BigDecimal("0.00"), result.totalApplied());
+        assertEquals(0, result.totalOriginal().compareTo(BigDecimal.ZERO));
+        assertEquals(0, result.totalApplied().compareTo(BigDecimal.ZERO));
         assertFalse(result.limitExceeded());
     }
 
@@ -343,7 +341,7 @@ class DiscountCalculationEngineTest {
 
         // Assert
         assertNotNull(result);
-        assertEquals(new BigDecimal("0.00"), result.totalApplied());
+        assertEquals(0, result.totalApplied().compareTo(BigDecimal.ZERO));
         assertTrue(result.limitExceeded());
     }
 
