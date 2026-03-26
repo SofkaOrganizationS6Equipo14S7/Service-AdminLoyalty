@@ -45,6 +45,21 @@ public class GlobalExceptionHandler {
     }
     
     /**
+     * Maneja fallos de autenticación o autorización.
+     */
+    @ExceptionHandler(UnauthorizedException.class)
+    public ResponseEntity<Map<String, Object>> handleUnauthorized(UnauthorizedException e) {
+        return ResponseEntity
+            .status(HttpStatus.UNAUTHORIZED)
+            .body(Map.of(
+                "timestamp", Instant.now(),
+                "status", HttpStatus.UNAUTHORIZED.value(),
+                "error", "Unauthorized",
+                "message", e.getMessage()
+            ));
+    }
+    
+    /**
      * Manejador genérico para cualquier excepción.
      */
     @ExceptionHandler(Exception.class)
