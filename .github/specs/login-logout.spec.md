@@ -1,6 +1,6 @@
 ---
 id: SPEC-001
-status: IN_PROGRESS
+status: IMPLEMENTED
 feature: login-logout
 created: 2026-03-26
 updated: 2026-03-26
