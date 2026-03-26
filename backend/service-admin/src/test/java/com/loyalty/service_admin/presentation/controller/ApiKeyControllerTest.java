@@ -4,14 +4,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loyalty.service_admin.application.dto.ApiKeyListResponse;
 import com.loyalty.service_admin.application.dto.ApiKeyResponse;
 import com.loyalty.service_admin.application.service.ApiKeyService;
+import com.loyalty.service_admin.application.service.AuthService;
 import com.loyalty.service_admin.infrastructure.exception.ApiKeyNotFoundException;
 import com.loyalty.service_admin.infrastructure.exception.EcommerceNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
@@ -25,7 +26,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(ApiKeyController.class)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@Import(TestSecurityConfig.class)
 class ApiKeyControllerTest {
     
     @Autowired
@@ -33,6 +34,9 @@ class ApiKeyControllerTest {
     
     @MockitoBean
     private ApiKeyService apiKeyService;
+    
+    @MockitoBean
+    private AuthService authService;
     
     @Autowired
     private ObjectMapper objectMapper;
