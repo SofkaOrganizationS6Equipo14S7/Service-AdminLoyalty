@@ -1,9 +1,9 @@
 ---
 id: SPEC-003
-status: IN_PROGRESS
+status: IMPLEMENTED
 feature: api-keys
 created: 2026-03-25
-updated: 2026-03-25
+updated: 2026-03-26
 author: spec-generator
 version: "1.0"
 related-specs: []
@@ -54,11 +54,11 @@ CRITERIO-3.1.1: Crear API Key exitosamente para ecommerce válido
   Y              publica evento en loyalty.config.exchange
   Y              responde con HTTP 201 Created + payload con UID, key (parcial), created_at
 
-CRITERIO-3.1.2: Verificar formato de key y masking
+CRITERIO-3.1.2: Verificar formato de key y hashing
   Dado que:      acabo de crear una API Key
   Cuando:        consulto el payload de respuesta
   Entonces:      la key mostrada en la response tiene formato ****XXXX (últimos 4 caracteres)
-  Y              la key completa se almacena en la BD sin encripción (campo varchar)
+  Y              solo se persiste el hash SHA-256 en la BD (nunca el valor plano)
 ```
 
 **Error Path**
@@ -213,14 +213,15 @@ CRITERIO-3.4.2: Rechazar eliminación de key inexistente
 ### Reglas de Negocio
 
 1. **Generación de Key**: El formato es UUID v4, generado por `java.util.UUID.randomUUID()`
-2. **Masking**: En respuestas JSON, mostrar solo `****XXXX` (últimos 4 caracteres de la key)
-3. **Almacenamiento**: La key completa se persiste sin encripción en PostgreSQL
-4. **Unicidad**: Una key no puede estar duplicada en la base de datos (UNIQUE constraint)
-5. **Pertenencia**: Una API Key pertenece a exactamente un ecommerce (FK constraint)
-6. **Autorización**: Solo Super Admins autenticados pueden gestionar API Keys
-7. **Sincronización**: Cambios en Admin publican en `loyalty.config.exchange` (fanout) → Engine consume y actualiza caché
-8. **Validación en Engine**: Cada request HTTP al Engine valida el header `Authorization: Bearer <key>` contra Caffeine Cache
-9. **Cold Start**: Al arrancar Engine, carga todas las keys desde `loyalty_engine.api_keys` a Caffeine
+2. **Hashing**: Al generar el UUID, se hashea usando SHA-256. El valor plano (Plain Text) solo se envía al cliente en el 201 Created y se destruye inmediatamente.
+3. **Almacenamiento**: Solo se persiste el hash SHA-256 en PostgreSQL (campo hashed_key). Nunca se guarda el valor plano.
+4. **Masking**: En respuestas JSON, mostrar solo `****XXXX` (últimos 4 caracteres del hash)
+5. **Unicidad**: Una key no puede estar duplicada en la base de datos (UNIQUE constraint)
+6. **Pertenencia**: Una API Key pertenece a exactamente un ecommerce (FK constraint)
+7. **Autorización**: Solo Super Admins autenticados pueden gestionar API Keys
+8. **Sincronización**: Cambios en Admin publican en `loyalty.config.exchange` (fanout) → Engine consume y actualiza caché
+9. **Validación en Engine**: Cuando el Engine recibe `Authorization: Bearer <key>`, primero la hashea con SHA-256 y luego busca ese hash en la Caffeine Cache. Si coincide, tenemos un match.
+10. **Cold Start**: Al arrancar Engine, carga todas las keys desde `loyalty_engine.api_keys` a Caffeine
 
 ---
 
@@ -233,22 +234,15 @@ CRITERIO-3.4.2: Rechazar eliminación de key inexistente
 | Entidad | BD | Cambios | Descripción |
 |---------|----|---------|----|
 | `Ecommerce` | loyalty_admin | existente (referencia FK) | Entidad propietaria de las API Keys |
-| `ApiKey` | loyalty_admin | **nueva** | Par (key_string, ecommerce_id) con timestamps |
-| `ApiKey` | loyalty_engine | **nueva** | Copia sincronizada vía RabbitMQ para caché |
-| `Caffeine Cache` | Engine (in-memory) | **nueva** | Diccionario {key_string → ecommerce_id} |
-
-#### Tabla: `api_keys` (loyalty_admin)
-
-| Campo | Tipo | Obligatorio | Constraint | Índice | Descripción |
-|-------|------|-------------|-----------|---------|---|
-| `id` | UUID | sí | PRIMARY KEY | PK | Identificador único técnico |
-| `key_string` | VARCHAR(36) | sí | UNIQUE NOT NULL | UNIQUE | la key en formato UUID v4 |
+| `ApiKey` | loyalty_admin | **nueva** | Par (hashed_key, ecommerce_id) con timestamps |
+| `Caffeine Cache` | Engine (in-memory) | **nueva** | Diccionario {hashed_key → ecommerce_id} |
+| `hashed_key` | VARCHAR(64) | sí | UNIQUE NOT NULL | UNIQUE | hash SHA-256 de la API Key |
 | `ecommerce_id` | UUID | sí | FK → ecommerces.id | FK | relación al ecommerce propietario |
 | `created_at` | TIMESTAMP | sí | DEFAULT NOW() | - | timestamp UTC de creación |
 | `updated_at` | TIMESTAMP | sí | DEFAULT NOW() | - | timestamp UTC de actualización |
 
 **Índices:**
-- `UNIQUE(key_string)` — búsqueda fast por key durante validación
+- `UNIQUE(hashed_key)` — búsqueda fast por key durante validación
 - `INDEX(ecommerce_id)` — listar keys por ecommerce
 
 ---
@@ -298,7 +292,7 @@ public record ApiKeyListResponse(
 **ApiKeyValidationContext** (Java Record — interno)
 ```java
 public record ApiKeyValidationContext(
-    String keyString,
+    String hashedKey,
     String ecommerceId,
     Instant validatedAt
 ) { }
@@ -372,9 +366,10 @@ public record ApiKeyValidationContext(
 **Lógica:**
 1. Intercepta cada request HTTP entrante
 2. Extrae header `Authorization: Bearer <key>`
-3. Busca en Caffeine Cache `{key → ecommerce_id}`
-4. Si existe → establece contexto de seguridad (Security context) + next
-5. Si NO existe → responde HTTP 401 Unauthorized
+3. Hashea la key recibida con SHA-256
+4. Busca el hash en Caffeine Cache `{hashed_key → ecommerce_id}`
+5. Si existe → establece contexto de seguridad (Security context) + next
+6. Si NO existe → responde HTTP 401 Unauthorized
 
 **Comportamiento edge case (Cold Start):**
 - Al arrancar Engine, ejecuta `@PostConstruct` → carga todas las keys desde `loyalty_engine.api_keys` a Caffeine
@@ -389,7 +384,7 @@ public record ApiKeyValidationContext(
 {
   "eventType": "API_KEY_CREATED",
   "keyId": "550e8400-e29b-41d4-a716-446655440000",
-  "keyString": "550e8400-e29b-41d4-a716-446655440000",
+  "hashedKey": "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3",
   "ecommerceId": "220e8400-e29b-41d4-a716-446655440111",
   "createdAt": "2026-03-25T10:30:00Z"
 }
@@ -397,7 +392,7 @@ public record ApiKeyValidationContext(
 
 **Consumidor action:**
 1. Persiste en `loyalty_engine.api_keys` (tabla de sincronización)
-2. Inserta en Caffeine Cache: `cache.put(keyString, ecommerceId)`
+2. Inserta en Caffeine Cache: `cache.put(hashedKey, ecommerceId)`
 
 ---
 
@@ -406,7 +401,7 @@ public record ApiKeyValidationContext(
 {
   "eventType": "API_KEY_DELETED",
   "keyId": "550e8400-e29b-41d4-a716-446655440000",
-  "keyString": "550e8400-e29b-41d4-a716-446655440000",
+  "hashedKey": "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3",
   "ecommerceId": "220e8400-e29b-41d4-a716-446655440111",
   "deletedAt": "2026-03-25T10:35:00Z"
 }
@@ -414,7 +409,7 @@ public record ApiKeyValidationContext(
 
 **Consumidor action:**
 1. Elimina de `loyalty_engine.api_keys`
-2. Elimina de Caffeine Cache: `cache.invalidate(keyString)`
+2. Elimina de Caffeine Cache: `cache.invalidate(hashedKey)`
 
 ---
 
@@ -452,9 +447,9 @@ public record ApiKeyValidationContext(
 - [x] Crear constructor, getters (Lombok `@Data`)
 - [x] Agregar JPA annotations: `@Id`, `@GeneratedValue`, `@ManyToOne` (FK a Ecommerce)
 - [x] Crear `ApiKeyRepository extends JpaRepository<ApiKeyEntity, UUID>`
-- [x] Implementar método `findByKeyString(String keyString): Optional<ApiKeyEntity>`
+- [x] Implementar método `findByHashedKey(String hashedKey): Optional<ApiKeyEntity>`
 - [x] Implementar método `findByEcommerceId(UUID ecommerceId): List<ApiKeyEntity>`
-- [x] Crear migration Flyway V1__Create_api_keys_table.sql con constraints UNIQUE(key_string), FK(ecommerce_id)
+- [x] Crear migration Flyway V1__Create_api_keys_table.sql con constraints UNIQUE(hashed_key), FK(ecommerce_id)
 
 #### Implementación — Servicios
 - [x] Crear `ApiKeyService` (constructor injection)
@@ -492,7 +487,7 @@ public record ApiKeyValidationContext(
 - [x] Método `publishApiKeyCreated(ApiKeyEntity): void`
   - [x] Serializar evento JSON
   - [x] Publicar en `loyalty.config.exchange` con routing key vacío
-- [x] Método `publishApiKeyDeleted(UUID keyId, String keyString, UUID ecommerceId): void`
+- [x] Método `publishApiKeyDeleted(UUID keyId, String hashedKey, UUID ecommerceId): void`
   - [x] Serializar evento JSON
   - [x] Publicar en `loyalty.config.exchange`
 
@@ -501,22 +496,15 @@ public record ApiKeyValidationContext(
 #### Implementación — Modelos & Datos
 - [x] Crear `ApiKeyEntity` con `@Entity`, `@Table("api_keys")`
 - [x] Crear `ApiKeyRepository extends JpaRepository<ApiKeyEntity, UUID>`
-- [x] Implementar `findByKeyString(String keyString): Optional<ApiKeyEntity>`
-- [x] Crear migration Flyway V1__Create_api_keys_table.sql (copia de admin, sin FK constraints)
-
-#### Implementación — Caché Caffeine
-- [x] Crear `ApiKeyCache` (componente `@Component`)
-  - [x] Inyectar `Repository<ApiKeyEntity>`
-  - [x] Agregar método `@PostConstruct loadFromDatabase()`
-    - [x] Cargar todas las keys desde `loyalty_engine.api_keys`
-    - [x] Poblar Caffeine Cache: `cache.put(keyString, ecommerceId) for each`
-  - [x] Método `validateKey(String keyString): boolean`
-    - [x] Buscar en caché
-    - [x] Retornar `cache.getIfPresent(keyString) != null`
-  - [x] Método `addKey(String keyString, UUID ecommerceId): void`
-    - [x] Persistir en BD
-    - [x] Agregar a caché
-  - [x] Método `removeKey(String keyString): void`
+- [x] Implementar `findByHashedKey(String hashedKey): Optional<ApiKeyEntity>`
+- [x] Poblar Caffeine Cache: `cache.put(hashedKey, ecommerceId) for each`
+- [x] Método `validateKey(String plainKey): boolean`
+  - [x] Hashear la key recibida con SHA-256
+  - [x] Retornar `cache.getIfPresent(hashedKey) != null`
+- [x] Método `addKey(String plainKey, UUID ecommerceId): void`
+  - [x] Hashear la key con SHA-256
+  - [x] Insertar en BD y caché: `cache.put(hashedKey, ecommerceId)`
+- [x] Método `removeKey(String hashedKey): void`
     - [x] Eliminar de BD
     - [x] Invalidar en caché
 
