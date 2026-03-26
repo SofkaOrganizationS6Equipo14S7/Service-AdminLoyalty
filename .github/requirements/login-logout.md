@@ -1,22 +1,32 @@
-# HU-01: Inicio y cierre de sesión
+# HU-01: Inicio y cierre de sesión (Auth Management)
+
 ## Historia de Usuario
-Como usuario de LOYALTY, quiero iniciar sesión y cerrar sesión, para acceder de forma segura al dashboard.
+
+Como Administrador, quiero iniciar y cerrar sesión en el Dashboard, para gestionar las reglas de negocio de forma segura mediante un token de identidad.
 
 ## Criterios de Aceptación
-**Scenario: Inicio de sesión exitoso**
-- Given que existe un usuario registrado en el LOYALTY
-- When intenta ingresar con credenciales válidas
-- Then el sistema le otorga el acceso
-- And debe redirigir el usuario al Dashboard correspondiente según el rol con todas las funciones pertinentes
 
-**Scenario: Intento de inicio de sesión con credenciales erróneas**
-- Given que existe un usuario registrado en el LOYALTY
-- When intenta ingresar con credenciales inválidas
-- Then el sistema debe rechazar el ingreso de sesión
-- And muestra un mensaje de credenciales inválidas
+### Scenario: Inicio de sesión exitoso
+**Given** usuario registrado con credenciales válidas en loyalty-admin  
+**When** envía POST /api/v1/auth/login  
+**Then** el sistema retorna un JWT válido con los claims de userId y roles  
+**And** el status code es 200 OK
 
-**Scenario: Validación de campos obligatorios**
-- Given que existe un usuario registrado en el LOYALTY
-- When intenta ingresar olvidando llenar los campos obligatorios
-- Then el sistema debe negar la solicitud
-- And muestra un mensaje de faltan campos obligatorios
+### Scenario: Intento con credenciales erróneas o campos vacíos
+**When** envía credenciales inválidas o falta el username/password  
+**Then** el sistema retorna 401 Unauthorized  
+**And** el mensaje indica "Invalid credentials" o "Missing fields"
+
+### Scenario: Cierre de sesión (Logout)
+**Given** usuario con JWT activo  
+**When** envía POST /api/v1/auth/logout  
+**Then** el sistema invalida el token (vía blacklist en caché o simplemente borrando el token en el cliente)  
+**And** el acceso a endpoints protegidos queda denegado
+
+## Notas Técnicas (Constraints)
+
+- **Service:** Implementar exclusivamente en loyalty-admin (Puerto 8081).
+- **Security:** Contraseñas hasheadas con BCrypt.
+- **JWT:** Generación usando la clave secreta compartida (Symmetric).
+- **Stateless:** No usar HttpSession. Todo se maneja vía el Header Authorization: Bearer {token}.
+- **Output:** El login debe retornar un JSON con el token y la fecha de expiración.
