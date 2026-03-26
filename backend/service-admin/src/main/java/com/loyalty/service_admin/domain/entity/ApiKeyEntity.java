@@ -9,7 +9,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "api_keys", indexes = {
-    @Index(name = "idx_key_string", columnList = "key_string", unique = true),
+    @Index(name = "idx_hashed_key", columnList = "hashed_key", unique = true),
     @Index(name = "idx_ecommerce_id", columnList = "ecommerce_id")
 })
 @Data
@@ -21,8 +21,8 @@ public class ApiKeyEntity {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
     
-    @Column(name = "key_string", unique = true, nullable = false, length = 36)
-    private String keyString;
+    @Column(name = "hashed_key", unique = true, nullable = false, length = 64)
+    private String hashedKey;
     
     @Column(name = "ecommerce_id", nullable = false)
     private UUID ecommerceId;
