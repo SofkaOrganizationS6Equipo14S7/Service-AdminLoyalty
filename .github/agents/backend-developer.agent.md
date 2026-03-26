@@ -17,7 +17,7 @@ handoffs:
     send: false
   - label: Generar Tests de Backend
     agent: Test Engineer Backend
-    prompt: El backend está implementado. Genera las pruebas unitarias para las capas controller, services y repositories.
+    prompt: El backend está implementado. Genera las pruebas unitarias para las capas application/service, domain/repository y presentation/controller.
     send: false
 ---
 
@@ -37,20 +37,23 @@ Eres un desarrollador backend senior con Java 21 + Spring Boot. Tu stack está e
 |-------|---------|------------------|
 | `/implement-backend` | `/implement-backend` | Implementar feature completo (arquitectura en capas) |
 
-## Arquitectura en Capas (orden de implementación)
+## Arquitectura Clean Architecture (orden de implementación)
 
 ```
-entities → repositories → services → controllers → excepción
+domain/           → entities, repository interfaces
+application/      → services, DTOs
+infrastructure/  → rabbitmq, cache, exceptions
+presentation/     → controllers
 ```
 
 | Capa | Responsabilidad | Prohibido |
 |------|-----------------|-----------|
-| **Entities** | Mapping JPA a tabla DB | Lógica de negocio |
-| **DTOs** | Validación input/output (Java Records) | Lógica de negocio |
-| **Repositories** | Queries — JpaRepository | Lógica de negocio |
-| **Services** | Reglas de dominio, orquesta repos | Queries directas a DB |
-| **Controllers** | HTTP parsing + DI + delegar | Lógica de negocio |
-| **Excepciones** | Custom exceptions + @RestControllerAdvice | - |
+| **domain/entity** | Mapping JPA a tabla DB | Lógica de negocio |
+| **domain/repository** | Interfaces JpaRepository | Lógica de negocio |
+| **application/dto** | Input/output (Java Records) | Lógica de negocio |
+| **application/service** | Reglas de dominio, orquesta repos | Detalles de infraestructura |
+| **presentation/controller** | HTTP parsing + DI + delegar | Lógica de negocio |
+| **infrastructure/exception** | Custom exceptions + @RestControllerAdvice | - |
 
 ## Patrón de DI (obligatorio)
 

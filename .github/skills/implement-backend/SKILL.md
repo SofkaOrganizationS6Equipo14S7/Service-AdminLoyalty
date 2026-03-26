@@ -9,22 +9,41 @@ argument-hint: "<nombre-feature>"
 ## Prerequisitos
 1. Leer spec: `.github/specs/<feature>.spec.md` — sección 2 (modelos, endpoints)
 2. Leer stack y arquitectura: `.github/instructions/backend.instructions.md`
+3. Leer referencia de patrones: `.github/skills/implement-backend/patterns.java`
 
-## Orden de implementación
+## Arquitectura Clean Architecture
+
 ```
-entities → repositories → services → controllers → excepción
+domain/           → entities, repository interfaces (sin dependencias externas)
+application/      → services, DTOs (lógica de negocio, usa domain)
+infrastructure/  → rabbitmq, cache, security, exceptions (implementaciones externas)
+presentation/     → controllers, DTOs request/response (HTTP)
 ```
 
 | Capa | Responsabilidad |
 |------|-----------------|
-| **Entities** | Mapping a tabla DB (JPA) |
-| **DTOs** | Input/output (Java Records) |
-| **Repositories** | Acceso a datos (`JpaRepository`) |
-| **Services** | Lógica de negocio (`@Service`) |
-| **Controllers** | Endpoints HTTP (`@RestController`) |
-| **Excepciones** | Custom exceptions + `@RestControllerAdvice` |
+| **domain/entity** | Entidades JPA (solo anotaciones de persistencia, sin lógica) |
+| **domain/repository** | Interfaces JpaRepository (contratos, sin implementación) |
+| **application/service** | Lógica de negocio (usa repositories, orchestación) |
+| **application/dto** | DTOs input/output (Java Records) |
+| **infrastructure/exception** | Custom exceptions + @RestControllerAdvice |
+| **infrastructure/rabbitmq** | Productores/ consumidores de eventos |
+| **presentation/controller** | Endpoints HTTP (recibe request, delega a service) |
+
+## Flujo de dependencias
+
+```
+presentation → application → domain ← infrastructure
+     ↑                                   
+     └────────────── (implementa) ──────┘
+```
+
+- **Domain** no puede depender de ninguna otra capa
+- **Application** depende solo de Domain
+- **Infrastructure** implementa interfaces de Domain
 
 ## Dependency Injection (obligatorio)
+
 Usar **Constructor Injection**. Spring inyecta automáticamente.
 
 ```java

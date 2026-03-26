@@ -4,15 +4,26 @@ applyTo: "**/*.java"
 
 # Instrucciones para Backend (Java 21 / Spring Boot)
 
-## Arquitectura en Capas
+## Arquitectura Clean Architecture
 
 ```
-controller/   → HTTP (recibe request, delega al service)
-service/      → Lógica de negocio
-repository/   → Acceso a datos (JPA, Flyway)
+domain/           → entities, repository interfaces (sin dependencias externas)
+application/      → services, DTOs (lógica de negocio)
+infrastructure/  → rabbitmq, cache, security, exceptions (implementaciones externas)
+presentation/     → controllers, DTOs request/response (HTTP)
 ```
 
-**Flujo:** `Controller → Service → Repository`
+**Flujo de dependencias:**
+```
+presentation → application → domain ← infrastructure
+     ↑                                   
+     └────────────── (implementa) ──────┘
+```
+
+### Regla de dependencias
+- **Domain**: no puede depender de ninguna otra capa
+- **Application**: depende solo de Domain (interfaces de repository)
+- **Infrastructure**: implementa las interfaces definidas en Domain
 
 ---
 

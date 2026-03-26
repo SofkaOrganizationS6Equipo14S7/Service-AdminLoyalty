@@ -1,6 +1,6 @@
 ---
 id: SPEC-003
-status: APPROVED
+status: IN_PROGRESS
 feature: api-keys
 created: 2026-03-25
 updated: 2026-03-25
@@ -448,99 +448,99 @@ public record ApiKeyValidationContext(
 ### Backend — Admin Service
 
 #### Implementación — Modelos & Datos
-- [ ] Crear `ApiKeyEntity` con `@Entity`, `@Table("api_keys")`
-- [ ] Crear constructor, getters (Lombok `@Data`)
-- [ ] Agregar JPA annotations: `@Id`, `@GeneratedValue`, `@ManyToOne` (FK a Ecommerce)
-- [ ] Crear `ApiKeyRepository extends JpaRepository<ApiKeyEntity, UUID>`
-- [ ] Implementar método `findByKeyString(String keyString): Optional<ApiKeyEntity>`
-- [ ] Implementar método `findByEcommerceId(UUID ecommerceId): List<ApiKeyEntity>`
-- [ ] Crear migration Flyway V1__Create_api_keys_table.sql con constraints UNIQUE(key_string), FK(ecommerce_id)
+- [x] Crear `ApiKeyEntity` con `@Entity`, `@Table("api_keys")`
+- [x] Crear constructor, getters (Lombok `@Data`)
+- [x] Agregar JPA annotations: `@Id`, `@GeneratedValue`, `@ManyToOne` (FK a Ecommerce)
+- [x] Crear `ApiKeyRepository extends JpaRepository<ApiKeyEntity, UUID>`
+- [x] Implementar método `findByKeyString(String keyString): Optional<ApiKeyEntity>`
+- [x] Implementar método `findByEcommerceId(UUID ecommerceId): List<ApiKeyEntity>`
+- [x] Crear migration Flyway V1__Create_api_keys_table.sql con constraints UNIQUE(key_string), FK(ecommerce_id)
 
 #### Implementación — Servicios
-- [ ] Crear `ApiKeyService` (constructor injection)
-- [ ] Método `createApiKey(UUID ecommerceId): ApiKeyResponse`
-  - [ ] Validar que `ecommerceId` existe en BD
-  - [ ] Generar UUID v4 vía `UUID.randomUUID()`
-  - [ ] Persistir en BD
-  - [ ] Publicar evento `ApiKeyCreated` en RabbitMQ
-  - [ ] Retornar `ApiKeyResponse` con masked key
-- [ ] Método `getApiKeysByEcommerce(UUID ecommerceId): List<ApiKeyListResponse>`
-  - [ ] Validar que ecommerce existe
-  - [ ] Retornar lista con masked keys
-- [ ] Método `deleteApiKey(UUID ecommerceId, UUID keyId): void`
-  - [ ] Validar que key pertenece a ecommerce
-  - [ ] Eliminar de BD
-  - [ ] Publicar evento `ApiKeyDeleted` en RabbitMQ
+- [x] Crear `ApiKeyService` (constructor injection)
+- [x] Método `createApiKey(UUID ecommerceId): ApiKeyResponse`
+  - [x] Validar que `ecommerceId` existe en BD
+  - [x] Generar UUID v4 vía `UUID.randomUUID()`
+  - [x] Persistir en BD
+  - [x] Publicar evento `ApiKeyCreated` en RabbitMQ
+  - [x] Retornar `ApiKeyResponse` con masked key
+- [x] Método `getApiKeysByEcommerce(UUID ecommerceId): List<ApiKeyListResponse>`
+  - [x] Validar que ecommerce existe
+  - [x] Retornar lista con masked keys
+- [x] Método `deleteApiKey(UUID ecommerceId, UUID keyId): void`
+  - [x] Validar que key pertenece a ecommerce
+  - [x] Eliminar de BD
+  - [x] Publicar evento `ApiKeyDeleted` en RabbitMQ
 
 #### Implementación — Controllers
-- [ ] Crear `ApiKeyController` (constructor injection)
-- [ ] POST `/api/v1/ecommerces/{ecommerceId}/api-keys`
-  - [ ] Validar token (Auth header)
-  - [ ] Llamar `apiKeyService.createApiKey(ecommerceId)`
-  - [ ] Retornar 201 Created + payload
-- [ ] GET `/api/v1/ecommerces/{ecommerceId}/api-keys`
-  - [ ] Validar token
-  - [ ] Llamar `apiKeyService.getApiKeysByEcommerce(ecommerceId)`
-  - [ ] Retornar 200 OK + lista
-- [ ] DELETE `/api/v1/ecommerces/{ecommerceId}/api-keys/{keyId}`
-  - [ ] Validar token
-  - [ ] Llamar `apiKeyService.deleteApiKey(ecommerceId, keyId)`
-  - [ ] Retornar 204 No Content
+- [x] Crear `ApiKeyController` (constructor injection)
+- [x] POST `/api/v1/ecommerces/{ecommerceId}/api-keys`
+  - [x] Validar token (Auth header)
+  - [x] Llamar `apiKeyService.createApiKey(ecommerceId)`
+  - [x] Retornar 201 Created + payload
+- [x] GET `/api/v1/ecommerces/{ecommerceId}/api-keys`
+  - [x] Validar token
+  - [x] Llamar `apiKeyService.getApiKeysByEcommerce(ecommerceId)`
+  - [x] Retornar 200 OK + lista
+- [x] DELETE `/api/v1/ecommerces/{ecommerceId}/api-keys/{keyId}`
+  - [x] Validar token
+  - [x] Llamar `apiKeyService.deleteApiKey(ecommerceId, keyId)`
+  - [x] Retornar 204 No Content
 
 #### Implementación — RabbitMQ Producer
-- [ ] Crear `ApiKeyEventPublisher` (constructor injection de `RabbitTemplate`)
-- [ ] Método `publishApiKeyCreated(ApiKeyEntity): void`
-  - [ ] Serializar evento JSON
-  - [ ] Publicar en `loyalty.config.exchange` con routing key vacío
-- [ ] Método `publishApiKeyDeleted(UUID keyId, String keyString, UUID ecommerceId): void`
-  - [ ] Serializar evento JSON
-  - [ ] Publicar en `loyalty.config.exchange`
+- [x] Crear `ApiKeyEventPublisher` (constructor injection de `RabbitTemplate`)
+- [x] Método `publishApiKeyCreated(ApiKeyEntity): void`
+  - [x] Serializar evento JSON
+  - [x] Publicar en `loyalty.config.exchange` con routing key vacío
+- [x] Método `publishApiKeyDeleted(UUID keyId, String keyString, UUID ecommerceId): void`
+  - [x] Serializar evento JSON
+  - [x] Publicar en `loyalty.config.exchange`
 
 ### Backend — Engine Service
 
 #### Implementación — Modelos & Datos
-- [ ] Crear `ApiKeyEntity` con `@Entity`, `@Table("api_keys")`
-- [ ] Crear `ApiKeyRepository extends JpaRepository<ApiKeyEntity, UUID>`
-- [ ] Implementar `findByKeyString(String keyString): Optional<ApiKeyEntity>`
-- [ ] Crear migration Flyway V1__Create_api_keys_table.sql (copia de admin, sin FK constraints)
+- [x] Crear `ApiKeyEntity` con `@Entity`, `@Table("api_keys")`
+- [x] Crear `ApiKeyRepository extends JpaRepository<ApiKeyEntity, UUID>`
+- [x] Implementar `findByKeyString(String keyString): Optional<ApiKeyEntity>`
+- [x] Crear migration Flyway V1__Create_api_keys_table.sql (copia de admin, sin FK constraints)
 
 #### Implementación — Caché Caffeine
-- [ ] Crear `ApiKeyCache` (componente `@Component`)
-  - [ ] Inyectar `Repository<ApiKeyEntity>`
-  - [ ] Agregar método `@PostConstruct loadFromDatabase()`
-    - [ ] Cargar todas las keys desde `loyalty_engine.api_keys`
-    - [ ] Poblar Caffeine Cache: `cache.put(keyString, ecommerceId) for each`
-  - [ ] Método `validateKey(String keyString): boolean`
-    - [ ] Buscar en caché
-    - [ ] Retornar `cache.getIfPresent(keyString) != null`
-  - [ ] Método `addKey(String keyString, UUID ecommerceId): void`
-    - [ ] Persistir en BD
-    - [ ] Agregar a caché
-  - [ ] Método `removeKey(String keyString): void`
-    - [ ] Eliminar de BD
-    - [ ] Invalidar en caché
+- [x] Crear `ApiKeyCache` (componente `@Component`)
+  - [x] Inyectar `Repository<ApiKeyEntity>`
+  - [x] Agregar método `@PostConstruct loadFromDatabase()`
+    - [x] Cargar todas las keys desde `loyalty_engine.api_keys`
+    - [x] Poblar Caffeine Cache: `cache.put(keyString, ecommerceId) for each`
+  - [x] Método `validateKey(String keyString): boolean`
+    - [x] Buscar en caché
+    - [x] Retornar `cache.getIfPresent(keyString) != null`
+  - [x] Método `addKey(String keyString, UUID ecommerceId): void`
+    - [x] Persistir en BD
+    - [x] Agregar a caché
+  - [x] Método `removeKey(String keyString): void`
+    - [x] Eliminar de BD
+    - [x] Invalidar en caché
 
 #### Implementación — Seguridad (Filter)
-- [ ] Crear `ApiKeyAuthenticationFilter extends OncePerRequestFilter`
-  - [ ] Override `doFilterInternal(HttpServletRequest, HttpServletResponse, FilterChain)`
-  - [ ] Extraer header `Authorization`
-  - [ ] Parsear Bearer token
-  - [ ] Validar vía `apiKeyCache.validateKey(token)`
-  - [ ] Si válido → establecer Security Context + `filterChain.doFilter(...)`
-  - [ ] Si inválido → retornar 401 Unauthorized
-- [ ] Registrar filter en `SecurityConfiguration` (orden: antes de autenticación estándar)
+- [x] Crear `ApiKeyAuthenticationFilter extends OncePerRequestFilter`
+  - [x] Override `doFilterInternal(HttpServletRequest, HttpServletResponse, FilterChain)`
+  - [x] Extraer header `Authorization`
+  - [x] Parsear Bearer token
+  - [x] Validar vía `apiKeyCache.validateKey(token)`
+  - [x] Si válido → establecer Security Context + `filterChain.doFilter(...)`
+  - [x] Si inválido → retornar 401 Unauthorized
+- [x] Registrar filter en `SecurityConfiguration` (orden: antes de autenticación estándar)
 
 #### Implementación — RabbitMQ Consumer
-- [ ] Crear `ApiKeyEventListener` (componente `@Component`)
-- [ ] Método `@RabbitListener(queues = "engine-api-keys-queue") onApiKeyEvent(String payload): void`
-  - [ ] Parsear JSON del evento
-  - [ ] Si `eventType == API_KEY_CREATED` → llamar `apiKeyCache.addKey(...)`
-  - [ ] Si `eventType == API_KEY_DELETED` → llamar `apiKeyCache.removeKey(...)`
+- [x] Crear `ApiKeyEventListener` (componente `@Component`)
+- [x] Método `@RabbitListener(queues = "engine-api-keys-queue") onApiKeyEvent(String payload): void`
+  - [x] Parsear JSON del evento
+  - [x] Si `eventType == API_KEY_CREATED` → llamar `apiKeyCache.addKey(...)`
+  - [x] Si `eventType == API_KEY_DELETED` → llamar `apiKeyCache.removeKey(...)`
 
 #### Configuración RabbitMQ — Engine
-- [ ] Declarar queue `engine-api-keys-queue` en `RabbitConfiguration`
-- [ ] Declarar exchange `loyalty.config.exchange` (tipo: FANOUT)
-- [ ] Binding: queue → exchange
+- [x] Declarar queue `engine-api-keys-queue` en `RabbitConfiguration`
+- [x] Declarar exchange `loyalty.config.exchange` (tipo: FANOUT)
+- [x] Binding: queue → exchange
 
 ### Frontend
 
