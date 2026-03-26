@@ -3,6 +3,7 @@ package com.loyalty.service_admin.presentation.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loyalty.service_admin.application.dto.LoginRequest;
 import com.loyalty.service_admin.application.dto.LoginResponse;
+import com.loyalty.service_admin.application.dto.UserResponse;
 import com.loyalty.service_admin.application.service.AuthService;
 import com.loyalty.service_admin.infrastructure.exception.UnauthorizedException;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,9 +17,11 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import java.time.Instant;
+
+import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -35,10 +38,6 @@ class AuthControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    /**
-     * TestConfiguration para proporcionar un AuthService mockeado en el contexto de Spring
-     * Usamos mock() de Mockito directamente en lugar de @MockBean que no existe en Spring Boot 3.5.x
-     */
     @TestConfiguration
     static class TestConfig {
         @Bean
@@ -48,35 +47,34 @@ class AuthControllerTest {
         }
     }
 
-    private LoginRequest validLoginRequest;
-    private LoginResponse loginResponse;
+    private static final String API_BASE = "/api/v1/auth";
+    private static final String VALID_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsInVzZXJJZCI6MSwicm9sZSI6IkFETUluIn0.token";
 
     @BeforeEach
     void setUp() {
-        validLoginRequest = new LoginRequest("admin", "admin123");
-        loginResponse = new LoginResponse(
-                "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9",
-                "Bearer",
-                "admin",
-                "ADMIN"
-        );
+        // Setup is done here if needed
     }
 
     @Test
     @DisplayName("POST /api/v1/auth/login con credenciales válidas retorna 200 con token")
     void testLogin_validCredentials_returns200WithToken() throws Exception {
         // Arrange
-        when(authService.login(any(LoginRequest.class))).thenReturn(loginResponse);
+        LoginRequest request = new LoginRequest("admin", "admin123");
+        LoginResponse response = new LoginResponse(VALID_TOKEN, "Bearer", "admin", "ADMIN");
+        when(authService.login(request)).thenReturn(response);
 
         // Act & Assert
-        mockMvc.perform(post("/api/v1/auth/login")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(validLoginRequest)))
+        mockMvc.perform(post(API_BASE + "/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .with(csrf()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.token").isNotEmpty())
+                .andExpect(jsonPath("$.token", notNullValue()))
                 .andExpect(jsonPath("$.tipo").value("Bearer"))
                 .andExpect(jsonPath("$.username").value("admin"))
                 .andExpect(jsonPath("$.role").value("ADMIN"));
+
+        verify(authService, times(1)).login(request);
     }
 
     @Test
@@ -86,9 +84,10 @@ class AuthControllerTest {
         String requestBody = "{\"password\": \"admin123\"}";
 
         // Act & Assert
-        mockMvc.perform(post("/api/v1/auth/login")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(requestBody))
+        mockMvc.perform(post(API_BASE + "/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody)
+                        .with(csrf()))
                 .andExpect(status().isBadRequest());
     }
 
@@ -99,9 +98,10 @@ class AuthControllerTest {
         String requestBody = "{\"username\": \"admin\"}";
 
         // Act & Assert
-        mockMvc.perform(post("/api/v1/auth/login")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(requestBody))
+        mockMvc.perform(post(API_BASE + "/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody)
+                        .with(csrf()))
                 .andExpect(status().isBadRequest());
     }
 
@@ -109,34 +109,45 @@ class AuthControllerTest {
     @DisplayName("POST /api/v1/auth/login con credenciales inválidas retorna 401")
     void testLogin_invalidCredentials_returns401() throws Exception {
         // Arrange
-        when(authService.login(any(LoginRequest.class)))
+        LoginRequest request = new LoginRequest("admin", "wrongpass");
+        when(authService.login(request))
                 .thenThrow(new UnauthorizedException("Credenciales inválidas"));
 
         // Act & Assert
-        mockMvc.perform(post("/api/v1/auth/login")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(validLoginRequest)))
+        mockMvc.perform(post(API_BASE + "/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .with(csrf()))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.message").value("Credenciales inválidas"));
+
+        verify(authService, times(1)).login(request);
     }
 
     @Test
     @DisplayName("POST /api/v1/auth/logout con token válido retorna 204")
     void testLogout_validToken_returns204() throws Exception {
         // Arrange
-        String token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9";
+        doNothing().when(authService).logout(VALID_TOKEN);
 
         // Act & Assert
-        mockMvc.perform(post("/api/v1/auth/logout")
-                .header("Authorization", "Bearer " + token))
+        mockMvc.perform(post(API_BASE + "/logout")
+                        .header("Authorization", "Bearer " + VALID_TOKEN)
+                        .with(csrf()))
                 .andExpect(status().isNoContent());
+
+        verify(authService, times(1)).logout(VALID_TOKEN);
     }
 
     @Test
     @DisplayName("POST /api/v1/auth/logout sin token retorna 204 (tolerante)")
     void testLogout_noToken_returns204() throws Exception {
+        // Arrange
+        doNothing().when(authService).logout(null);
+
         // Act & Assert
-        mockMvc.perform(post("/api/v1/auth/logout"))
+        mockMvc.perform(post(API_BASE + "/logout")
+                        .with(csrf()))
                 .andExpect(status().isNoContent());
     }
 
@@ -144,26 +155,26 @@ class AuthControllerTest {
     @DisplayName("GET /api/v1/auth/me con token válido retorna 200 con datos del usuario")
     void testGetCurrentUser_validToken_returns200() throws Exception {
         // Arrange
-        String token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9";
-        com.loyalty.service_admin.application.dto.UserResponse userResponse =
-                new com.loyalty.service_admin.application.dto.UserResponse(
-                        1L, "admin", "ADMIN", true, java.time.Instant.now(), java.time.Instant.now()
-                );
-        when(authService.getCurrentUser(token)).thenReturn(userResponse);
+        UserResponse userResponse = new UserResponse(1L, "admin", "ADMIN", true, Instant.now(), Instant.now());
+        when(authService.getCurrentUser(VALID_TOKEN)).thenReturn(userResponse);
 
         // Act & Assert
-        mockMvc.perform(get("/api/v1/auth/me")
-                .header("Authorization", "Bearer " + token))
+        mockMvc.perform(get(API_BASE + "/me")
+                        .header("Authorization", "Bearer " + VALID_TOKEN))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.username").value("admin"))
-                .andExpect(jsonPath("$.role").value("ADMIN"));
+                .andExpect(jsonPath("$.role").value("ADMIN"))
+                .andExpect(jsonPath("$.active").value(true));
+
+        verify(authService, times(1)).getCurrentUser(VALID_TOKEN);
     }
 
     @Test
     @DisplayName("GET /api/v1/auth/me sin token retorna 401")
     void testGetCurrentUser_noToken_returns401() throws Exception {
         // Act & Assert
-        mockMvc.perform(get("/api/v1/auth/me"))
+        mockMvc.perform(get(API_BASE + "/me"))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -176,8 +187,11 @@ class AuthControllerTest {
                 .thenThrow(new UnauthorizedException("Token no válido o expirado"));
 
         // Act & Assert
-        mockMvc.perform(get("/api/v1/auth/me")
-                .header("Authorization", "Bearer " + invalidToken))
-                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get(API_BASE + "/me")
+                        .header("Authorization", "Bearer " + invalidToken))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.message").value("Token no válido o expirado"));
+
+        verify(authService, times(1)).getCurrentUser(invalidToken);
     }
 }
