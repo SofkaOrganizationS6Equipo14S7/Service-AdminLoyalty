@@ -8,6 +8,7 @@ import com.loyalty.service_admin.domain.repository.ApiKeyRepository;
 import com.loyalty.service_admin.infrastructure.exception.ApiKeyNotFoundException;
 import com.loyalty.service_admin.infrastructure.exception.EcommerceNotFoundException;
 import com.loyalty.service_admin.infrastructure.rabbitmq.ApiKeyEventPublisher;
+import com.loyalty.service_admin.infrastructure.util.HashingUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,8 +38,16 @@ public class ApiKeyService {
     
     /**
      * Crea una nueva API Key para un ecommerce.
+     * 
+     * Flujo de seguridad:
+     * 1. Generar UUID v4 (plaintext)
+     * 2. Hashear con SHA-256 para persistencia
+     * 3. Guardar hash en BD
+     * 4. Retornar el UUID plaintext al cliente (una sola vez, 201 Created)
+     * 5. Publicar evento con el hash para sincronización a Engine
+     * 
      * @param ecommerceId ID del ecommerce propietario
-     * @return ApiKeyResponse con la key enmascarada
+     * @return ApiKeyResponse con la key enmascarada (plaintext)
      * @throws EcommerceNotFoundException si el ecommerce no existe
      */
     @Transactional
@@ -46,22 +55,25 @@ public class ApiKeyService {
         // Validar que el ecommerce existe
         ecommerceService.validateEcommerceExists(ecommerceId);
         
-        // Generar UUID v4 para la key
-        String keyString = UUID.randomUUID().toString();
+        // 1. Generar UUID v4 plaintext
+        String plainKeyValue = UUID.randomUUID().toString();
         
-        // Crear entity
+        // 2. Hashear con SHA-256
+        String hashedKeyValue = HashingUtil.sha256(plainKeyValue);
+        
+        // 3. Crear entity con hash persistido
         ApiKeyEntity entity = new ApiKeyEntity();
-        entity.setKeyString(keyString);
+        entity.setHashedKey(hashedKeyValue);
         entity.setEcommerceId(ecommerceId);
         
-        // Persistir
+        // 4. Persistir en BD (solo el hash)
         ApiKeyEntity saved = apiKeyRepository.save(entity);
         
-        // Publicar evento de creación
+        // 5. Publicar evento de creación (con hash para Engine Service)
         ApiKeyEventPayload event = new ApiKeyEventPayload(
             "API_KEY_CREATED",
             saved.getId().toString(),
-            keyString,
+            hashedKeyValue,  // Pasar el hash, no el plaintext
             ecommerceId.toString(),
             Instant.now()
         );
@@ -69,8 +81,8 @@ public class ApiKeyService {
         
         log.info("API Key created for ecommerce: {}, keyId: {}", ecommerceId, saved.getId());
         
-        // Retornar response con key enmascarada
-        return toApiKeyResponse(saved);
+        // Retornar response con el plaintext enmascarado (solo para esta respuesta 201)
+        return toApiKeyResponse(saved, plainKeyValue);
     }
     
     /**
@@ -114,11 +126,11 @@ public class ApiKeyService {
             throw new ApiKeyNotFoundException("API Key no pertenece a este ecommerce");
         }
         
-        // Publicar evento de eliminación ANTES de eliminar
+        // Publicar evento de eliminación ANTES de eliminar (incluir hash)
         ApiKeyEventPayload event = new ApiKeyEventPayload(
             "API_KEY_DELETED",
             key.getId().toString(),
-            key.getKeyString(),
+            key.getHashedKey(),  // Pasar el hash, no plaintext
             ecommerceId.toString(),
             Instant.now()
         );
@@ -132,11 +144,14 @@ public class ApiKeyService {
     
     /**
      * Convierte ApiKeyEntity a ApiKeyResponse con key enmascarada.
+     * 
+     * Nota: plainKeyValue solo se proporciona en el momento de creación (201 Created).
+     * En GETs posteriores, no tenemos el plaintext, solo mostramos ****XXXX del hash.
      */
-    private ApiKeyResponse toApiKeyResponse(ApiKeyEntity entity) {
+    private ApiKeyResponse toApiKeyResponse(ApiKeyEntity entity, String plainKeyValue) {
         return new ApiKeyResponse(
             entity.getId().toString(),
-            maskKey(entity.getKeyString()),
+            maskKey(plainKeyValue),  // Masking del plaintext
             entity.getEcommerceId().toString(),
             entity.getCreatedAt(),
             entity.getUpdatedAt()
@@ -144,12 +159,13 @@ public class ApiKeyService {
     }
     
     /**
-     * Convierte ApiKeyEntity a ApiKeyListResponse con key enmascarada.
+     * Convierte ApiKeyEntity a ApiKeyListResponse con key enmascarada (para GETs).
+     * Nota: En listados, solo tenemos el hash, así que mostramos ****XXXX del hash.
      */
     private ApiKeyListResponse toApiKeyListResponse(ApiKeyEntity entity) {
         return new ApiKeyListResponse(
             entity.getId().toString(),
-            maskKey(entity.getKeyString()),
+            maskKey(entity.getHashedKey()),  // Masking del hash (fallback)
             entity.getCreatedAt(),
             entity.getUpdatedAt()
         );
@@ -157,8 +173,9 @@ public class ApiKeyService {
     
     /**
      * Enmascara una key al formato ****XXXX (últimos 4 caracteres).
-     * Para UUID, extrae los últimos 4 chars antes del final.
+     * Para UUID, extrae los últimos 4 chars.
      * Ejemplo: 550e8400-e29b-41d4-a716-446655440000 → ****0000
+     * Ejemplo hash: a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3 → ****e3
      */
     private String maskKey(String keyString) {
         if (keyString == null || keyString.length() < 4) {
