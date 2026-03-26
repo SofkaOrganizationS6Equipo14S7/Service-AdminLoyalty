@@ -1,6 +1,6 @@
 ---
 id: SPEC-001
-status: IMPLEMENTED
+status: IN_PROGRESS
 feature: login-logout
 created: 2026-03-26
 updated: 2026-03-26
@@ -369,18 +369,18 @@ if (token) {
 ### Frontend
 
 #### Implementación
-- [x] Crear `hooks/useAuth.js` — Context para autenticación (token, user, login, logout)
-- [x] Crear `services/authService.js` — funciones login, logout, getCurrentUser
-- [x] Crear `pages/LoginPage.jsx` — página con form login
-- [x] Crear `components/LoginForm.jsx` — form username + password
-- [x] Crear `components/ProtectedRoute.jsx` — wrapper para rutas protegidas
-- [x] Crear `AuthProvider` en `pages/AppProvider.jsx` — wrapper de Context
-- [x] Implementar App.jsx routing: `/login`, `/dashboard` (protegida), redirección default
-- [x] Implementar logout en header/navbar — botón que limpia sesión
-- [x] Implementar persistencia de token en localStorage
-- [x] Implementar validación de token en refresh (GET /auth/me al cargar app)
-- [x] Implementar redireccionamiento a login si token expirado (response 401)
-- [x] Estilos CSS Modules para LoginPage.module.css, LoginForm.module.css
+- [ ] Crear `hooks/useAuth.js` — Context para autenticación (token, user, login, logout)
+- [ ] Crear `services/authService.js` — funciones login, logout, getCurrentUser
+- [ ] Crear `pages/LoginPage.jsx` — página con form login
+- [ ] Crear `components/LoginForm.jsx` — form username + password
+- [ ] Crear `components/ProtectedRoute.jsx` — wrapper para rutas protegidas
+- [ ] Crear `AuthProvider` en `pages/AppProvider.jsx` — wrapper de Context
+- [ ] Implementar App.jsx routing: `/login`, `/dashboard` (protegida), redirección default
+- [ ] Implementar logout en header/navbar — botón que limpia sesión
+- [ ] Implementar persistencia de token en localStorage
+- [ ] Implementar validación de token en refresh (GET /auth/me al cargar app)
+- [ ] Implementar redireccionamiento a login si token expirado (response 401)
+- [ ] Estilos CSS Modules para LoginPage.module.css, LoginForm.module.css
 
 #### Tests Frontend
 - [ ] `test_LoginForm_renders_username_and_password_inputs` — render UI
@@ -427,9 +427,9 @@ if (token) {
 | `AuthService.login()` | ✅ Existe | Genera token Base64 (24h validity) |
 | `AuthController` | ✅ Existe | Endpoint POST /auth/login mapeado |
 | `AuthService.logout()` | ✅ Implementado | Endpoint POST /auth/logout funcional |
-| `Frontend LoginPage` | ✅ Implementado | React página con form login |
-| `Frontend useAuth hook` | ✅ Implementado | Context API funcional |
-| `ProtectedRoute` | ✅ Implementado | Componente de protección de rutas |
+| `Frontend LoginPage` | ❌ No existe | Implementar |
+| `Frontend useAuth hook` | ❌ No existe | Crear Context API |
+| `ProtectedRoute` | ❌ No existe | Crear componente protección |
 
 ---
 
