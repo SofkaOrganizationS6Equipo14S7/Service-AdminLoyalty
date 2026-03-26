@@ -1,5 +1,13 @@
 # Arquitectura de Autenticación - LOYALTY SYSTEM
 
+> **Status**: ✅ **FASE 1 IMPLEMENTATION COMPLETE**
+> - JwtAuthenticationFilter deployed
+> - ApiKeyAuthenticationFilter verified
+> - SecurityConfig with dual-filter strategy active
+> - All 66 tests passing
+> - X-User-ID header removed from DiscountConfigController
+> - Next: Fase 2 (RSA signing, refresh tokens, rate limiting)
+
 ## Executive Summary: Hybrid Auth Model
 
 El service-engine tiene **dos caras involucradas en tráficos completamente distintos**:
