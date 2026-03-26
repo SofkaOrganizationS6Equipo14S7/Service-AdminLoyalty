@@ -2,7 +2,6 @@ package com.loyalty.service_admin.infrastructure.security;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -60,13 +59,13 @@ public class JwtProvider {
             String token = Jwts.builder()
                 // Header: alg=HS256, typ=JWT (automático)
                 // Payload: claims
-                .subject(username)                          // "sub" claim
+                .setSubject(username)                       // "sub" claim
                 .claim("userId", userId)                    // custom claim
                 .claim("role", role)                        // custom claim
-                .issuedAt(new Date(nowMs))                  // "iat" claim
-                .expiration(new Date(expiryMs))             // "exp" claim
+                .setIssuedAt(new Date(nowMs))               // "iat" claim
+                .setExpiration(new Date(expiryMs))          // "exp" claim
                 // Signature: HMAC-SHA256 con secret key
-                .signWith(key, SignatureAlgorithm.HS256)
+                .signWith(key)
                 .compact();
             
             log.debug("JWT generado exitosamente para usuario: {}", username);
@@ -174,3 +173,4 @@ public class JwtProvider {
         }
     }
 }
+
