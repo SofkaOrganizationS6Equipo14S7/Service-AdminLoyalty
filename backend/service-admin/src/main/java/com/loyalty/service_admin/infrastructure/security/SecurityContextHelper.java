@@ -45,12 +45,22 @@ public class SecurityContextHelper {
     }
     
     /**
-     * Obtiene el UID del usuario actual.
+     * Obtiene el UID (UUID) del usuario actual.
+     * Alias de getCurrentUserId() para compatibilidad con SPEC-002.
      * 
      * @return UUID del usuario
      */
-    public UUID getCurrentUserId() {
+    public UUID getCurrentUserUid() {
         return getCurrentUserPrincipal().getUid();
+    }
+    
+    /**
+     * Obtiene el rol (role) del usuario actual.
+     * 
+     * @return String del rol (e.g., "SUPER_ADMIN", "USER")
+     */
+    public String getCurrentUserRole() {
+        return getCurrentUserPrincipal().getRole();
     }
     
     /**

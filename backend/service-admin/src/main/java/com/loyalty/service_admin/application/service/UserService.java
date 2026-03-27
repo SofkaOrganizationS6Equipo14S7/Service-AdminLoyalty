@@ -50,17 +50,39 @@ public class UserService {
     /**
      * Crea un nuevo usuario vinculado a un ecommerce.
      * 
-     * Valida:
+     * SPEC-002 RN-07: Solo SUPER_ADMIN puede hacer CRUD de usuarios
+     * 
+     * Validaciones:
+     * - Solo SUPER_ADMIN (CRITERIO-1.1)
+     * - Role debe ser "USER" (no se pueden crear SUPER_ADMIN via API)
      * - Ecommerce existe (CRITERIO-1.2)
      * - Username es único globalmente (CRITERIO-1.3)
      * 
      * @param request datos del nuevo usuario
      * @return UserResponse con datos del usuario creado
-     * @throws BadRequestException si ecommerce no existe
+     * @throws AuthorizationException si no es SUPER_ADMIN
+     * @throws BadRequestException si role no es "USER" o ecommerce no existe
      * @throws ConflictException si username duplicado
      */
     @Transactional
     public UserResponse createUser(UserCreateRequest request) {
+        // AUTORIZACIÓN: Solo SUPER_ADMIN puede crear usuarios
+        if (!securityContextHelper.isCurrentUserSuperAdmin()) {
+            log.warn("Intento de crear usuario sin permisos. Role actual: {}", 
+                    securityContextHelper.getCurrentUserRole());
+            throw new AuthorizationException(
+                "Solo los administradores pueden crear usuarios"
+            );
+        }
+        
+        // VALIDACIÓN: Role debe ser "USER" (no permitimos crear SUPER_ADMIN)
+        if (!"USER".equals(request.role())) {
+            log.warn("Intento de crear usuario con rol no autorizado: {}", request.role());
+            throw new BadRequestException(
+                "Solo se pueden crear usuarios con rol USER"
+            );
+        }
+        
         // Validar que ecommerce existe
         ecommerceService.validateEcommerceExists(request.ecommerceId());
         
@@ -82,7 +104,8 @@ public class UserService {
                 .build();
         
         UserEntity saved = userRepository.save(user);
-        log.info("Usuario creado exitosamente: id={}, ecommerce={}", saved.getId(), request.ecommerceId());
+        log.info("Usuario creado exitosamente: uid={}, username={}, ecommerce={}", 
+                saved.getUid(), saved.getUsername(), saved.getEcommerceId());
         
         return toResponse(saved);
     }
@@ -135,16 +158,17 @@ public class UserService {
      * 
      * Valida que el usuario actual tiene permiso para verlo (mismo ecommerce o super admin).
      * 
-     * @param uid UUID del usuario
+     * @param uid UUID único del usuario
      * @return UserResponse
      * @throws ResourceNotFoundException si no existe
      * @throws AuthorizationException si no tiene permiso
      */
     @Transactional(readOnly = true)
     public UserResponse getUserByUid(UUID uid) {
-        UserEntity user = findByUidOrThrow(uid);
+        UserEntity user = userRepository.findByUid(uid)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
         
-        // Validar permiso
+        // Validar permiso (SUPER_ADMIN ve todos, USER solo su ecommerce)
         if (!securityContextHelper.isCurrentUserSuperAdmin()) {
             UUID userEcommerce = securityContextHelper.getCurrentUserEcommerceId();
             if (!userEcommerce.equals(user.getEcommerceId())) {
@@ -160,21 +184,36 @@ public class UserService {
     }
     
     /**
-     * Actualiza un usuario (solo username y ecommerceId).
+     * Actualiza un usuario (username, password, active, ecommerceId).
      * 
-     * Valida:
+     * SPEC-002 RN-07: Solo SUPER_ADMIN puede hacer CRUD de usuarios
+     * SPEC-002 CRITERIO-5.1: Actualizar permite cambiar contraseña y estado activo
+     * 
+     * Validaciones:
+     * - Solo SUPER_ADMIN (RN-07)
      * - Username es único globalmente si se cambia (CRITERIO-4.4)
      * - Ecommerce existe si se cambia (CRITERIO-4.3)
      * 
-     * @param uid UUID del usuario
-     * @param request datos a actualizar
+     * @param uid UUID único del usuario
+     * @param request datos a actualizar (todos opcionales)
      * @return UserResponse actualizado
+     * @throws AuthorizationException si no es SUPER_ADMIN
      * @throws ResourceNotFoundException si no existe
      * @throws ConflictException si username duplicado
      */
     @Transactional
     public UserResponse updateUser(UUID uid, UserUpdateRequest request) {
-        UserEntity user = findByUidOrThrow(uid);
+        // AUTORIZACIÓN: Solo SUPER_ADMIN puede actualizar usuarios
+        if (!securityContextHelper.isCurrentUserSuperAdmin()) {
+            log.warn("Intento de actualizar usuario sin permisos. Role actual: {}", 
+                    securityContextHelper.getCurrentUserRole());
+            throw new AuthorizationException(
+                "Solo los administradores pueden actualizar usuarios"
+            );
+        }
+        
+        UserEntity user = userRepository.findByUid(uid)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
         
         // Actualizar username si se proporciona
         if (request.username() != null && !request.username().equals(user.getUsername())) {
@@ -188,6 +227,16 @@ public class UserService {
             user.setUsername(request.username());
         }
         
+        // Actualizar password si se proporciona
+        if (request.password() != null && !request.password().isEmpty()) {
+            user.setPassword(passwordEncoder.encode(request.password()));
+        }
+        
+        // Actualizar estado activo si se proporciona
+        if (request.active() != null) {
+            user.setActive(request.active());
+        }
+        
         // Actualizar ecommerce si se proporciona
         if (request.ecommerceId() != null && !request.ecommerceId().equals(user.getEcommerceId())) {
             ecommerceService.validateEcommerceExists(request.ecommerceId());
@@ -195,7 +244,8 @@ public class UserService {
         }
         
         UserEntity updated = userRepository.save(user);
-        log.info("Usuario actualizado: id={}, ecommerce={}", updated.getId(), updated.getEcommerceId());
+        log.info("Usuario actualizado: uid={}, username={}, ecommerce={}", 
+                updated.getUid(), updated.getUsername(), updated.getEcommerceId());
         
         return toResponse(updated);
     }
@@ -203,52 +253,54 @@ public class UserService {
     /**
      * Elimina un usuario (irreversible).
      * 
-     * Validaciones:
-     * - Usuario no puede eliminarse a sí mismo (CRITERIO-5.2)
-     * - Solo super admin puede eliminar (evaluado en controller)
+     * SPEC-002 RN-07: Solo SUPER_ADMIN puede hacer CRUD de usuarios
+     * SPEC-002 CRITERIO-5.2: Eliminar usuario (no se puede auto-eliminar)
      * 
-     * @param uid UUID del usuario a eliminar
+     * Validaciones:
+     * - Solo SUPER_ADMIN (RN-07)
+     * - Usuario no puede eliminarse a sí mismo (CRITERIO-5.2)
+     * 
+     * @param uid UUID único del usuario a eliminar
+     * @throws AuthorizationException si no es SUPER_ADMIN
      * @throws ResourceNotFoundException si no existe
      * @throws BadRequestException si intenta auto-eliminarse
      */
     @Transactional
     public void deleteUser(UUID uid) {
-        UserEntity user = findByUidOrThrow(uid);
+        // AUTORIZACIÓN: Solo SUPER_ADMIN puede eliminar usuarios
+        if (!securityContextHelper.isCurrentUserSuperAdmin()) {
+            log.warn("Intento de eliminar usuario sin permisos. Role actual: {}", 
+                    securityContextHelper.getCurrentUserRole());
+            throw new AuthorizationException(
+                "Solo los administradores pueden eliminar usuarios"
+            );
+        }
+        
+        UserEntity user = userRepository.findByUid(uid)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
         
         // Validar que no se elimina a sí mismo
-        UUID currentUserId = securityContextHelper.getCurrentUserId();
-        if (currentUserId.equals(uid)) {
+        UUID currentUserUid = securityContextHelper.getCurrentUserUid();
+        if (currentUserUid.equals(uid)) {
             log.warn("Intento de auto-eliminación por usuario: {}", uid);
             throw new BadRequestException("No puede eliminarse a sí mismo");
         }
         
         userRepository.delete(user);
-        log.info("Usuario eliminado: id={}", user.getId());
-    }
-    
-    /**
-     * Obtiene un usuario por UID o lanza excepción.
-     * Como UserEntity usa Long como ID, convertimos UUID a Long usando hash.
-     */
-    private UserEntity findByUidOrThrow(UUID uid) {
-        long idFromUuid = uid.getMostSignificantBits() % Integer.MAX_VALUE;
-        return userRepository.findById(idFromUuid)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+        log.info("Usuario eliminado: uid={}, username={}", user.getUid(), user.getUsername());
     }
     
     /**
      * Convierte una entidad UserEntity a DTO UserResponse.
      * Expone UUID en lugar de Long id (protección contra enumeración).
-     * 
-     * Nota: Genera UUID de forma determinística del Long id para mantener consistencia.
+     * El uuid proviene del campo uid del entity (auto-generado en @PrePersist).
      */
     private UserResponse toResponse(UserEntity user) {
-        UUID uid = UUID.nameUUIDFromBytes(("user-" + user.getId()).getBytes());
         return new UserResponse(
-                uid,
+                user.getUid(),
                 user.getUsername(),
                 user.getRole(),
-                null, // email no está en entity por ahora
+                null, // email no está en entity según SPEC-002
                 user.getEcommerceId(),
                 user.getActive(),
                 user.getCreatedAt(),
