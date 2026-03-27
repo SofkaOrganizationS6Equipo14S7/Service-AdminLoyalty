@@ -2,10 +2,15 @@ package com.loyalty.service_admin.infrastructure.security;
 
 import com.loyalty.service_admin.application.service.AuthService;
 import com.loyalty.service_admin.infrastructure.config.AuthenticationFilter;
-import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
  * Configuración de seguridad para autenticación.
@@ -25,6 +30,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
  * - Strength > 12: DoS involuntario bajo carga por excesivo uso de CPU
  */
 @Configuration
+@EnableWebSecurity
 public class SecurityConfiguration {
     
     /**
@@ -56,18 +62,32 @@ public class SecurityConfiguration {
     }
     
     /**
-     * Registra el filter en el servlet filter chain.
+     * Configura la seguridad HTTP del servicio admin.
      * 
-     * @param authenticationFilter bean del filter
-     * @return FilterRegistrationBean configurado
+     * Endpoints públicos:
+     * - POST /api/v1/auth/login
+     * - POST /api/v1/auth/logout
+     * - GET /api/v1/health
+     * - Swagger/OpenAPI docs
+     * 
+     * El resto de endpoints requieren JWT válido.
      */
     @Bean
-    public FilterRegistrationBean<AuthenticationFilter> filterRegistrationBean(
-            AuthenticationFilter authenticationFilter) {
-        FilterRegistrationBean<AuthenticationFilter> registrationBean = new FilterRegistrationBean<>();
-        registrationBean.setFilter(authenticationFilter);
-        registrationBean.addUrlPatterns("/*");
-        registrationBean.setOrder(1);
-        return registrationBean;
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, AuthenticationFilter authenticationFilter) throws Exception {
+        http
+            .csrf(csrf -> csrf.disable())
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/v1/auth/logout").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/health").permitAll()
+                .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                .anyRequest().authenticated()
+            )
+            .httpBasic(httpBasic -> httpBasic.disable())
+            .formLogin(formLogin -> formLogin.disable())
+            .addFilterBefore(authenticationFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
     }
 }

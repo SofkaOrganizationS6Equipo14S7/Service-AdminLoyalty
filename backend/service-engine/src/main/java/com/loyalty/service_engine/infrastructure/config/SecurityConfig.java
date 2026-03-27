@@ -42,6 +42,7 @@ public class SecurityConfig {
      * Configura la cadena de filtros de seguridad con Dual-Filter Strategy.
      * 
      * Autorización:
+        * - Endpoints públicos: health + docs
      * - Management endpoints (/config, /priority): Requieren JWT + ROLE_ADMIN
      * - Transaction endpoints (/calculate): Requieren API Key (autenticado)
      */
@@ -56,6 +57,11 @@ public class SecurityConfig {
             
             // Autorización por endpoint
             .authorizeHttpRequests(auth -> auth
+                // Endpoints públicos
+                .requestMatchers(HttpMethod.GET, "/api/v1/health").permitAll()
+                .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**").permitAll()
+                .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+
                 // Management endpoints: Solo JWT + rol ADMIN
                 .requestMatchers(HttpMethod.POST, "/api/v1/discount/config").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/v1/discount/config").hasRole("ADMIN")
