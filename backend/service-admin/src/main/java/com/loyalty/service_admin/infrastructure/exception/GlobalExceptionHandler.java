@@ -118,6 +118,70 @@ public class GlobalExceptionHandler {
     }
     
     /**
+     * Maneja BadRequestException (validación de datos inválidos).
+     * Implementa SPEC-002 para validación de entrada de usuarios.
+     */
+    @ExceptionHandler(BadRequestException.class)
+    public ResponseEntity<Map<String, Object>> handleBadRequest(BadRequestException e) {
+        return ResponseEntity
+            .status(HttpStatus.BAD_REQUEST)
+            .body(Map.of(
+                "timestamp", Instant.now().toString(),
+                "status", HttpStatus.BAD_REQUEST.value(),
+                "error", "Bad Request",
+                "message", e.getMessage()
+            ));
+    }
+    
+    /**
+     * Maneja ConflictException (violación de restricciones de unicidad).
+     * Principalmente: username duplicado globalmente (SPEC-002 RN-03).
+     */
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<Map<String, Object>> handleConflict(ConflictException e) {
+        return ResponseEntity
+            .status(HttpStatus.CONFLICT)
+            .body(Map.of(
+                "timestamp", Instant.now().toString(),
+                "status", HttpStatus.CONFLICT.value(),
+                "error", "Conflict",
+                "message", e.getMessage()
+            ));
+    }
+    
+    /**
+     * Maneja AuthorizationException (acceso denegado por restricciones multi-tenant).
+     * Implementa SPEC-002 punto 2: validación de aislamiento por ecommerce_id.
+     */
+    @ExceptionHandler(AuthorizationException.class)
+    public ResponseEntity<Map<String, Object>> handleAuthorization(AuthorizationException e) {
+        return ResponseEntity
+            .status(HttpStatus.FORBIDDEN)
+            .body(Map.of(
+                "timestamp", Instant.now().toString(),
+                "status", HttpStatus.FORBIDDEN.value(),
+                "error", "Forbidden",
+                "message", e.getMessage()
+            ));
+    }
+    
+    /**
+     * Maneja ResourceNotFoundException (recurso no encontrado).
+     * Se aplica cuando: usuario con UID no existe, ecommerce no existe, etc.
+     */
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleResourceNotFound(ResourceNotFoundException e) {
+        return ResponseEntity
+            .status(HttpStatus.NOT_FOUND)
+            .body(Map.of(
+                "timestamp", Instant.now().toString(),
+                "status", HttpStatus.NOT_FOUND.value(),
+                "error", "Not Found",
+                "message", e.getMessage()
+            ));
+    }
+    
+    /**
      * Manejador genérico para cualquier excepción.
      */
     @ExceptionHandler(Exception.class)
