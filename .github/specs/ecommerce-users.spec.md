@@ -578,10 +578,6 @@ ALTER TABLE users ADD UNIQUE KEY uk_username_global (username);
 - [ ] `test_userService_createUser_success` — happy path creación
 - [ ] `test_userService_createUser_ecommerceNotFound` — error ecommerce inválido
 - [ ] `test_userService_createUser_usernameDuplicateGlobal` — error username duplicado globalmente (en cualquier ecommerce)
-- [ ] `test_userService_createUser_validateGlobalUniqueness` — validar que mismo username no existe en otro ecommerce
-- [ ] `test_userRepository_findByEcommerceId_returns_list` — repositorio query
-- [ ] `test_userRepository_findByUsername_unique_global` — buscar por username global
-- [ ] **`test_userPrincipal_stores_ecommerce_id`** — validar que UserPrincipal contiene ecommerce_id
 - [ ] `test_userController_post_returns_201` — endpoint creación
 - [ ] `test_userController_get_returns_200` — listado con filtro de ecommerce_id del JWT
 - [ ] `test_userController_get_filtering_by_ecommerce` — super admin puede filtrar explícitamente
@@ -590,8 +586,6 @@ ALTER TABLE users ADD UNIQUE KEY uk_username_global (username);
 - [ ] `test_userController_put_rejects_duplicate_username_global` — no permitir username duplicado globalmente en update
 - [ ] `test_userController_delete_returns_204` — eliminación
 - [ ] `test_userController_delete_self_returns_400` — validación auto-eliminación
-- [ ] **`test_authenticationFilter_registered_as_bean`** — validar que filter está registrado correctamente en configuración
-- [ ] **`test_authenticationFilter_extracts_ecommerce_id_to_context_holder`** — validar extracción de claim a UserPrincipal
 
 ### Frontend
 

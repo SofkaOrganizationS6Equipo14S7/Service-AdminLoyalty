@@ -554,7 +554,6 @@ com.loyalty.service_admin/
 - [ ] `test_auth_me_invalid_token` → GET /api/v1/auth/me con token inválido retorna 401
 - [ ] `test_auth_me_expired_token` → GET /api/v1/auth/me con token expirado (> 24h) retorna 401
 - [ ] `test_auth_me_inactive_user` → GET /api/v1/auth/me si Usuario fue desactivado retorna 401
-- [ ] `test_bcrypt_password_hashing` → password se almacena hasheado y se valida correctamente
 
 ### Frontend (esbozo — `/implement-frontend` skill)
 

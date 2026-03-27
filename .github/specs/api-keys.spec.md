@@ -546,3 +546,43 @@ public record ApiKeyValidationContext(
 - [ ] Validar masking: keys nunca aparecen completas en logs/responses
 - [ ] Actualizar estado spec: `status: IMPLEMENTED` al completar todas las tareas
 
+---
+
+## Tests Backend
+
+### Unit Tests (ApiKeyService)
+
+- [ ] `testCreateApiKey_generatesUuidAndHashes` — verifica generación de UUID y hashing SHA-256
+- [ ] `testCreateApiKey_validEcommerce_savesAndPublishes` — happy path: guarda en repo y publica evento
+- [ ] `testCreateApiKey_ecommerceNotFound_throwsException` — error cuando ecommerce no existe
+- [ ] `testCreateApiKey_returnsFullKeyOnCreation` — al crear retorna la key completa (no masked)
+- [ ] `testListApiKeys_returnsMaskedKeys` — listar siempre retorna ****XXXX (nunca la key real)
+- [ ] `testDeleteApiKey_exists_deletesAndPublishes` — elimina y publica evento
+- [ ] `testDeleteApiKey_notFound_throwsException` — error cuando key no existe
+
+### Unit Tests (ApiKeyController)
+
+- [ ] `testPostApiKey_returns201` — endpoint creación retorna 201
+- [ ] `testGetApiKeys_returns200` — endpoint listado retorna 200
+- [ ] `testDeleteApiKey_returns204` — endpoint eliminación retorna 204
+
+### Unit Tests (ApiKeyAuthenticationFilter)
+
+- [ ] `testDoFilter_validKey_continuesChain` — filtro permite request válida
+- [ ] `testDoFilter_invalidKey_returns401` — filtro rechaza key inválida
+- [ ] `testDoFilter_noHeader_returns401` — filtro rechaza sin header Authorization
+
+### Integration Tests (Service)
+
+- [ ] `testCreateApiKey_integration_persistsToDatabase` — flujo completo guarda en BD
+- [ ] `testListApiKeys_integration_returnsFromDatabase` — listado trae datos reales
+
+### Integration Tests (RabbitMQ)
+
+- [ ] `testApiKeyEventPublisher_sendsMessage` — publica mensaje en el exchange
+
+### Integration Tests (Cache)
+
+- [ ] `testApiKeyCache_addAndRetrieve` — Caffeine cache guarda y recupera
+- [ ] `testApiKeyCache_loadsOnStartup` — al iniciar carga keys desde BD
+

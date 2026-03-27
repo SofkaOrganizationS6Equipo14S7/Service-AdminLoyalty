@@ -480,8 +480,6 @@ VALUES
 - [ ] `test_classificationController_post_calculate_returns_200` — happy path
 - [ ] `test_classificationController_post_calculate_returns_400_missing_field` — payload inválido
 - [ ] `test_classificationController_post_calculate_returns_401_no_api_key` — sin autenticación
-- [ ] `test_classificationRuleRepository_findByIsActiveTrueOrderByPriority_returns_sorted` — persistencia
-- [ ] `test_customerTierRepository_findByIsActiveTrue_returns_actives` — persistencia
 
 ### Frontend
 - [ ] **Opcional (futura HU)**: Dashboard admin para visualizar tiers y reglas (tabla de tiers, tabla de reglas, crear/editar modal)
