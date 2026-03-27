@@ -17,7 +17,7 @@ import org.springframework.context.annotation.Configuration;
 @RequiredArgsConstructor
 @Slf4j
 public class DataInitializer {
-    
+
     /**
      * Bean que se ejecuta al iniciar la aplicación.
      * Crea un usuario administrador por defecto.
