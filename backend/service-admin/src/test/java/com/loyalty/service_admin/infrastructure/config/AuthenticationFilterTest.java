@@ -2,6 +2,7 @@ package com.loyalty.service_admin.infrastructure.config;
 
 import com.loyalty.service_admin.application.dto.UserResponse;
 import com.loyalty.service_admin.application.service.AuthService;
+import com.loyalty.service_admin.infrastructure.security.JwtProvider;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -16,6 +17,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.time.Instant;
+import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
@@ -39,6 +41,9 @@ class AuthenticationFilterTest {
     private AuthService authService;
 
     @Mock
+    private JwtProvider jwtProvider;
+
+    @Mock
     private HttpServletRequest request;
 
     @Mock
@@ -54,7 +59,7 @@ class AuthenticationFilterTest {
 
     @BeforeEach
     void setUp() {
-        filter = new AuthenticationFilter(authService);
+        filter = new AuthenticationFilter(authService, jwtProvider);
     }
 
     @Test
@@ -131,13 +136,16 @@ class AuthenticationFilterTest {
         // Arrange
         String validToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9";
         Instant now = Instant.now();
+        UUID testEcommerce = UUID.randomUUID();
         when(request.getRequestURI()).thenReturn("/api/v1/auth/me");
         when(request.getHeader("Authorization")).thenReturn("Bearer " + validToken);
         when(authService.getCurrentUser(validToken))
                 .thenReturn(new UserResponse(
-                        1L,
+                        UUID.randomUUID(),
                         "admin",
                         "ADMIN",
+                        "admin@example.com",
+                        testEcommerce,
                         true,
                         now,
                         now
