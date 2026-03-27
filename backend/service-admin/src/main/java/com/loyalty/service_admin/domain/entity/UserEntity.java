@@ -7,11 +7,13 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
+import java.util.UUID;
 
 @Entity
 @Table(name = "users", indexes = {
     @Index(name = "idx_username", columnList = "username", unique = true),
-    @Index(name = "idx_active", columnList = "active")
+    @Index(name = "idx_active", columnList = "active"),
+    @Index(name = "idx_ecommerce_id", columnList = "ecommerce_id")
 })
 @Data
 @NoArgsConstructor
@@ -31,6 +33,9 @@ public class UserEntity {
     
     @Column(name = "role", nullable = false, length = 50)
     private String role;
+    
+    @Column(name = "ecommerce_id", nullable = false)
+    private UUID ecommerceId;
     
     @Column(name = "active", nullable = false)
     private Boolean active;

@@ -106,10 +106,15 @@ public class AuthService {
             
             log.info("Usuario actual retornado: {}", username);
             
+            // Convertir Long id a UUID
+            java.util.UUID uid = java.util.UUID.nameUUIDFromBytes(("user-" + user.getId()).getBytes());
+            
             return new UserResponse(
-                    user.getId(),
+                    uid,
                     user.getUsername(),
                     user.getRole(),
+                    null, // email no está disponible aquí
+                    user.getEcommerceId(),
                     user.getActive(),
                     user.getCreatedAt(),
                     user.getUpdatedAt()

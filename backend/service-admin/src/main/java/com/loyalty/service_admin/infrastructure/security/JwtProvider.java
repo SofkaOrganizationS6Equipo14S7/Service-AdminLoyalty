@@ -172,5 +172,36 @@ public class JwtProvider {
             throw new io.jsonwebtoken.JwtException("Error extrayendo role del token", e);
         }
     }
+    
+    /**
+     * Extrae el ecommerce_id (custom claim) del token.
+     * Retorna null si el usuario es SUPER_ADMIN (sin restricción de ecommerce).
+     * 
+     * Implementa SPEC-002 punto 4: Propagación de ecommerce_id en JWT
+     * 
+     * @param token JWT
+     * @return UUID del ecommerce, o null si super admin
+     */
+    public java.util.UUID getEcommerceIdFromToken(String token) {
+        try {
+            String cleanToken = token.startsWith("Bearer ") ? token.substring(7) : token;
+            Claims claims = Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(cleanToken)
+                .getBody();
+            
+            String ecommerceIdStr = claims.get("ecommerce_id", String.class);
+            if (ecommerceIdStr == null) {
+                log.debug("ecommerce_id no presente en token (usuario probablemente SUPER_ADMIN)");
+                return null;
+            }
+            
+            return java.util.UUID.fromString(ecommerceIdStr);
+        } catch (Exception e) {
+            log.debug("ecommerce_id no encontrado en token o formato inválido: {}", e.getMessage());
+            return null; // No es error crítico, usuarios super admin no tienen este claim
+        }
+    }
 }
 
