@@ -67,18 +67,11 @@ CRITERIO-1.2: Rechazar creación si ecommerce no existe
   Entonces:     retorna 400 Bad Request
   Y:            mensaje: "El ecommerce no existe"
 
-CRITERIO-1.3: Rechazar creación si username duplicado en mismo ecommerce
-  Dado que:     existe usuario "admin@shop1" asociado a ecommerce-1
-  Cuando:       intenta crear otro usuario "admin@shop1" en ecommerce-1
+CRITERIO-1.3: Rechazar creación si username es globalmente duplicado
+  Dado que:     existe usuario "admin" asociado a ecommerce-1 (en cualquier ecommerce)
+  Cuando:       intenta crear otro usuario "admin" en ecommerce-2
   Entonces:     retorna 409 Conflict
-  Y:            mensaje: "El username ya existe en este ecommerce"
-
-CRITERIO-1.4: Permitir mismo username en ecommerce diferentes
-  Dado que:     existe "admin@shop1" en ecommerce-1
-  Y:            existe ecommerce-2
-  Cuando:       crea "admin@shop1" en ecommerce-2
-  Entonces:     retorna 201 Created
-  Y:            ambos usuarios coexisten sin conflicto
+  Y:            mensaje: "El username ya existe en otra organización, debe ser único globalmente"
 ```
 
 ---
@@ -201,12 +194,12 @@ CRITERIO-4.3: Rechazar cambio a ecommerce inválido
   Entonces:     retorna 400 Bad Request
   Y:            mensaje: "El ecommerce no existe"
 
-CRITERIO-4.4: Rechazar actualización de username duplicado en mismo ecommerce
-  Dado que:     "admin1" en ecommerce-1
-  Y:            "admin2" en ecommerce-1
+CRITERIO-4.4: Rechazar actualización si nuevo username es globalmente duplicado
+  Dado que:     existe "admin1" en ecommerce-1
+  Y:            existe "admin2" en ecommerce-2 (o cualquier otro ecommerce)
   Cuando:       intenta renombrar "admin1" a "admin2"
   Entonces:     retorna 409 Conflict
-  Y:            mensaje: "El username ya existe en este ecommerce"
+  Y:            mensaje: "El username ya existe en otra organización, debe ser único globalmente"
 ```
 
 ---
@@ -259,11 +252,12 @@ CRITERIO-5.3: Retornar 404 si usuario no existe
 
 2. **Validación de ecommerce**: La existencia del ecommerce se valida contra `EcommerceService.validateEcommerceExists(ecommerceId)` antes de crear/actualizar usuario.
 
-3. **Unicidad de username por ecommerce**: Username debe ser único dentro del ecommerce, pero puede repetirse entre ecommerce diferentes.
+3. **Unicidad global de username**: Username debe ser único en toda la plataforma (independiente del ecommerce). Esto evita ambigüedad en el endpoint de login y conflictos de identidad en el JWT. Un usuario no puede tener el mismo username en múltiples ecommerce.
 
-4. **Aislamiento en JWT**: 
-   - Usuarios no-super-admin: JWT incluye claim `"ecommerce_id"` con su ecommerce
-   - Super Admin: JWT NO tiene restricción de `ecommerce_id`
+4. **Propagación de ecommerce_id en JWT**: 
+   - AuthService (HU-01 en spec auth) DEBE incluir claim `"ecommerce_id"` en el JWT cuando autentica usuario no-super-admin
+   - Este claim es extraído por AuthenticationFilter en Admin Service y Engine Service para filtrar recursos
+   - Super Admin: JWT NO tiene claim `ecommerce_id` (acceso sin restricción)
 
 5. **Filtrado automático en consultas**: 
    - Usuarios no-super-admin solo pueden consultar/actuar sobre usuarios del mismo ecommerce
@@ -293,12 +287,15 @@ CRITERIO-5.3: Retornar 404 si usuario no existe
 ALTER TABLE users ADD COLUMN ecommerce_id UUID NOT NULL;
 ALTER TABLE users ADD CONSTRAINT fk_users_ecommerce FOREIGN KEY (ecommerce_id) REFERENCES ecommerce(id);
 ALTER TABLE users ADD INDEX idx_ecommerce_id (ecommerce_id);
+-- Cambiar constraint de unicidad global (no por ecommerce)
+ALTER TABLE users DROP INDEX idx_username;
+ALTER TABLE users ADD UNIQUE KEY uk_username_global (username);
 ```
 
 #### Nuevos índices
 
 - `idx_ecommerce_id (ecommerce_id)` — búsqueda rápida de usuarios por ecommerce
-- `UNIQUE (username, ecommerce_id)` — unicidad de username dentro de cada ecommerce (reemplaza UK anterior en username solo)
+- `UNIQUE (username)` — unicidad global de username en toda la plataforma (asegura que login no sea ambiguo)
 
 #### Campos del modelo UserEntity (actualizado)
 
@@ -508,22 +505,37 @@ ALTER TABLE users ADD INDEX idx_ecommerce_id (ecommerce_id);
 
 ### Notas de Implementación
 
-1. **Migración de datos**: Si UserEntity ya existe en producción, crear script Flyway que:
+1. **Unicidad global de username (CRÍTICO)**:
+   - Constraint `UNIQUE (username)` a nivel de BD
+   - Validación en backend antes de INSERT/UPDATE
+   - Simplifica login (no requiere ecommerceId en el endpoint de auth)
+   - Evita conflictos de identidad en JWT
+
+2. **JWT ecommerce_id claim (CRÍTICO)**:
+   - AuthService (phase auth) DEBE incluir claim `ecommerce_id` al generar JWT para usuario no-super-admin
+   - AuthenticationFilter en Admin Service y Engine Service extrae este claim y lo valida
+   - Super Admin NO tiene claim `ecommerce_id` → acceso sin restricción
+   - Claim debe propagarse en todas las peticiones subsecuentes
+
+3. **Migración de datos**: Si UserEntity ya existe en producción, crear script Flyway que:
    - Agrega columna `ecommerce_id` (nullable inicialmente)
    - Asigna default ecommerce para usuarios existentes (ej: via parámetro en migración)
    - Cambia a NOT NULL
+   - Reemplaza constraint de unicidad: DROP UNIQUE (username, ecommerce_id) → ADD UNIQUE (username)
 
-2. **Backward compatibility**: El campo `ecommerce_id` debe ser obligatorio en la API pero tolerante en migración.
+4. **Backward compatibility**: El campo `ecommerce_id` debe ser obligatorio en la API pero tolerante en migración.
 
-3. **Password strength**: Validar mínimo 8 caracteres, mezcla de mayúsculas/minúsculas/números en frontend y backend.
+5. **Password strength**: Validar mínimo 8 caracteres, mezcla de mayúsculas/minúsculas/números en frontend y backend.
 
-4. **Contexto de seguridad**: El `ecommerce_id` debe extraerse de JWT (claim `ecommerce_id`) y usado para filtrado automático en queries.
+6. **Contexto de seguridad**: El `ecommerce_id` debe extraerse de JWT (claim `ecommerce_id`) y usado para filtrado automático en queries (excepto super admin).
 
-5. **UID vs ID**: Internamente usamos `Long` en BD, pero exponemos `UUID` en API como `uid` para cliente.
+7. **UID vs ID**: Internamente usamos `Long` en BD, pero exponemos `UUID` en API como `uid` para cliente. Protege contra ataques de enumeración.
 
-6. **Super Admin**: No tiene `ecommerce_id` en JWT, por lo que puede listar/filtrar todos los ecommerce.
+8. **Super Admin**: No tiene `ecommerce_id` en JWT, por lo que puede listar/filtrar todos los ecommerce.
 
-7. **Transaccionalidad**: Endpoints POST/PUT/DELETE deben ser transaccionales (`@Transactional`).
+9. **Transaccionalidad**: Endpoints POST/PUT/DELETE deben ser transaccionales (`@Transactional`).
+
+10. **Engine Service aislamiento**: El AuthenticationFilter del Engine TAMBIÉN debe validar `ecommerce_id` del JWT cuando recibe peticiones de management (e.g., /api/v1/discount-config). Si usuario de Ecommerce A intenta ver config de Ecommerce B, retorna 403 Forbidden.
 
 ---
 
@@ -535,13 +547,13 @@ ALTER TABLE users ADD INDEX idx_ecommerce_id (ecommerce_id);
 - [ ] Crear migración `V5__Add_ecommerce_id_to_users.sql` — agregar columna + constraints
 - [ ] Modificar `UserEntity` — agregar campo `ecommerceId` (UUID, NOT NULL)
 - [ ] Crear DTOs: `UserCreateRequest`, `UserUpdateRequest`, `UserResponse` (Java Records)
-- [ ] Extender `UserRepository` — métodos `findByEcommerceId(UUID)`, `findByUsernameAndEcommerceId(...)`
-- [ ] Implementar `UserService` — métodos CRUD con validación de ecommerce
-  - `createUser(UserCreateRequest)`
-  - `listUsersByEcommerce(UUID)`
+- [ ] Extender `UserRepository` — métodos `findByEcommerceId(UUID)`, `findByUsername(String)` [búsqueda global]
+- [ ] Implementar `UserService` — métodos CRUD con validación de ecommerce y unicidad global de username
+  - `createUser(UserCreateRequest)` — validar username único globalmente + ecommerce existe
+  - `listUsersByEcommerce(UUID)` — filtrar por ecommerce_id
   - `getUserById(UUID)`
-  - `updateUser(UUID, UserUpdateRequest)`
-  - `deleteUser(UUID)`
+  - `updateUser(UUID, UserUpdateRequest)` — validar username único globalmente en caso de cambio
+  - `deleteUser(UUID)` — no permitir auto-eliminación
 - [ ] Crear `UserController` — endpoints POST, GET (list), GET (detail), PUT, DELETE
 - [ ] Modificar `AuthenticationFilter` — extraer y validar `ecommerce_id` del JWT
 - [ ] Registrar `UserController` en punto de entrada
@@ -549,15 +561,19 @@ ALTER TABLE users ADD INDEX idx_ecommerce_id (ecommerce_id);
 #### Tests Backend
 - [ ] `test_userService_createUser_success` — happy path creación
 - [ ] `test_userService_createUser_ecommerceNotFound` — error ecommerce inválido
-- [ ] `test_userService_createUser_usernameDuplicate` — error username duplicado en same ecommerce
-- [ ] `test_userService_createUser_allowDuplicateUsernameOtherEcommerce` — same username OK en otro ecommerce
+- [ ] `test_userService_createUser_usernameDuplicateGlobal` — error username duplicado globalmente (en cualquier ecommerce)
+- [ ] `test_userService_createUser_validateGlobalUniqueness` — validar que mismo username no existe en otro ecommerce
 - [ ] `test_userRepository_findByEcommerceId_returns_list` — repositorio query
+- [ ] `test_userRepository_findByUsername_unique_global` — buscar por username global
 - [ ] `test_userController_post_returns_201` — endpoint creación
-- [ ] `test_userController_get_returns_200` — listado
-- [ ] `test_userController_get_filtering_by_ecommerce` — filtrado por ecommerce
+- [ ] `test_userController_get_returns_200` — listado con filtro de ecommerce_id del JWT
+- [ ] `test_userController_get_filtering_by_ecommerce` — super admin puede filtrar explícitamente
+- [ ] `test_userController_get_forbids_cross_ecommerce_access` — user no-super-admin no puede filtrar otro ecommerce
 - [ ] `test_userController_put_returns_200` — actualización
+- [ ] `test_userController_put_rejects_duplicate_username_global` — no permitir username duplicado globalmente en update
 - [ ] `test_userController_delete_returns_204` — eliminación
 - [ ] `test_userController_delete_self_returns_400` — validación auto-eliminación
+- [ ] `test_authenticationFilter_extracts_ecommerce_id_claim` — validar que filter extrae claim del JWT
 
 ### Frontend
 
