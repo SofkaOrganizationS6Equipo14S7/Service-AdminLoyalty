@@ -95,8 +95,14 @@ public class AuthenticationFilter implements Filter {
             String role = jwtProvider.getRoleFromToken(token);
             UUID ecommerceId = jwtProvider.getEcommerceIdFromToken(token); // null si super admin
             
-            // Crear UserPrincipal con ecommerce_id
-            UUID uid = UUID.nameUUIDFromBytes(("user-" + userId).getBytes());
+            // Extraer uid del JWT, fallback a derivado si no existe
+            UUID uid = jwtProvider.getUidFromToken(token);
+            if (uid == null) {
+                // Fallback para tokens antiguos: derivar uid desde userId
+                uid = UUID.nameUUIDFromBytes(("user-" + userId).getBytes());
+            }
+            
+            // Crear UserPrincipal con datos extraídos del JWT
             UserPrincipal principal = new UserPrincipal(
                     uid,
                     username,
@@ -111,7 +117,7 @@ public class AuthenticationFilter implements Filter {
                     new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
             SecurityContextHolder.getContext().setAuthentication(authentication);
             
-            log.debug("Usuario autenticado: {} con ecommerce: {}", username, ecommerceId);
+            log.debug("Usuario autenticado: {} (uid: {}) con ecommerce: {}", username, uid, ecommerceId);
             chain.doFilter(request, response);
             
         } catch (Exception e) {
