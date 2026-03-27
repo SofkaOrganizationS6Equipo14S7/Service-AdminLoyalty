@@ -516,6 +516,7 @@ ALTER TABLE users ADD UNIQUE KEY uk_username_global (username);
    - AuthenticationFilter en Admin Service y Engine Service extrae este claim y lo valida
    - Super Admin NO tiene claim `ecommerce_id` → acceso sin restricción
    - Claim debe propagarse en todas las peticiones subsecuentes
+   - **LECCIÓN APRENDIDA**: Registrar AuthenticationFilter como `@Bean` en clase de configuración (NO como `@Component`). Esto evita conflictos en el ciclo de vida de Spring y en los tests del controller.
 
 3. **Migración de datos**: Si UserEntity ya existe en producción, crear script Flyway que:
    - Agrega columna `ecommerce_id` (nullable inicialmente)
@@ -527,7 +528,14 @@ ALTER TABLE users ADD UNIQUE KEY uk_username_global (username);
 
 5. **Password strength**: Validar mínimo 8 caracteres, mezcla de mayúsculas/minúsculas/números en frontend y backend.
 
-6. **Contexto de seguridad**: El `ecommerce_id` debe extraerse de JWT (claim `ecommerce_id`) y usado para filtrado automático en queries (excepto super admin).
+6. **Contexto de seguridad con Context Holder (CRÍTICO)**:
+   - AuthenticationFilter DEBE guardar el `ecommerce_id` extraído del JWT en un contexto accesible globalmente
+   - Opciones (en orden de recomendación):
+     a) **Custom Principal**: Crear clase `UserPrincipal` que extienda `UserDetails` e incluya campo `ecommerceId`
+     b) **SecurityContextHolder**: Usar `SecurityContextHolder.getContext().getAuthentication().getPrincipal()` para acceder a `ecommerceId`
+     c) **ThreadLocal personalizado**: Si es necesario fuera del contexto de Spring Security
+   - Esto permite que Servicios y Repositorios consulten el `ecommerce_id` del usuario actual **sin volver a parsear el token**
+   - Ejemplo en servicio: `String ecommerceId = getCurrentUserEcommerceId();` (método helper reutilizable)
 
 7. **UID vs ID**: Internamente usamos `Long` en BD, pero exponemos `UUID` en API como `uid` para cliente. Protege contra ataques de enumeración.
 
@@ -535,7 +543,12 @@ ALTER TABLE users ADD UNIQUE KEY uk_username_global (username);
 
 9. **Transaccionalidad**: Endpoints POST/PUT/DELETE deben ser transaccionales (`@Transactional`).
 
-10. **Engine Service aislamiento**: El AuthenticationFilter del Engine TAMBIÉN debe validar `ecommerce_id` del JWT cuando recibe peticiones de management (e.g., /api/v1/discount-config). Si usuario de Ecommerce A intenta ver config de Ecommerce B, retorna 403 Forbidden.
+10. **Engine Service aislamiento (CRÍTICO PARA ENGINE)**:
+   - El AuthenticationFilter del Engine TAMBIÉN debe extraer y validar `ecommerce_id` del JWT en peticiones de management
+   - Endpoints como `POST /api/v1/discount-config`, `GET /api/v1/discount-priority` deben filtrar automáticamente por `ecommerce_id` del usuario
+   - Si usuario de Ecommerce A intenta ver config de Ecommerce B: retorna **403 Forbidden**
+   - El Context Holder del Admin Service debe ser **coordinado** con el del Engine (mismo claim `ecommerce_id` en JWT)
+   - Nota: Users se crean en Admin Service, pero Engine Service debe ser capaz de leer y validar ese claim autónomamente
 
 ---
 
@@ -547,6 +560,7 @@ ALTER TABLE users ADD UNIQUE KEY uk_username_global (username);
 - [ ] Crear migración `V5__Add_ecommerce_id_to_users.sql` — agregar columna + constraints
 - [ ] Modificar `UserEntity` — agregar campo `ecommerceId` (UUID, NOT NULL)
 - [ ] Crear DTOs: `UserCreateRequest`, `UserUpdateRequest`, `UserResponse` (Java Records)
+- [ ] **Crear clase `UserPrincipal` (implements UserDetails)** — incluir campo `ecommerceId` para Context Holder
 - [ ] Extender `UserRepository` — métodos `findByEcommerceId(UUID)`, `findByUsername(String)` [búsqueda global]
 - [ ] Implementar `UserService` — métodos CRUD con validación de ecommerce y unicidad global de username
   - `createUser(UserCreateRequest)` — validar username único globalmente + ecommerce existe
@@ -554,8 +568,10 @@ ALTER TABLE users ADD UNIQUE KEY uk_username_global (username);
   - `getUserById(UUID)`
   - `updateUser(UUID, UserUpdateRequest)` — validar username único globalmente en caso de cambio
   - `deleteUser(UUID)` — no permitir auto-eliminación
+  - **Método helper**: `getCurrentUserEcommerceId()` — extrae ecommerce_id del SecurityContextHolder
+- [ ] Crear/Modificar `AuthenticationFilter` — extraer `ecommerce_id` del JWT y guardarlo en `UserPrincipal`
+- [ ] **Registrar `AuthenticationFilter` como `@Bean` en clase de configuración** (NO como `@Component`)
 - [ ] Crear `UserController` — endpoints POST, GET (list), GET (detail), PUT, DELETE
-- [ ] Modificar `AuthenticationFilter` — extraer y validar `ecommerce_id` del JWT
 - [ ] Registrar `UserController` en punto de entrada
 
 #### Tests Backend
@@ -565,6 +581,7 @@ ALTER TABLE users ADD UNIQUE KEY uk_username_global (username);
 - [ ] `test_userService_createUser_validateGlobalUniqueness` — validar que mismo username no existe en otro ecommerce
 - [ ] `test_userRepository_findByEcommerceId_returns_list` — repositorio query
 - [ ] `test_userRepository_findByUsername_unique_global` — buscar por username global
+- [ ] **`test_userPrincipal_stores_ecommerce_id`** — validar que UserPrincipal contiene ecommerce_id
 - [ ] `test_userController_post_returns_201` — endpoint creación
 - [ ] `test_userController_get_returns_200` — listado con filtro de ecommerce_id del JWT
 - [ ] `test_userController_get_filtering_by_ecommerce` — super admin puede filtrar explícitamente
@@ -573,7 +590,8 @@ ALTER TABLE users ADD UNIQUE KEY uk_username_global (username);
 - [ ] `test_userController_put_rejects_duplicate_username_global` — no permitir username duplicado globalmente en update
 - [ ] `test_userController_delete_returns_204` — eliminación
 - [ ] `test_userController_delete_self_returns_400` — validación auto-eliminación
-- [ ] `test_authenticationFilter_extracts_ecommerce_id_claim` — validar que filter extrae claim del JWT
+- [ ] **`test_authenticationFilter_registered_as_bean`** — validar que filter está registrado correctamente en configuración
+- [ ] **`test_authenticationFilter_extracts_ecommerce_id_to_context_holder`** — validar extracción de claim a UserPrincipal
 
 ### Frontend
 
