@@ -23,6 +23,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("AuthService Tests")
@@ -51,6 +52,7 @@ class AuthServiceTest {
                 .username("admin")
                 .password(hashedPassword)
                 .role("ADMIN")
+                .ecommerceId(null)  // Super admin tiene ecommerceId null
                 .active(true)
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
@@ -61,6 +63,7 @@ class AuthServiceTest {
                 .username("inactive")
                 .password(BCrypt.hashpw("password123", BCrypt.gensalt()))
                 .role("USER")
+                .ecommerceId(null)  // Usuario inactivo sin ecommerce
                 .active(false)
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
@@ -73,7 +76,7 @@ class AuthServiceTest {
         // Arrange
         LoginRequest request = new LoginRequest("admin", PLAIN_PASSWORD);
         when(userRepository.findByUsername("admin")).thenReturn(Optional.of(validUser));
-        when(jwtProvider.generateToken("admin", 1L, "ADMIN")).thenReturn(VALID_TOKEN);
+        when(jwtProvider.generateToken("admin", 1L, "ADMIN", null)).thenReturn(VALID_TOKEN);
 
         // Act
         LoginResponse response = authService.login(request);
@@ -87,7 +90,7 @@ class AuthServiceTest {
         assertEquals("ADMIN", response.role());
         
         // Verify JwtProvider was called with correct parameters
-        verify(jwtProvider, times(1)).generateToken("admin", 1L, "ADMIN");
+        verify(jwtProvider, times(1)).generateToken("admin", 1L, "ADMIN", null);
     }
 
     @Test
@@ -103,7 +106,7 @@ class AuthServiceTest {
         assertEquals("Credenciales inválidas", exception.getMessage());
         
         // Verify JwtProvider was NOT called (failed at password validation)
-        verify(jwtProvider, never()).generateToken(anyString(), anyLong(), anyString());
+        verify(jwtProvider, never()).generateToken(anyString(), anyLong(), anyString(), any());
     }
 
     @Test
@@ -119,7 +122,7 @@ class AuthServiceTest {
         assertEquals("Credenciales inválidas", exception.getMessage());
         
         // Verify JwtProvider was NOT called
-        verify(jwtProvider, never()).generateToken(anyString(), anyLong(), anyString());
+        verify(jwtProvider, never()).generateToken(anyString(), anyLong(), anyString(), any());
     }
 
     @Test
@@ -135,7 +138,7 @@ class AuthServiceTest {
         assertEquals("Credenciales inválidas", exception.getMessage());
         
         // Verify JwtProvider was NOT called (failed at active status check)
-        verify(jwtProvider, never()).generateToken(anyString(), anyLong(), anyString());
+        verify(jwtProvider, never()).generateToken(anyString(), anyLong(), anyString(), any());
     }
 
     @Test
@@ -151,9 +154,10 @@ class AuthServiceTest {
 
         // Assert
         assertNotNull(response);
-        assertEquals(1L, response.id());
+        assertNotNull(response.uid());  // uid es UUID generado a partir de id
         assertEquals("admin", response.username());
         assertEquals("ADMIN", response.role());
+        assertNull(response.ecommerceId());  // Super admin tiene ecommerceId null
         assertTrue(response.active());
         assertNotNull(response.createdAt());
         assertNotNull(response.updatedAt());

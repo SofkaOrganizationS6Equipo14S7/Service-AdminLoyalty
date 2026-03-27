@@ -43,32 +43,42 @@ public class JwtProvider {
     }
     
     /**
-     * Genera un token JWT con claims: username, userId, role, iat, exp.
+     * Genera un token JWT con claims: username, userId, role, ecommerce_id, iat, exp.
      * Estructura: Header.Payload.Signature (RFC 7519)
+     * 
+     * Implementa SPEC-002 punto 4: Propagación de ecommerce_id en JWT para aislamiento multi-tenant.
      * 
      * @param username del usuario
      * @param userId id único del usuario
      * @param role rol del usuario (ej. "ADMIN")
+     * @param ecommerceId UUID del ecommerce (null si super admin)
      * @return JWT firmado y codificado
      */
-    public String generateToken(String username, Long userId, String role) {
+    public String generateToken(String username, Long userId, String role, java.util.UUID ecommerceId) {
         long nowMs = System.currentTimeMillis();
         long expiryMs = nowMs + expirationMs;
         
         try {
-            String token = Jwts.builder()
+            var builder = Jwts.builder()
                 // Header: alg=HS256, typ=JWT (automático)
                 // Payload: claims
                 .setSubject(username)                       // "sub" claim
                 .claim("userId", userId)                    // custom claim
                 .claim("role", role)                        // custom claim
                 .setIssuedAt(new Date(nowMs))               // "iat" claim
-                .setExpiration(new Date(expiryMs))          // "exp" claim
+                .setExpiration(new Date(expiryMs));         // "exp" claim
+            
+            // Agregar ecommerce_id si no es super admin
+            if (ecommerceId != null) {
+                builder.claim("ecommerce_id", ecommerceId.toString());  // custom claim para multi-tenant
+            }
+            
+            String token = builder
                 // Signature: HMAC-SHA256 con secret key
                 .signWith(key)
                 .compact();
             
-            log.debug("JWT generado exitosamente para usuario: {}", username);
+            log.debug("JWT generado exitosamente para usuario: {} con ecommerce_id: {}", username, ecommerceId);
             return token;
         } catch (Exception e) {
             log.error("Error generando JWT para usuario {}: {}", username, e.getMessage());

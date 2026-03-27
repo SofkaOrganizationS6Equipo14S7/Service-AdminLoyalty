@@ -62,10 +62,15 @@ public class AuthService {
             throw new UnauthorizedException("Credenciales inválidas");
         }
         
-        // Generar token JWT (RFC 7519) usando jjwt
-        String token = jwtProvider.generateToken(user.getUsername(), user.getId(), user.getRole());
+        // Generar token JWT (RFC 7519) usando jjwt con ecommerce_id para aislamiento multi-tenant
+        String token = jwtProvider.generateToken(
+            user.getUsername(), 
+            user.getId(), 
+            user.getRole(),
+            user.getEcommerceId()  // null si SUPER_ADMIN
+        );
         
-        log.info("Login exitoso para usuario: {}", user.getUsername());
+        log.info("Login exitoso para usuario: {} con ecommerce_id: {}", user.getUsername(), user.getEcommerceId());
         
         return new LoginResponse(token, "Bearer", user.getUsername(), user.getRole());
     }
