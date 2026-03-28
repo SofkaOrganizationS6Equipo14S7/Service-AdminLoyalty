@@ -179,6 +179,40 @@ class ConfigurationServiceTest {
                 .hasMessageContaining("VALIDATION_ERROR");
     }
 
+    @Test
+    void shouldRejectInvalidCapOnCreate() {
+        UUID ecommerceId = UUID.randomUUID();
+        ConfigurationCreateRequest request = new ConfigurationCreateRequest(
+                ecommerceId,
+                "COP",
+                RoundingRule.HALF_UP,
+                new CapRequest(CapType.PERCENTAGE, BigDecimal.ZERO, CapAppliesTo.SUBTOTAL),
+                List.of(new DiscountPriorityRequest("SEASONAL", 1))
+        );
+
+        assertThatThrownBy(() -> service.createConfiguration(request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("VALIDATION_ERROR");
+    }
+
+    @Test
+    void shouldRejectDuplicatedPriorityTypes() {
+        UUID ecommerceId = UUID.randomUUID();
+        ConfigurationPatchRequest request = new ConfigurationPatchRequest(
+                null,
+                null,
+                null,
+                List.of(
+                        new DiscountPriorityRequest("LOYALTY", 1),
+                        new DiscountPriorityRequest("LOYALTY", 2)
+                )
+        );
+
+        assertThatThrownBy(() -> service.patchConfiguration(ecommerceId, request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("VALIDATION_ERROR");
+    }
+
     private ConfigurationCreateRequest validCreate(UUID ecommerceId) {
         return new ConfigurationCreateRequest(
                 ecommerceId,
