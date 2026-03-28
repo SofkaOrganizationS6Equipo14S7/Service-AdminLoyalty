@@ -3,6 +3,7 @@ package com.loyalty.service_admin.infrastructure.rabbitmq;
 import com.loyalty.service_admin.application.dto.configuration.ConfigurationUpdatedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -27,12 +28,24 @@ public class ConfigurationEventPublisher {
     private String deadLetterRoutingKey;
 
     public void publishConfigUpdated(ConfigurationUpdatedEvent event) {
+        String eventId = event.configId() + ":" + event.version();
         try {
-            rabbitTemplate.convertAndSend(exchange, routingKey, event);
+            rabbitTemplate.convertAndSend(exchange, routingKey, event, message -> withStandardHeaders(message, event, eventId));
+            log.info("event=config_updated_published eventId={} ecommerceId={} version={} exchange={} routingKey={}",
+                    eventId, event.ecommerceId(), event.version(), exchange, routingKey);
         } catch (Exception ex) {
-            log.error("Failed publishing CONFIG_UPDATED. Sending to DLQ exchange. ecommerce={} version={}",
-                    event.ecommerceId(), event.version(), ex);
-            rabbitTemplate.convertAndSend(deadLetterExchange, deadLetterRoutingKey, event);
+            log.error("event=config_updated_publish_failed eventId={} ecommerceId={} version={} exchange={} routingKey={}",
+                    eventId, event.ecommerceId(), event.version(), exchange, routingKey, ex);
+            rabbitTemplate.convertAndSend(deadLetterExchange, deadLetterRoutingKey, event,
+                    message -> withStandardHeaders(message, event, eventId));
         }
+    }
+
+    private Message withStandardHeaders(Message message, ConfigurationUpdatedEvent event, String eventId) {
+        message.getMessageProperties().setHeader("x-event-id", eventId);
+        message.getMessageProperties().setHeader("x-event-type", event.eventType());
+        message.getMessageProperties().setHeader("x-ecommerce-id", event.ecommerceId().toString());
+        message.getMessageProperties().setHeader("x-version", event.version());
+        return message;
     }
 }

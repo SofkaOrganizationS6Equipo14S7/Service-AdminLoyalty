@@ -38,6 +38,18 @@ public class ConfigEventsRabbitConfig {
     @Value("${rabbitmq.routing.config-updated-dlq:config.updated.dlq}")
     private String configUpdatedDlqRoutingKey;
 
+    @Value("${rabbitmq.retry.max-attempts:5}")
+    private int maxAttempts;
+
+    @Value("${rabbitmq.retry.initial-interval-ms:500}")
+    private long initialIntervalMs;
+
+    @Value("${rabbitmq.retry.multiplier:2.0}")
+    private double retryMultiplier;
+
+    @Value("${rabbitmq.retry.max-interval-ms:5000}")
+    private long maxIntervalMs;
+
     @Bean
     public DirectExchange configExchangeV2() {
         return new DirectExchange(configExchange, true, false);
@@ -79,8 +91,8 @@ public class ConfigEventsRabbitConfig {
     @Bean
     public RetryOperationsInterceptor configRetryInterceptor() {
         return RetryInterceptorBuilder.stateless()
-                .maxAttempts(5)
-                .backOffOptions(500, 2.0, 5000)
+                .maxAttempts(maxAttempts)
+                .backOffOptions(initialIntervalMs, retryMultiplier, maxIntervalMs)
                 .recoverer(new RejectAndDontRequeueRecoverer())
                 .build();
     }

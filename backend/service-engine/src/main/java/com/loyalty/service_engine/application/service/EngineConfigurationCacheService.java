@@ -23,16 +23,24 @@ public class EngineConfigurationCacheService {
         return Optional.ofNullable(configCache.get(ecommerceId));
     }
 
-    public void upsertFromEvent(ConfigurationUpdatedEvent event) {
+    public boolean upsertFromEvent(ConfigurationUpdatedEvent event) {
         validateEvent(event);
         EngineDiscountConfiguration newConfig = map(event);
-        configCache.compute(event.ecommerceId(), (key, current) -> {
-            if (current == null || newConfig.version() >= current.version()) {
+        EngineDiscountConfiguration resulting = configCache.compute(event.ecommerceId(), (key, current) -> {
+            if (current == null || newConfig.version() > current.version()) {
                 return newConfig;
             }
             return current;
         });
-        log.info("Configuration cached for ecommerce={} version={}", event.ecommerceId(), event.version());
+        boolean applied = resulting.version() == newConfig.version();
+        if (applied) {
+            log.info("event=config_cache_upserted ecommerceId={} version={} configId={}",
+                    event.ecommerceId(), event.version(), event.configId());
+        } else {
+            log.info("event=config_event_ignored ecommerceId={} incomingVersion={} currentVersion={} reason=stale_or_duplicate",
+                    event.ecommerceId(), event.version(), resulting.version());
+        }
+        return applied;
     }
 
     public EngineDiscountConfiguration defaultFor(UUID ecommerceId) {

@@ -19,10 +19,15 @@ public class EngineConfigurationEventConsumer {
     @RabbitListener(queues = "${rabbitmq.queue.engine-config-updated:engine.config.updated.queue}", containerFactory = "configEventListenerContainerFactory")
     public void onConfigUpdated(ConfigurationUpdatedEvent event) {
         try {
-            configurationCacheService.upsertFromEvent(event);
-            log.info("CONFIG_UPDATED processed for ecommerce={} version={}", event.ecommerceId(), event.version());
+            boolean applied = configurationCacheService.upsertFromEvent(event);
+            log.info("event=config_updated_consumed ecommerceId={} version={} configId={} applied={}",
+                    event.ecommerceId(), event.version(), event.configId(), applied);
         } catch (Exception ex) {
-            log.error("Failed to process CONFIG_UPDATED event", ex);
+            log.error("event=config_updated_consume_failed ecommerceId={} version={} configId={}",
+                    event != null ? event.ecommerceId() : null,
+                    event != null ? event.version() : null,
+                    event != null ? event.configId() : null,
+                    ex);
             throw ex;
         }
     }

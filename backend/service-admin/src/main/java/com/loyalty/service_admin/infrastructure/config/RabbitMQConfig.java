@@ -3,6 +3,7 @@ package com.loyalty.service_admin.infrastructure.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.DirectExchange;
@@ -21,6 +22,7 @@ import org.springframework.retry.support.RetryTemplate;
 import java.util.Map;
 
 @Configuration
+@Slf4j
 public class RabbitMQConfig {
     
     @Value("${rabbitmq.exchange.config:loyalty.config.exchange}")
@@ -40,6 +42,18 @@ public class RabbitMQConfig {
 
     @Value("${rabbitmq.routing.config-updated-dlq:config.updated.dlq}")
     private String configUpdatedDlqRoutingKey;
+
+    @Value("${rabbitmq.retry.max-attempts:5}")
+    private int maxAttempts;
+
+    @Value("${rabbitmq.retry.initial-interval-ms:500}")
+    private long initialIntervalMs;
+
+    @Value("${rabbitmq.retry.multiplier:2.0}")
+    private double retryMultiplier;
+
+    @Value("${rabbitmq.retry.max-interval-ms:5000}")
+    private long maxIntervalMs;
     
     /**
      * Fanout Exchange para propagación de cambios de configuración.
@@ -94,6 +108,21 @@ public class RabbitMQConfig {
         RabbitTemplate template = new RabbitTemplate(connectionFactory);
         template.setMessageConverter(messageConverter);
         template.setRetryTemplate(retryTemplate());
+        template.setMandatory(true);
+        template.setConfirmCallback((correlationData, ack, cause) -> {
+            if (!ack) {
+                log.error("event=rabbit_publish_nack correlationId={} cause={}",
+                        correlationData != null ? correlationData.getId() : "n/a",
+                        cause);
+            }
+        });
+        template.setReturnsCallback(returned -> log.error(
+                "event=rabbit_returned exchange={} routingKey={} replyCode={} replyText={}",
+                returned.getExchange(),
+                returned.getRoutingKey(),
+                returned.getReplyCode(),
+                returned.getReplyText()
+        ));
         return template;
     }
 
@@ -101,11 +130,11 @@ public class RabbitMQConfig {
     public RetryTemplate retryTemplate() {
         RetryTemplate retryTemplate = new RetryTemplate();
 
-        SimpleRetryPolicy retryPolicy = new SimpleRetryPolicy(5);
+        SimpleRetryPolicy retryPolicy = new SimpleRetryPolicy(maxAttempts);
         ExponentialBackOffPolicy backOffPolicy = new ExponentialBackOffPolicy();
-        backOffPolicy.setInitialInterval(500);
-        backOffPolicy.setMultiplier(2.0);
-        backOffPolicy.setMaxInterval(5000);
+        backOffPolicy.setInitialInterval(initialIntervalMs);
+        backOffPolicy.setMultiplier(retryMultiplier);
+        backOffPolicy.setMaxInterval(maxIntervalMs);
 
         retryTemplate.setRetryPolicy(retryPolicy);
         retryTemplate.setBackOffPolicy(backOffPolicy);
