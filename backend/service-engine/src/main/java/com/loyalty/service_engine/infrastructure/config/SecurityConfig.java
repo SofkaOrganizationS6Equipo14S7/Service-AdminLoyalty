@@ -70,6 +70,7 @@ public class SecurityConfig {
                 
                 // Transaction endpoint: Solo API Key (S2S)
                 .requestMatchers(HttpMethod.POST, "/api/v1/discount/calculate").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/v1/discounts/calculate").authenticated()
                 
                 // Todos los demás requieren autenticación
                 .anyRequest().authenticated()

@@ -42,6 +42,17 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, 
                                    HttpServletResponse response, 
                                    FilterChain filterChain) throws ServletException, IOException {
+
+        String path = request.getRequestURI();
+        if (!requiresApiKey(path)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        if (SecurityContextHolder.getContext().getAuthentication() != null) {
+            filterChain.doFilter(request, response);
+            return;
+        }
         
         // Extraer header Authorization
         String authHeader = request.getHeader(AUTHORIZATION_HEADER);
@@ -86,6 +97,10 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
         
         // Continuar con la cadena de filtros
         filterChain.doFilter(request, response);
+    }
+
+    private boolean requiresApiKey(String path) {
+        return "/api/v1/discount/calculate".equals(path) || "/api/v1/discounts/calculate".equals(path);
     }
     
     /**
