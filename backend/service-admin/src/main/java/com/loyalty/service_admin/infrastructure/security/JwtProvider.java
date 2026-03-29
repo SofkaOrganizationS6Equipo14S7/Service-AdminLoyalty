@@ -55,6 +55,21 @@ public class JwtProvider {
      * @return JWT firmado y codificado
      */
     public String generateToken(String username, Long userId, String role, java.util.UUID ecommerceId) {
+        return generateTokenFull(null, username, userId, role, ecommerceId);
+    }
+    
+    /**
+     * Versión completa de generateToken que incluye uid.
+     * Usada cuando se dispone del uid desde UserEntity (posterior a @PrePersist).
+     * 
+     * @param uid UUID único del usuario (generado en @PrePersist de UserEntity)
+     * @param username del usuario
+     * @param userId id numérico del usuario
+     * @param role rol del usuario  
+     * @param ecommerceId UUID del ecommerce (null si super admin)
+     * @return JWT firmado con uid claim
+     */
+    public String generateTokenFull(java.util.UUID uid, String username, Long userId, String role, java.util.UUID ecommerceId) {
         long nowMs = System.currentTimeMillis();
         long expiryMs = nowMs + expirationMs;
         
@@ -68,6 +83,11 @@ public class JwtProvider {
                 .setIssuedAt(new Date(nowMs))               // "iat" claim
                 .setExpiration(new Date(expiryMs));         // "exp" claim
             
+            // Agregar uid si está disponible (SPEC-002 CRITERIO-3.1)
+            if (uid != null) {
+                builder.claim("uid", uid.toString());
+            }
+            
             // Agregar ecommerce_id si no es super admin
             if (ecommerceId != null) {
                 builder.claim("ecommerce_id", ecommerceId.toString());  // custom claim para multi-tenant
@@ -78,7 +98,7 @@ public class JwtProvider {
                 .signWith(key)
                 .compact();
             
-            log.debug("JWT generado exitosamente para usuario: {} con ecommerce_id: {}", username, ecommerceId);
+            log.debug("JWT generado exitosamente para usuario: {} (uid: {}) con ecommerce_id: {}", username, uid, ecommerceId);
             return token;
         } catch (Exception e) {
             log.error("Error generando JWT para usuario {}: {}", username, e.getMessage());
@@ -158,6 +178,35 @@ public class JwtProvider {
         } catch (Exception e) {
             log.warn("Error extrayendo userId del token: {}", e.getMessage());
             throw new io.jsonwebtoken.JwtException("Error extrayendo userId del token", e);
+        }
+    }
+    
+    /**
+     * Extrae el uid (custom claim) del token.
+     * Implementa SPEC-002 CRITERIO-3.1: uid como identificador público.
+     * 
+     * @param token JWT
+     * @return UUID del usuario, o null si no está presente (tokens generados antes de esta feature)
+     */
+    public java.util.UUID getUidFromToken(String token) {
+        try {
+            String cleanToken = token.startsWith("Bearer ") ? token.substring(7) : token;
+            Claims claims = Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(cleanToken)
+                .getBody();
+            
+            String uidStr = claims.get("uid", String.class);
+            if (uidStr == null) {
+                log.debug("uid no presente en token (probablemente generado antes de SPEC-002)");
+                return null;
+            }
+            
+            return java.util.UUID.fromString(uidStr);
+        } catch (Exception e) {
+            log.debug("Error extrayendo uid del token: {}", e.getMessage());
+            return null;
         }
     }
     

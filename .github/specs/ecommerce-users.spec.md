@@ -1,11 +1,11 @@
 ---
 id: SPEC-002
-status: DRAFT
+status: APPROVED
 feature: ecommerce-users
-created: 2026-03-26
-updated: 2026-03-26
+created: 2026-03-27
+updated: 2026-03-27
 author: spec-generator
-version: "1.0"
+version: "2.0"
 related-specs: []
 ---
 
@@ -13,31 +13,28 @@ related-specs: []
 
 > **Estado:** `DRAFT` → aprobar con `status: APPROVED` antes de iniciar implementación.
 > **Ciclo de vida:** DRAFT → APPROVED → IN_PROGRESS → IMPLEMENTED → DEPRECATED
+> **Versión 2.0:** Simplificación a 2 roles (SUPER_ADMIN, USER) con aislamiento multi-tenant centralizado
 
 ---
 
 ## 1. REQUERIMIENTOS
 
 ### Descripción
-
-Permite que Super Administrador cree y gestione usuarios vinculados a ecommerce específicos, asegurando que cada usuario solo acceda a su propio ecommerce. Cada usuario pertenece exclusivamente a un ecommerce, y sus permisos se restringen al contexto de ese ecommerce en el contexto de seguridad JWT.
+Implementar gestión de usuarios vinculados a ecommerce en el sistema LOYALTY con **poder centralizado**. Solo SUPER_ADMIN puede crear, actualizar y eliminar usuarios. Usuarios con rol USER operan sus dashboards con aislamiento mandatorio: viven en una "burbuja" donde solo ven datos de su ecommerce asignado. El sistema filtra automáticamente todas las consultas mediante un TenantInterceptor basado en `ecommerce_id` del JWT.
 
 ### Requerimiento de Negocio
+**Escenario 1 (HU-01)**: Como SUPER_ADMIN, quiero crear usuarios vinculados a un ecommerce, para garantizar que cada cliente gestione únicamente sus propias reglas de descuento sin afectar a otros ecommerce.
 
-```
-Como Super Admin, quiero crear usuarios vinculados a un ecommerce, 
-para garantizar que cada uno gestione únicamente sus propias reglas 
-de descuento sin afectar a otros ecommerce.
-```
+**Escenario 2 (HU-02)**: Como USER (vinculado a un ecommerce), quiero que el sistema me permita acceder solo a datos de mi tienda, para garantizar aislamiento de datos entre ecommerce.
 
 ### Historias de Usuario
 
-#### HU-01: Crear perfil de usuario asociado a ecommerce
+#### HU-01: Creación de perfil asociado a un ecommerce específico (SUPER_ADMIN)
 
 ```
-Como:        Super Admin
-Quiero:      crear un perfil de usuario vinculado a un ecommerce específico
-Para:        garantizar que cada usuario solo gestiona su ecommerce
+Como:        SUPER_ADMIN del sistema
+Quiero:      Crear usuarios con rol USER vinculados a un ecommerce específico
+Para:        Dar de alta clientes en el sistema LOYALTY con acceso aislado a su tienda
 
 Prioridad:   Alta
 Estimación:  M
@@ -49,82 +46,95 @@ Capa:        Backend + Frontend
 
 **Happy Path**
 ```gherkin
-CRITERIO-1.1: Crear usuario exitosamente con ecommerce válido
-  Dado que:     existe un Super Admin autenticado
-  Y:            existe un ecommerce registrado (validado por EcommerceService)
-  Cuando:       realiza POST /api/v1/users con username, password, role e ecommerceId
-  Entonces:     el sistema crea el usuario con status 201
-  Y:            retorna { uid (UUID), username, role, ecommerceId, createdAt, updatedAt }
-  Y:            la contraseña se guarda hasheada
-  Y:            el usuario queda asociado exclusivamente a ese ecommerce
+CRITERIO-1.1: Creación de perfil asociado a un ecommerce específico
+  Dado que:  Existe un usuario con rol SUPER_ADMIN autenticado
+  Y         Un ecommerce contrató los servicios de LOYALTY
+  Cuando:    El SUPER_ADMIN crea un perfil de usuario asociado a ese ecommerce
+  Entonces:  El perfil queda vinculado exclusivamente a dicho ecommerce
+  Y         El sistema retorna 201 Created con los datos del usuario
 ```
 
 **Error Path**
 ```gherkin
-CRITERIO-1.2: Rechazar creación si ecommerce no existe
-  Dado que:     existe un Super Admin autenticado
-  Cuando:       intenta crear usuario con ecommerceId inválido
-  Entonces:     retorna 400 Bad Request
-  Y:            mensaje: "El ecommerce no existe"
+CRITERIO-1.2: Validar que ecommerce existe
+  Dado que:  Un SUPER_ADMIN intenta crear un usuario
+  Cuando:    Proporciona un ecommerce_id que no existe en el sistema
+  Entonces:  El sistema retorna 400 Bad Request
+  Y         El mensaje indica: "El ecommerce especificado no existe"
 
-CRITERIO-1.3: Rechazar creación si username es globalmente duplicado
-  Dado que:     existe usuario "admin" asociado a ecommerce-1 (en cualquier ecommerce)
-  Cuando:       intenta crear otro usuario "admin" en ecommerce-2
-  Entonces:     retorna 409 Conflict
-  Y:            mensaje: "El username ya existe en otra organización, debe ser único globalmente"
+CRITERIO-1.3: Validar que username es único globalmente
+  Dado que:  Ya existe un usuario con username "tienda1-admin"
+  Cuando:    Un SUPER_ADMIN intenta crear otro usuario con el mismo username
+  Entonces:  El sistema retorna 409 Conflict
+  Y         El mensaje indica: "El username ya existe globalmente en el sistema"
+
+CRITERIO-1.4: Solo SUPER_ADMIN puede crear usuarios
+  Dado que:  Un usuario con rol USER intenta crear otro usuario
+  Cuando:    Ejecuta POST /api/v1/users
+  Entonces:  El sistema retorna 403 Forbidden
+  Y         El mensaje indica: "Solo SUPER_ADMIN puede crear usuarios"
 ```
 
 ---
 
-#### HU-02: Validar acceso según ecommerce del usuario
+#### HU-02: Validar que el usuario solo accede a su ecommerce
 
 ```
-Como:        Usuario de ecommerce
-Quiero:      que el sistema solo me permita acceder a datos del mi ecommerce
-Para:        evitar exponer datos de otros ecommerce
+Como:        Usuario con rol USER
+Quiero:      Que el sistema me aisle en una "burbuja" de mi ecommerce
+Para:        Garantizar que no puedo visualizar ni gestionar información de otras tiendas
 
 Prioridad:   Alta
 Estimación:  M
 Dependencias: HU-01
-Capa:        Backend
+Capa:        Backend (TenantInterceptor)
 ```
 
 #### Criterios de Aceptación — HU-02
 
 **Happy Path**
 ```gherkin
-CRITERIO-2.1: Usuario no-super-admin ve solo su ecommerce
-  Dado que:     usuario "admin@shop1" está autenticado con ecommerceId=ecommerce-1
-  Y:            el JWT contiene claim: { "ecommerce_id": "ecommerce-1" }
-  Cuando:       realiza GET /api/v1/users (listar usuarios)
-  Entonces:     retorna solo usuarios asociados a ecommerce-1
-  Y:            no expone usuarios de ecommerce-2 o ecommerce-3
+CRITERIO-2.1: Usuario inicia sesión y obtiene token con ecommerce_id
+  Dado que:  Existe un usuario "user1" con rol USER vinculado a ecommerce "4a1c8d4f-..."
+  Cuando:    El usuario inicia sesión con credenciales válidas
+  Entonces:  El sistema retorna token JWT
+  Y         El token contiene claim "ecommerce_id": "4a1c8d4f-..."
+  Y         Todas las consultas posteriores se filtran automáticamente por ese ecommerce_id
 
-CRITERIO-2.2: Super Admin ve todos los ecommerce (sin restricción)
-  Dado que:     usuario con rol SUPER_ADMIN está autenticado
-  Y:            el JWT NO contiene claim "ecommerce_id"
-  Cuando:       realiza GET /api/v1/users
-  Entonces:     retorna usuarios de TODOS los ecommerce (sin filtro)
-  Y:            puede listar por ecommerceId opcional: GET /api/v1/users?ecommerceId=X
+CRITERIO-2.2: TenantInterceptor filtra automáticamente consultas por ecommerce_id
+  Dado que:  Un usuario USER con ecommerce_id="store1-uuid" está autenticado
+  Cuando:    Ejecuta cualquier request (GET /api/v1/users, GET /api/v1/discounts, etc.)
+  Entonces:  El TenantInterceptor extrae ecommerce_id del JWT
+  Y         El interceptor añade automáticamente WHERE ecommerce_id = "store1-uuid" a cualquier consulta
+  Y         El usuario solo ve datos de su ecommerce, sin excepciones
 ```
 
 **Error Path**
 ```gherkin
-CRITERIO-2.3: Bloquear acceso cruzado entre ecommerce
-  Dado que:     usuario "admin@shop1" está asociado a ecommerce-1
-  Cuando:       intenta acceder a datos de ecommerce-2 (ej: GET /api/v1/users?ecommerceId=ecommerce-2)
-  Entonces:     retorna 403 Forbidden
-  Y:            mensaje: "No tiene permiso para acceder a este ecommerce"
+CRITERIO-2.3: Usuario intenta acceder a usuario de otro ecommerce
+  Dado que:  Usuario1 (USER) está vinculado a ecommerce A
+  Y         Usuario2 (USER) está vinculado a ecommerce B
+  Y         Usuario1 está autenticado
+  Cuando:    Usuario1 intenta obtener datos de Usuario2 (GET /api/v1/users/{uid})
+  Entonces:  El TenantInterceptor detecta la violación
+  Y         El sistema retorna 403 Forbidden
+  Y         El mensaje indica: "No tienes permisos para acceder a este recurso"
+
+CRITERIO-2.4: SUPER_ADMIN sin restricción de ecommerce_id
+  Dado que:  Un SUPER_ADMIN inicia sesión
+  Entonces:  El JWT NO contiene ecommerce_id (NULL en BD)
+  Y         El TenantInterceptor NO aplica filtro a sus consultas
+  Y         El SUPER_ADMIN puede acceder a datos de cualquier ecommerce
 ```
 
 ---
 
-#### HU-03: Listar usuarios por ecommerce
+#### HU-03: Crear usuario para ecommerce
 
 ```
-Como:        Super Admin
-Quiero:      listar todos los usuarios asociados a un ecommerce
-Para:        gestionar y monitorear qué usuarios acceden a cada ecommerce
+Como:        Administrador del sistema (SUPER_ADMIN)
+Quiero:      Crear un nuevo usuario asociado a un ecommerce
+Para:        Dar de alta operadores en tiendas específicas
 
 Prioridad:   Alta
 Estimación:  S
@@ -136,31 +146,26 @@ Capa:        Backend + Frontend
 
 **Happy Path**
 ```gherkin
-CRITERIO-3.1: Listar usuarios de un ecommerce exitosamente
-  Dado que:     existe Super Admin autenticado
-  Y:            existen usuarios vinculados a ecommerce-1
-  Cuando:       realiza GET /api/v1/users?ecommerceId=ecommerce-1
-  Entonces:     retorna 200 OK con array de usuarios
-  Y:            cada usuario contiene: { uid, username, role, ecommerceId, createdAt, updatedAt }
-  Y:            solo usuarios de ecommerce-1 se retornan
-
-CRITERIO-3.2: Listar sin parámetro ecommerceId (Super Admin)
-  Dado que:     existe Super Admin autenticado
-  Cuando:       realiza GET /api/v1/users (sin parámetro)
-  Entonces:     retorna 200 OK con TODOS los usuarios de TODOS los ecommerce
+CRITERIO-3.1: Crear usuario para ecommerce
+  Dado que:  Soy un SUPER_ADMIN con acceso al sistema
+  Y         Existe un ecommerce registrado
+  Cuando:    Creo un nuevo usuario asociado a ese ecommerce
+  Entonces:  El sistema genera las credenciales del usuario
+  Y         El usuario queda vinculado al ecommerce especificado
+  Y         El sistema retorna 201 Created
 ```
 
 ---
 
-#### HU-04: Actualizar usuario (cambio de ecommerce)
+#### HU-04: Listar usuarios por ecommerce
 
 ```
-Como:        Super Admin
-Quiero:      cambiar el ecommerce asociado a un usuario existente
-Para:        reasignar usuarios cuando hay cambios organizacionales
+Como:        Usuario del sistema
+Quiero:      Consultar la lista de usuarios de mi ecommerce
+Para:        Ver quién más tiene acceso
 
-Prioridad:   Media
-Estimación:  M
+Prioridad:   Alta
+Estimación:  S
 Dependencias: HU-01
 Capa:        Backend + Frontend
 ```
@@ -169,50 +174,32 @@ Capa:        Backend + Frontend
 
 **Happy Path**
 ```gherkin
-CRITERIO-4.1: Cambiar ecommerce de usuario exitosamente
-  Dado que:     existe usuario "admin1" asociado a ecommerce-1
-  Y:            existe ecommerce-2 válido
-  Cuando:       realiza PUT /api/v1/users/{uid} con { "ecommerceId": "ecommerce-2" }
-  Entonces:     retorna 200 OK
-  Y:            el usuario ahora pertenece a ecommerce-2
-  Y:            puede acceder solo a ecommerce-2
+CRITERIO-4.1: Listar usuarios por ecommerce
+  Dado que:  Soy un SUPER_ADMIN o USER con acceso al sistema
+  Y         Existen usuarios asociados a un ecommerce
+  Cuando:    Consulto los usuarios de ese ecommerce
+  Entonces:  El sistema muestra la lista de usuarios vinculados
+  Y         Cada usuario muestra: username, rol, email, fecha de creación
+  Y         Si soy USER: solo veo usuarios de mi ecommerce (filtrado automático por TenantInterceptor)
+  Y         Si soy SUPER_ADMIN: veo todos o puedo filtrar por ecommerce mediante query param
 
-CRITERIO-4.2: Actualizar solo campos permitidos
-  Dado que:     existe usuario "admin1"
-  Cuando:       realiza PUT /api/v1/users/{uid} con { "username": "admin2", "ecommerceId": "ecommerce-2" }
-  Entonces:     retorna 200 OK
-  Y:            username se actualiza
-  Y:            ecommerceId se actualiza
-  Y:            role y password NO se modifican (requieren endpoint separado)
-```
-
-**Error Path**
-```gherkin
-CRITERIO-4.3: Rechazar cambio a ecommerce inválido
-  Dado que:     existe usuario "admin1"
-  Cuando:       intenta PUT /api/v1/users/{uid} con ecommerceId inválido
-  Entonces:     retorna 400 Bad Request
-  Y:            mensaje: "El ecommerce no existe"
-
-CRITERIO-4.4: Rechazar actualización si nuevo username es globalmente duplicado
-  Dado que:     existe "admin1" en ecommerce-1
-  Y:            existe "admin2" en ecommerce-2 (o cualquier otro ecommerce)
-  Cuando:       intenta renombrar "admin1" a "admin2"
-  Entonces:     retorna 409 Conflict
-  Y:            mensaje: "El username ya existe en otra organización, debe ser único globalmente"
+CRITERIO-4.2: Ecommerce sin usuarios retorna lista vacía
+  Dado que:  Existe un ecommerce sin usuarios
+  Cuando:    Consulto GET /api/v1/users
+  Entonces:  El sistema retorna 200 OK con array vacío []
 ```
 
 ---
 
-#### HU-05: Eliminar usuario
+#### HU-05: Actualizar usuario (cambio de ecommerce)
 
 ```
-Como:        Super Admin
-Quiero:      eliminar un usuario del sistema
-Para:        revocar acceso cuando un usuario se va o cambia de rol
+Como:        SUPER_ADMIN
+Quiero:      Cambiar el ecommerce asociado a un usuario
+Para:        Reasignar clientes según cambios organizacionales
 
-Prioridad:   Alta
-Estimación:  S
+Prioridad:   Media
+Estimación:  M
 Dependencias: HU-01
 Capa:        Backend + Frontend
 ```
@@ -221,53 +208,90 @@ Capa:        Backend + Frontend
 
 **Happy Path**
 ```gherkin
-CRITERIO-5.1: Eliminar usuario exitosamente
-  Dado que:     existe usuario "admin1" en ecommerce-1
-  Y:            existe Super Admin autenticado
-  Cuando:       realiza DELETE /api/v1/users/{uid}
-  Entonces:     retorna 204 No Content (éxito silencioso)
-  Y:            el usuario se elimina permanentemente
-  Y:            el usuario ya no puede iniciar sesión
-
-CRITERIO-5.2: No permitir que usuario se elimine a sí mismo
-  Dado que:     usuario "admin1" está autenticado
-  Cuando:       intenta DELETE /api/v1/users/{uid-de-admin1}
-  Entonces:     retorna 400 Bad Request
-  Y:            mensaje: "No puede eliminarse a sí mismo"
+CRITERIO-5.1: Actualizar usuario (cambio de ecommerce)
+  Dado que:  Soy un SUPER_ADMIN
+  Y         Existe un usuario asociado a un ecommerce
+  Cuando:    Intento cambiar el ecommerce asociado al usuario
+  Entonces:  El sistema actualiza la vinculación
+  Y         El usuario ahora pertenece al nuevo ecommerce
+  Y         El sistema retorna 200 OK
 ```
 
 **Error Path**
 ```gherkin
-CRITERIO-5.3: Retornar 404 si usuario no existe
-  Dado que:     existe Super Admin autenticado
-  Cuando:       intenta DELETE /api/v1/users/{uid-inexistente}
-  Entonces:     retorna 404 Not Found
+CRITERIO-5.2: Validar que nuevo ecommerce existe
+  Dado que:  Un SUPER_ADMIN intenta actualizar ecommerce_id
+  Cuando:    Proporciona un ecommerce_id que no existe
+  Entonces:  El sistema retorna 400 Bad Request
+
+CRITERIO-5.3: Solo SUPER_ADMIN puede actualizar
+  Dado que:  Un usuario USER intenta actualizar otro usuario
+  Cuando:    Ejecuta PUT /api/v1/users/{uid}
+  Entonces:  El sistema retorna 403 Forbidden
 ```
 
 ---
 
+#### HU-06: Eliminar usuario
+
+```
+Como:        SUPER_ADMIN
+Quiero:      Eliminar un usuario del sistema
+Para:        Revocar acceso cuando el usuario ya no necesita el servicio
+
+Prioridad:   Alta
+Estimación:  S
+Dependencias: HU-01
+Capa:        Backend + Frontend
+```
+
+#### Criterios de Aceptación — HU-06
+
+**Happy Path**
+```gherkin
+CRITERIO-6.1: Eliminar usuario
+  Dado que:  Soy un SUPER_ADMIN
+  Y         Existe un usuario asociado a un ecommerce
+  Cuando:    Elimino el usuario
+  Entonces:  El sistema elimina el perfil de forma permanente
+  Y         El usuario ya no puede acceder al sistema
+  Y         El sistema retorna 204 No Content
+```
+
+**Error Path**
+```gherkin
+CRITERIO-6.2: Usuario no existe
+  Dado que:  Un SUPER_ADMIN intenta eliminar un usuario
+  Cuando:    Proporciona un uid que no existe
+  Entonces:  El sistema retorna 404 Not Found
+
+CRITERIO-6.3: Solo SUPER_ADMIN puede eliminar
+  Dado que:  Un usuario USER intenta eliminar otro usuario
+  Cuando:    Ejecuta DELETE /api/v1/users/{uid}
+  Entonces:  El sistema retorna 403 Forbidden
+```
+
 ### Reglas de Negocio
 
-1. **Vinculación obligatoria**: Cada usuario debe estar asociado exactamente a un ecommerce. No se permite crear usuario sin ecommerceId válido.
+1. **RN-01: Dos roles únicos**
+   - `SUPER_ADMIN`: Administrador central del sistema. Sin restricción de ecommerce_id (NULL en BD). Acceso total a CRUD usuarios y a todos los ecommerce.
+   - `USER`: Operador de tienda. OBLIGATORIAMENTE vinculado a un ecommerce_id (NOT NULL en BD). Solo ve datos de su ecommerce.
 
-2. **Validación de ecommerce**: La existencia del ecommerce se valida contra `EcommerceService.validateEcommerceExists(ecommerceId)` antes de crear/actualizar usuario.
+2. **RN-02: Unicidad global de username** — El campo `username` DEBE ser único en todo el sistema. Dos usuarios de diferentes ecommerce NO pueden compartir el mismo username.
 
-3. **Unicidad global de username**: Username debe ser único en toda la plataforma (independiente del ecommerce). Esto evita ambigüedad en el endpoint de login y conflictos de identidad en el JWT. Un usuario no puede tener el mismo username en múltiples ecommerce.
+3. **RN-03: Vinculación obligatoria para USER** — Cualquier usuario con rol USER DEBE estar vinculado a exactamente un ecommerce_id. El ecommerce_id es NOT NULL para USER.
 
-4. **Propagación de ecommerce_id en JWT**: 
-   - AuthService (HU-01 en spec auth) DEBE incluir claim `"ecommerce_id"` en el JWT cuando autentica usuario no-super-admin
-   - Este claim es extraído por AuthenticationFilter en Admin Service y Engine Service para filtrar recursos
-   - Super Admin: JWT NO tiene claim `ecommerce_id` (acceso sin restricción)
+4. **RN-04: ecommerce_id nullable solo para SUPER_ADMIN** — Solo usuarios SUPER_ADMIN pueden tener ecommerce_id = NULL. Para USER, ecommerce_id es siempre obligatorio.
 
-5. **Filtrado automático en consultas**: 
-   - Usuarios no-super-admin solo pueden consultar/actuar sobre usuarios del mismo ecommerce
-   - Super Admin puede filtrar por ecommerce o listar todos
+5. **RN-05: TenantInterceptor filtra todas las consultas** — Un interceptor de seguridad extrae ecommerce_id del JWT y aplica automáticamente `WHERE ecommerce_id = ?` a TODAS las consultas de usuarios con rol USER. SUPER_ADMIN no es filtrado.
 
-6. **Eliminación permanente**: DELETE es irreversible (sin soft delete en esta versión).
+6. **RN-06: JWT con ecommerce_id para USER** — El token JWT de usuarios USER DEBE incluir el claim `ecommerce_id`. El token de SUPER_ADMIN NO incluye este claim (o puede incluirlo con valor NULL).
 
-7. **Password nunca visible**: La contraseña hasheada nunca se retorna en respuestas (ni en GET ni en POST).
+7. **RN-07: Solo SUPER_ADMIN puede hacer CRUD de usuarios** — Endpoints POST, PUT, DELETE `/api/v1/users` son exclusivos para SUPER_ADMIN. Intentos de USER retornan 403 Forbidden.
 
-8. **Role no cambiable por usuario**: Solo Super Admin puede cambiar role (no incluido en PUT /api/v1/users/{uid}, requiere endpoint separado).
+8. **RN-08: Contraseña hasheada con BCrypt** — Las contraseñas DEBEN ser almacenadas hasheadas usando BCrypt. Nunca plaintext o MD5.
+
+9. **RN-09: Timestamps en UTC ISO 8601** — Todos los timestamps (`created_at`, `updated_at`) se almacenan en UTC (Instant en Java).
 
 ---
 
@@ -279,150 +303,147 @@ CRITERIO-5.3: Retornar 404 si usuario no existe
 
 | Entidad | Almacén | Cambios | Descripción |
 |---------|---------|---------|-------------|
-| `UserEntity` | tabla `users` | **modificada** | Agregar columna `ecommerce_id` (UUID, NOT NULL, FK) |
+| `UserEntity` | tabla `users` (PostgreSQL) | modificada | Usuario con roles SUPER_ADMIN (ecommerce_id NULL) o USER (ecommerce_id NOT NULL) |
+| `Ecommerce` | tabla `ecommerce` | no modificada | Entidad de ecommerce (referenciada por FK) |
 
-#### Cambios a UserEntity
+#### Campos del modelo UserEntity
+
+| Campo | Tipo | Nullable | Validación | Descripción |
+|-------|------|----------|------------|-------------|
+| `id` | Long (BigSerial) | no | auto-generado | ID de base de datos (interno) |
+| `uid` | UUID | no | generado | UUID público del usuario (para requests/responses) |
+| `username` | String(50) | no | UNIQUE, alphanumeric + underscore | Nombre único globalmente |
+| `password` | String(255) | no | BCrypt hash, min 12 chars | Contraseña hasheada |
+| `role` | String(50) | no | enum: SUPER_ADMIN, USER | Rol del usuario |
+| `ecommerceId` | UUID | **SÍ** | FK a ecommerce (solo si role=USER) | NULL para SUPER_ADMIN, NOT NULL para USER |
+| `active` | Boolean | no | default: true | Estado del usuario (activo/inactivo) |
+| `created_at` | Instant (UTC) | no | auto-generado | Timestamp de creación |
+| `updated_at` | Instant (UTC) | no | auto-generado | Timestamp de última actualización |
+
+#### Índices / Constraints
+
+| Índice | Tabla | Columnas | Tipo | Razón |
+|--------|-------|----------|------|-------|
+| `idx_username` | users | username | UNIQUE | Búsqueda y validación de unicidad global |
+| `idx_ecommerce_id` | users | ecommerce_id | NORMAL | Búsqueda rápida de usuarios por ecommerce |
+| `idx_active` | users | active | NORMAL | Filtrado de usuarios activos |
+| `idx_role` | users | role | NORMAL | Búsqueda de usuarios por rol |
+| `uk_username_global` | users | username | UNIQUE CONSTRAINT | Garantizar unicidad global de username |
+
+#### Validación de Integridad (CHECK Constraint)
 
 ```sql
-ALTER TABLE users ADD COLUMN ecommerce_id UUID NOT NULL;
-ALTER TABLE users ADD CONSTRAINT fk_users_ecommerce FOREIGN KEY (ecommerce_id) REFERENCES ecommerce(id);
-ALTER TABLE users ADD INDEX idx_ecommerce_id (ecommerce_id);
--- Cambiar constraint de unicidad global (no por ecommerce)
-ALTER TABLE users DROP INDEX idx_username;
-ALTER TABLE users ADD UNIQUE KEY uk_username_global (username);
+ALTER TABLE users ADD CONSTRAINT chk_role_ecommerce_mapping
+CHECK (
+  (role = 'SUPER_ADMIN' AND ecommerce_id IS NULL) OR
+  (role = 'USER' AND ecommerce_id IS NOT NULL)
+);
 ```
 
-#### Nuevos índices
+Esto garantiza que SUPER_ADMIN siempre tiene ecommerce_id NULL y USER siempre tiene ecommerce_id NOT NULL.
 
-- `idx_ecommerce_id (ecommerce_id)` — búsqueda rápida de usuarios por ecommerce
-- `UNIQUE (username)` — unicidad global de username en toda la plataforma (asegura que login no sea ambiguo)
+#### Migraciones Flyway
 
-#### Campos del modelo UserEntity (actualizado)
-
-| Campo | Tipo | Obligatorio | Validación | Descripción |
-|-------|------|-------------|------------|-------------|
-| `id` | Long | sí | auto-incremento | PK en BD (legacy) |
-| `uid` | UUID | sí | auto-generado | UUID para cliente (nuevo campo en DTO) |
-| `username` | string | sí | max 50 chars, unique per ecommerce | Nombre de usuario |
-| `password` | string | sí | 255 chars (hasheada) | Contraseña hasheada |
-| `email` | string | no | format email | Email (optional) |
-| `role` | string | sí | (ADMIN, SUPER_ADMIN, etc.) | Rol del usuario |
-| `ecommerce_id` | UUID | sí | FK a ecommerce | Ecommerce al que pertenece |
-| `active` | boolean | sí | default true | Marca el usuario como activo |
-| `created_at` | Instant (UTC) | sí | auto-generado | Timestamp creación |
-| `updated_at` | Instant (UTC) | sí | auto-generado | Timestamp actualización |
+- **V2__Create_users_table.sql** — Tabla base de usuarios (sin ecommerce_id)
+- **V3__Add_ecommerce_id_to_users.sql** — Agregar columna ecommerce_id NULLABLE y migración de datos
 
 ---
 
 ### API Endpoints
 
 #### POST /api/v1/users
-- **Descripción**: Crea un nuevo usuario vinculado a un ecommerce
-- **Auth requerida**: JWT con rol SUPER_ADMIN
+- **Descripción**: Crea un nuevo usuario con rol USER vinculado a un ecommerce
+- **Auth requerida**: sí (JWT token con rol SUPER_ADMIN)
 - **Request Body**:
   ```json
   {
-    "username": "string (50 chars max)",
-    "password": "string (8+ chars, strong)",
-    "role": "string (ADMIN, USER, etc.)",
-    "email": "string (opcional)",
-    "ecommerceId": "string (UUID válido)"
+    "username": "string, 5-50 chars, alphanumeric + underscore",
+    "password": "string, min 12 chars",
+    "role": "USER",
+    "ecommerceId": "UUID, debe existir en sistema"
   }
   ```
 - **Response 201 Created**:
   ```json
   {
-    "uid": "uuid",
-    "username": "string",
-    "role": "string",
-    "email": "string",
-    "ecommerceId": "uuid",
+    "uid": "550e8400-e29b-41d4-a716-446655440000",
+    "username": "tienda1-admin",
+    "role": "USER",
+    "ecommerceId": "4a1c8d4f-a1b2-c3d4-e5f6-a7b8c9d0e1f2",
     "active": true,
-    "createdAt": "2026-03-26T10:30:00Z",
-    "updatedAt": "2026-03-26T10:30:00Z"
+    "createdAt": "2026-03-27T10:15:30Z",
+    "updatedAt": "2026-03-27T10:15:30Z"
   }
   ```
-- **Response 400 Bad Request**:
-  ```json
-  { "error": "El ecommerce no existe" }
-  ```
-  o
-  ```json
-  { "error": "El username es obligatorio" }
-  ```
-- **Response 401 Unauthorized**: Token ausente o expirado
-- **Response 403 Forbidden**: Usuario no es SUPER_ADMIN
-- **Response 409 Conflict**:
-  ```json
-  { "error": "El username ya existe en este ecommerce" }
-  ```
-
----
+- **Response 400 Bad Request**: ecommerce_id no existe, password débil, validación falla
+- **Response 401 Unauthorized**: token ausente o expirado
+- **Response 403 Forbidden**: solo SUPER_ADMIN puede crear usuarios
+- **Response 409 Conflict**: username ya existe globalmente
 
 #### GET /api/v1/users
-- **Descripción**: Lista usuarios (filtra por ecommerce del contexto si no es super admin)
-- **Auth requerida**: sí (cualquier rol)
-- **Query params**:
-  - `ecommerceId` (opcional, UUID) — filtro by ecommerce (solo super admin puede filtrar otro ecommerce)
-- **Response 200 OK**:
-  ```json
-  [
-    {
-      "uid": "uuid",
-      "username": "string",
-      "role": "string",
-      "email": "string",
-      "ecommerceId": "uuid",
-      "active": true,
-      "createdAt": "2026-03-26T10:30:00Z",
-      "updatedAt": "2026-03-26T10:30:00Z"
-    }
-  ]
-  ```
-- **Response 401 Unauthorized**: Token ausente o expirado
-- **Response 403 Forbidden**: Usuario intenta filtrar por ecommerce diferente al suyo
-
----
+- **Descripción**: Lista usuarios según contexto del usuario autenticado
+- **Auth requerida**: sí
+- **Query Parameters** (opcional):
+  - `ecommerceId`: UUID (solo SUPER_ADMIN puede usar para filtrar específicamente)
+  - `active`: boolean (filtrar por estado)
+- **Response 200 OK**: array de UserResponse
+- **Comportamiento de filtrado**:
+  - Si usuario es USER: TenantInterceptor filtra automáticamente por su ecommerce_id
+  - Si usuario es SUPER_ADMIN: retorna todos los usuarios (sin filtro automático)
+  - Si SUPER_ADMIN usa query param `?ecommerceId=uuid`: filtra específicamente por ese ecommerce
+- **Response 403 Forbidden**: usuario USER intenta usar parámetro ecommerceId para otro ecommerce
 
 #### GET /api/v1/users/{uid}
-- **Descripción**: Obtiene un usuario por uid
+- **Descripción**: Obtiene un usuario por su UUID
 - **Auth requerida**: sí
-- **Path param**: `uid` (UUID)
-- **Response 200 OK**: recurso completo (igual a POST response)
-- **Response 401 Unauthorized**: Token ausente o expirado
-- **Response 403 Forbidden**: Usuario intenta ver usuario de otro ecommerce
-- **Response 404 Not Found**: Usuario no existe
-
----
+- **Response 200 OK**: objeto UserResponse completo
+- **Response 403 Forbidden**: usuario USER intenta acceder a usuario de otro ecommerce
+- **Response 404 Not Found**: usuario no existe
 
 #### PUT /api/v1/users/{uid}
-- **Descripción**: Actualiza un usuario (username y/o ecommerceId)
-- **Auth requerida**: sí (SUPER_ADMIN)
-- **Request Body** (todos opcionales):
+- **Descripción**: Actualiza datos de un usuario (solo SUPER_ADMIN)
+- **Auth requerida**: sí (JWT con rol SUPER_ADMIN)
+- **Request Body** (todos los campos opcionales):
   ```json
   {
-    "username": "string (opcional)",
-    "ecommerceId": "string (opcional, UUID válido)"
+    "password": "string, min 12 chars (opcional)",
+    "ecommerceId": "UUID (opcional, reasignar a otro ecommerce)",
+    "active": "boolean (opcional)"
   }
   ```
-- **Response 200 OK**: recurso actualizado (igual estructura POST)
-- **Response 400 Bad Request**: ecommerce inválido, username inválido, etc.
-- **Response 401 Unauthorized**: Token ausente o expirado
-- **Response 403 Forbidden**: No es SUPER_ADMIN
-- **Response 404 Not Found**: Usuario no existe
-- **Response 409 Conflict**: Username duplicado en nuevo ecommerce
+- **Response 200 OK**: objeto UserResponse actualizado
+- **Response 400 Bad Request**: ecommerce_id no existe, validación falla
+- **Response 403 Forbidden**: solo SUPER_ADMIN puede actualizar
+- **Response 404 Not Found**: usuario no existe
+
+#### DELETE /api/v1/users/{uid}
+- **Descripción**: Elimina un usuario (solo SUPER_ADMIN)
+- **Auth requerida**: sí (JWT con rol SUPER_ADMIN)
+- **Response 204 No Content**: eliminado exitosamente
+- **Response 403 Forbidden**: solo SUPER_ADMIN puede eliminar
+- **Response 404 Not Found**: usuario no existe
 
 ---
 
-#### DELETE /api/v1/users/{uid}
-- **Descripción**: Elimina un usuario permanentemente
-- **Auth requerida**: sí (SUPER_ADMIN)
-- **Path param**: `uid` (UUID)
-- **Response 204 No Content**: eliminado exitosamente
-- **Response 400 Bad Request**: Usuario intenta eliminarse a sí mismo
-- **Response 401 Unauthorized**: Token ausente o expirado
-- **Response 403 Forbidden**: No es SUPER_ADMIN
-- **Response 404 Not Found**: Usuario no existe
+### TenantInterceptor (Componente Crítico)
+
+#### Propósito
+Filtrar automáticamente TODAS las consultas de usuarios USER por su `ecommerce_id`, garantizando que no puedan acceder a datos de otros ecommerce.
+
+#### Flujo
+1. **Request entra**: usuario autenticado (JWT con ecommerce_id)
+2. **Interceptor extrae ecommerce_id** del token
+3. **Si el usuario es USER** (tiene ecommerce_id en token):
+   - Antes de ejecutar cualquier consulta: agregar `WHERE ecommerce_id = ?`
+   - Esta restricción se aplica a TODOS los endpoints
+4. **Si el usuario es SUPER_ADMIN**:
+   - NO se aplica filtro automático (ecommerce_id es NULL en token)
+5. **Validación post-filtro**: Si la consulta retorna un recurso de otro ecommerce, retornar 403 Forbidden
+
+#### Implementación
+- Crear `TenantInterceptor implements HandlerInterceptor`
+- Registrar en `WebMvcConfigurer.addInterceptors()`
+- El interceptor trabaja en conjunto con `SecurityContextHelper` para extraer claim del JWT
 
 ---
 
@@ -432,123 +453,43 @@ ALTER TABLE users ADD UNIQUE KEY uk_username_global (username);
 
 | Componente | Archivo | Props principales | Descripción |
 |------------|---------|------------------|-------------|
-| `UserCard` | `components/UserCard` | `user, onDelete, onEdit, currentUser` | Tarjeta que muestra usuario con acciones |
-| `UserFormModal` | `components/UserFormModal` | `isOpen, onSubmit, onClose, ecommerceOptions, initialData` | Modal CRUD (crear/editar usuario) |
-| `UsersList` | `components/UsersList` | `users, loading, onDelete, onEdit, currentUser` | Lista completa con paginación |
-| `EcommerceFilter` | `components/EcommerceFilter` | `ecommerces, selectedId, onChange, isSuperAdmin` | Dropdown filtro por ecommerce |
+| `UserCard` | `components/UserCard.jsx` | `user, onEdit, onDelete, isSuperAdmin` | Tarjeta con username, role, createdAt. Botones edit/delete solo para SUPER_ADMIN |
+| `UserFormModal` | `components/UserFormModal.jsx` | `isOpen, onSubmit, onClose, initialData, ecommerce, editMode` | Modal crear/editar usuario |
+| `ConfirmDeleteModal` | `components/ConfirmDeleteModal.jsx` | `isOpen, onConfirm, onCancel, itemName` | Confirmación de eliminación |
 
 #### Páginas nuevas
 
-| Página | Archivo | Ruta | Protegida | Rol requerido |
-|--------|---------|------|-----------|---------------|
-| `UsersPage` | `pages/UsersPage` | `/users` | sí | SUPER_ADMIN (lectura+gestión) / ADMIN (solo lectura del suyo) |
+| Página | Archivo | Ruta | Protegida | Permisos requeridos |
+|--------|---------|------|-----------|-------------------|
+| `UsersPage` | `pages/UsersPage.jsx` | `/users` | sí | SUPER_ADMIN |
 
 #### Hooks y State
 
 | Hook | Archivo | Retorna | Descripción |
 |------|---------|---------|-------------|
-| `useUsers` | `hooks/useUsers` | `{ users, loading, error, create, update, delete, refreshUsers }` | CRUD del usuario + refresh |
-| `useEcommerce` | `hooks/useEcommerce` | `{ ecommerce, isSuperAdmin, isLoading }` | Contexto del ecommerce actual |
+| `useUsers` | `hooks/useUsers.js` | `{ users, loading, error, create, update, delete, refetch }` | CRUD de usuarios |
+| `useAuth` | `hooks/useAuth.js` | `{ user, role, ecommerceId, token }` | Info del usuario autenticado |
 
-#### Services (llamadas API)
+#### Services
 
-| Función | Archivo | Endpoint | Method |
-|---------|---------|---------|--------|
-| `listUsers(token, ecommerceId?)` | `services/userService` | `GET /api/v1/users` | GET |
-| `getUser(uid, token)` | `services/userService` | `GET /api/v1/users/{uid}` | GET |
-| `createUser(data, token)` | `services/userService` | `POST /api/v1/users` | POST |
-| `updateUser(uid, data, token)` | `services/userService` | `PUT /api/v1/users/{uid}` | PUT |
-| `deleteUser(uid, token)` | `services/userService` | `DELETE /api/v1/users/{uid}` | DELETE |
-
----
-
-### Arquitectura y Dependencias
-
-#### Backend — Spring Boot
-
-**Paquetes nuevos**: Ninguno (reutilizar estructura existente)
-
-**Modificaciones en paquetes existentes**:
-- `domain/entity/UserEntity.java` — agregar campo `ecommerce_id`
-- `domain/repository/UserRepository.java` — agregar métodos `findByEcommerceId(UUID)`, `findByUsernameAndEcommerceId(String, UUID)`
-- `application/dto/` — crear DTOs: `UserCreateRequest`, `UserUpdateRequest`, `UserResponse`
-- `application/service/UserService.java` — lógica CRUD con validación de ecommerce
-- `presentation/controller/UserController.java` — endpoints REST
-
-**Interceptor de seguridad**: Modificar `AuthenticationFilter` existente para:
-- Extraer `ecommerce_id` del JWT y guardarlo en contexto de seguridad (ej: `SecurityContextHolder`)
-- Validar que usuario solo accede a su ecommerce (excepto super admin)
-
-**Servicios reutilizados**:
-- `EcommerceService.validateEcommerceExists(UUID)` — ya existe
-- `PasswordEncoder` — para hash de password
-
-**Migraciones Flyway**:
-- `V5__Add_ecommerce_id_to_users.sql` — agregar columna + índices
-
-#### Frontend — React
-
-**Paquetes nuevos**: Ninguno
-
-**Servicios reutilizados**:
-- `authService` (login, isAuthenticated, getRole)
-- `apiClient` (interceptor con token JWT)
-
-**Contexto reutilizado**:
-- `AuthContext` — para obtener rol actual y ecommerce_id del JWT
-
-**Store/State**:
-- Si usa Context API: `UserContext` (crear)
-- Si usa Redux: `userSlice` (crear)
+| Función | Archivo | Endpoint |
+|---------|---------|---------|
+| `createUser(data, token)` | `services/userService.js` | `POST /api/v1/users` |
+| `getUsers(ecommerceId?, token)` | `services/userService.js` | `GET /api/v1/users` |
+| `getUserByUid(uid, token)` | `services/userService.js` | `GET /api/v1/users/{uid}` |
+| `updateUser(uid, data, token)` | `services/userService.js` | `PUT /api/v1/users/{uid}` |
+| `deleteUser(uid, token)` | `services/userService.js` | `DELETE /api/v1/users/{uid}` |
 
 ---
 
 ### Notas de Implementación
 
-1. **Unicidad global de username (CRÍTICO)**:
-   - Constraint `UNIQUE (username)` a nivel de BD
-   - Validación en backend antes de INSERT/UPDATE
-   - Simplifica login (no requiere ecommerceId en el endpoint de auth)
-   - Evita conflictos de identidad en JWT
-
-2. **JWT ecommerce_id claim (CRÍTICO)**:
-   - AuthService (phase auth) DEBE incluir claim `ecommerce_id` al generar JWT para usuario no-super-admin
-   - AuthenticationFilter en Admin Service y Engine Service extrae este claim y lo valida
-   - Super Admin NO tiene claim `ecommerce_id` → acceso sin restricción
-   - Claim debe propagarse en todas las peticiones subsecuentes
-   - **LECCIÓN APRENDIDA**: Registrar AuthenticationFilter como `@Bean` en clase de configuración (NO como `@Component`). Esto evita conflictos en el ciclo de vida de Spring y en los tests del controller.
-
-3. **Migración de datos**: Si UserEntity ya existe en producción, crear script Flyway que:
-   - Agrega columna `ecommerce_id` (nullable inicialmente)
-   - Asigna default ecommerce para usuarios existentes (ej: via parámetro en migración)
-   - Cambia a NOT NULL
-   - Reemplaza constraint de unicidad: DROP UNIQUE (username, ecommerce_id) → ADD UNIQUE (username)
-
-4. **Backward compatibility**: El campo `ecommerce_id` debe ser obligatorio en la API pero tolerante en migración.
-
-5. **Password strength**: Validar mínimo 8 caracteres, mezcla de mayúsculas/minúsculas/números en frontend y backend.
-
-6. **Contexto de seguridad con Context Holder (CRÍTICO)**:
-   - AuthenticationFilter DEBE guardar el `ecommerce_id` extraído del JWT en un contexto accesible globalmente
-   - Opciones (en orden de recomendación):
-     a) **Custom Principal**: Crear clase `UserPrincipal` que extienda `UserDetails` e incluya campo `ecommerceId`
-     b) **SecurityContextHolder**: Usar `SecurityContextHolder.getContext().getAuthentication().getPrincipal()` para acceder a `ecommerceId`
-     c) **ThreadLocal personalizado**: Si es necesario fuera del contexto de Spring Security
-   - Esto permite que Servicios y Repositorios consulten el `ecommerce_id` del usuario actual **sin volver a parsear el token**
-   - Ejemplo en servicio: `String ecommerceId = getCurrentUserEcommerceId();` (método helper reutilizable)
-
-7. **UID vs ID**: Internamente usamos `Long` en BD, pero exponemos `UUID` en API como `uid` para cliente. Protege contra ataques de enumeración.
-
-8. **Super Admin**: No tiene `ecommerce_id` en JWT, por lo que puede listar/filtrar todos los ecommerce.
-
-9. **Transaccionalidad**: Endpoints POST/PUT/DELETE deben ser transaccionales (`@Transactional`).
-
-10. **Engine Service aislamiento (CRÍTICO PARA ENGINE)**:
-   - El AuthenticationFilter del Engine TAMBIÉN debe extraer y validar `ecommerce_id` del JWT en peticiones de management
-   - Endpoints como `POST /api/v1/discount-config`, `GET /api/v1/discount-priority` deben filtrar automáticamente por `ecommerce_id` del usuario
-   - Si usuario de Ecommerce A intenta ver config de Ecommerce B: retorna **403 Forbidden**
-   - El Context Holder del Admin Service debe ser **coordinado** con el del Engine (mismo claim `ecommerce_id` en JWT)
-   - Nota: Users se crean en Admin Service, pero Engine Service debe ser capaz de leer y validar ese claim autónomamente
+- **UUID para respuestas públicas**: El endpoint expone `uid` (UUID), no `id` (Long), para evitar exposición de IDs internos.
+- **Contraseñas en creación**: El frontend NO debe mostrar la contraseña después de creación, por seguridad.
+- **Validación de ecommerce**: Usar `EcommerceService.validateEcommerceExists()` en el backend antes de crear/actualizar.
+- **Aislamiento automático**: `TenantInterceptor` debe extraer `ecommerce_id` del JWT y pasarlo a repositorio para filtrado automático.
+- **SUPER_ADMIN sin filtro**: Solo usuarios SUPER_ADMIN pueden listar/acceder a todos los ecommerce. Validar en controller.
+- **Hard delete**: Esta spec implementa hard delete (eliminación permanente). No hay soft delete con `deleted_at`.
 
 ---
 
@@ -557,75 +498,66 @@ ALTER TABLE users ADD UNIQUE KEY uk_username_global (username);
 ### Backend
 
 #### Implementación
-- [ ] Crear migración `V5__Add_ecommerce_id_to_users.sql` — agregar columna + constraints
-- [ ] Modificar `UserEntity` — agregar campo `ecommerceId` (UUID, NOT NULL)
-- [ ] Crear DTOs: `UserCreateRequest`, `UserUpdateRequest`, `UserResponse` (Java Records)
-- [ ] **Crear clase `UserPrincipal` (implements UserDetails)** — incluir campo `ecommerceId` para Context Holder
-- [ ] Extender `UserRepository` — métodos `findByEcommerceId(UUID)`, `findByUsername(String)` [búsqueda global]
-- [ ] Implementar `UserService` — métodos CRUD con validación de ecommerce y unicidad global de username
-  - `createUser(UserCreateRequest)` — validar username único globalmente + ecommerce existe
-  - `listUsersByEcommerce(UUID)` — filtrar por ecommerce_id
-  - `getUserById(UUID)`
-  - `updateUser(UUID, UserUpdateRequest)` — validar username único globalmente en caso de cambio
-  - `deleteUser(UUID)` — no permitir auto-eliminación
-  - **Método helper**: `getCurrentUserEcommerceId()` — extrae ecommerce_id del SecurityContextHolder
-- [ ] Crear/Modificar `AuthenticationFilter` — extraer `ecommerce_id` del JWT y guardarlo en `UserPrincipal`
-- [ ] **Registrar `AuthenticationFilter` como `@Bean` en clase de configuración** (NO como `@Component`)
-- [ ] Crear `UserController` — endpoints POST, GET (list), GET (detail), PUT, DELETE
-- [ ] Registrar `UserController` en punto de entrada
+
+- [ ] **Modelo/DTO**: Crear/actualizar `UserCreateRequest`, `UserUpdateRequest`, `UserResponse` como Java Records
+- [ ] **Entity**: Actualizar `UserEntity` con ecommerceId NULLABLE
+- [ ] **Repository**: Implementar métodos:
+  - `findByUsername(username): Optional<UserEntity>`
+  - `findByEcommerceId(ecommerceId): List<UserEntity>`
+  - `findByUid(uid): Optional<UserEntity>`
+- [ ] **Service**: Implementar `UserService` con métodos CRUD
+- [ ] **Controller**: Implementar `UserController` con endpoints POST, GET, GET/{uid}, PUT, DELETE
+- [ ] **TenantInterceptor**: Crear interceptor de seguridad
+- [ ] **SecurityContextHelper**: Actualizar para extraer `ecommerce_id` del JWT
+- [ ] **AuthenticationFilter**: Actualizar para inyectar ecommerce_id en JWT
+- [ ] **Migration V3**: Asegurar que ecommerce_id es NULLABLE
+- [ ] **Excepciones**: Usar existentes (BadRequestException, ConflictException, ResourceNotFoundException, AuthorizationException)
 
 #### Tests Backend
-- [ ] `test_userService_createUser_success` — happy path creación
-- [ ] `test_userService_createUser_ecommerceNotFound` — error ecommerce inválido
-- [ ] `test_userService_createUser_usernameDuplicateGlobal` — error username duplicado globalmente (en cualquier ecommerce)
-- [ ] `test_userController_post_returns_201` — endpoint creación
-- [ ] `test_userController_get_returns_200` — listado con filtro de ecommerce_id del JWT
-- [ ] `test_userController_get_filtering_by_ecommerce` — super admin puede filtrar explícitamente
-- [ ] `test_userController_get_forbids_cross_ecommerce_access` — user no-super-admin no puede filtrar otro ecommerce
-- [ ] `test_userController_put_returns_200` — actualización
-- [ ] `test_userController_put_rejects_duplicate_username_global` — no permitir username duplicado globalmente en update
-- [ ] `test_userController_delete_returns_204` — eliminación
-- [ ] `test_userController_delete_self_returns_400` — validación auto-eliminación
+
+- [ ] `test_createUser_success_super_admin` — Happy path
+- [ ] `test_createUser_user_forbidden` — USER no puede crear (403)
+- [ ] `test_createUser_ecommerce_not_found` — Error 400
+- [ ] `test_createUser_username_duplicate` — Error 409
+- [ ] `test_listUsers_user_filtered` — USER ve solo su ecommerce
+- [ ] `test_listUsers_super_admin_unfiltered` — SUPER_ADMIN ve todos
+- [ ] `test_getUserByUid_different_ecommerce_forbidden` — USER 403 al otro ecommerce
+- [ ] `test_updateUser_user_forbidden` — USER no puede actualizar (403)
+- [ ] `test_deleteUser_user_forbidden` — USER no puede eliminar (403)
+- [ ] `test_TenantInterceptor_filters_user_queries` — Interceptor filtra
+- [ ] `test_TenantInterceptor_super_admin_no_filter` — Interceptor NO filtra SUPER_ADMIN
+- [ ] `test_JWT_contains_ecommerce_id_for_user` — Token USER tiene ecommerce_id
+- [ ] `test_JWT_super_admin_no_ecommerce_id` — Token SUPER_ADMIN no tiene ecommerce_id
 
 ### Frontend
 
 #### Implementación
-- [ ] Crear `services/userService.js` — funciones listUsers, createUser, updateUser, deleteUser
-- [ ] Crear `hooks/useUsers.js` — hook/store con estado, loading, error y acciones CRUD
-- [ ] Crear `components/UserCard.js` — tarjeta de usuario con botones editar/eliminar
-- [ ] Crear `components/UserFormModal.js` — modal CRUD con campos username, password, role, ecommerceId
-- [ ] Crear `components/UsersList.js` — lista con paginación y acciones
-- [ ] Crear `components/EcommerceFilter.js` — dropdown filtro (solo visible si super admin)
-- [ ] Crear `pages/UsersPage.js` — layout completo con lista + modal
-- [ ] Registrar ruta `/users` en router
+
+- [ ] **Service**: `userService.js` con funciones API
+- [ ] **Hook**: `useUsers.js` con estado y acciones
+- [ ] **Componente**: `UserCard.jsx`
+- [ ] **Componente**: `UserFormModal.jsx`
+- [ ] **Componente**: `ConfirmDeleteModal.jsx`
+- [ ] **Página**: `UsersPage.jsx`
+- [ ] **Rutas**: Registrar `/users` en router (solo SUPER_ADMIN)
+- [ ] **Estilos**: CSS/Tailwind consistente
+- [ ] **Validaciones**: username, password, ecommerce
 
 #### Tests Frontend
-- [ ] `[UserCard] renders user name correctly`
-- [ ] `[UserCard] calls onDelete when delete clicked`
-- [ ] `[UserCard] calls onEdit when edit clicked`
-- [ ] `[UserFormModal] submits POST on create`
-- [ ] `[UserFormModal] submits PUT on edit`
-- [ ] `[UserFormModal] validates required fields`
-- [ ] `useUsers hook loads users on mount`
-- [ ] `useUsers hook handles create error`
-- [ ] `useUsers hook respects ecommerce filter`
-- [ ] `[UsersPage] renders list of users`
-- [ ] `[EcommerceFilter] only visible to super admin`
+
+- [ ] `UserCard.test.jsx` — Renderiza datos
+- [ ] `UserCard.test.jsx` — Botones solo si SUPER_ADMIN
+- [ ] `UserFormModal.test.jsx` — Validaciones
+- [ ] `useUsers.test.js` — CRUD operations
+- [ ] `UsersPage.test.jsx` — Layout completo
 
 ### QA
-- [ ] Ejecutar skill `/gherkin-case-generator` → criterios CRITERIO-1.1 a 5.3
-- [ ] Ejecutar skill `/risk-identifier` → clasificación ASD de riesgos
-- [ ] Revisar cobertura de tests contra criterios de aceptación
-- [ ] Validar aislamiento de ecommerce en queries
-- [ ] Validar que super admin puede listar todos los ecommerce
-- [ ] Validar que usuario no-super-admin solo ve su ecommerce
-- [ ] Actualizar estado spec: `status: IMPLEMENTED` después de completar
 
----
-
-### Estimación Total
-- **Backend**: 2 sprints (implementación + tests)
-- **Frontend**: 2 sprints (implementación + tests)
-- **QA**: 1 sprint
-
-**Riesgo**: Migración de datos existentes en `users` table (requiere estrategia de backward compatibility)
+- [ ] Ejecutar skill `/gherkin-case-generator` → mapear CRITERIO-1.1 a 6.3
+- [ ] Ejecutar skill `/risk-identifier` → evaluar riesgos
+- [ ] Revisar cobertura de tests contra todos los CRITERIOS
+- [ ] Validar que Reglas de Negocio RN-01 a RN-09 están testeadas
+- [ ] Pruebas de integración E2E
+- [ ] Validar aislamiento multi-tenant
+- [ ] Validar JWT contiene ecommerce_id correcto
+- [ ] Actualizar estado spec: `status: IMPLEMENTED`
