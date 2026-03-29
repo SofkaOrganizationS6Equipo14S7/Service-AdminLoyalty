@@ -109,6 +109,7 @@ public class EcommerceService {
         if (status != null && !status.isBlank()) {
             try {
                 EcommerceStatus statusEnum = EcommerceStatus.valueOf(status.toUpperCase());
+                // Usar Specification para filtrado dinámico
                 entities = ecommerceRepository.findAll(
                     (root, query, cb) -> cb.equal(root.get("status"), statusEnum),
                     pageable

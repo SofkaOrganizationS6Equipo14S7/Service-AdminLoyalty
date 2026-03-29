@@ -3,6 +3,7 @@ package com.loyalty.service_admin.domain.repository;
 import com.loyalty.service_admin.domain.entity.EcommerceEntity;
 import com.loyalty.service_admin.domain.model.ecommerce.EcommerceStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -18,12 +19,13 @@ import java.util.UUID;
  * - CRUD básico heredado de JpaRepository<EcommerceEntity, UUID>
  * - Queries especializadas por slug (unicidad)
  * - Filtrado por status (ACTIVE/INACTIVE)
+ * - Soporte para Specifications (filtrado dinámico)
  * 
  * Las transacciones y lógica de negocio deben manejarse en la capa de Service,
  * no aquí. Este repositorio es solo un contrato de persistencia.
  */
 @Repository
-public interface EcommerceRepository extends JpaRepository<EcommerceEntity, UUID> {
+public interface EcommerceRepository extends JpaRepository<EcommerceEntity, UUID>, JpaSpecificationExecutor<EcommerceEntity> {
     
     /**
      * Busca un ecommerce por slug (identificador amigable).
