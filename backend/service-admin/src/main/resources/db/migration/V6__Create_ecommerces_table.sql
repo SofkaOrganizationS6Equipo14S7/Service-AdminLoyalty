@@ -32,11 +32,11 @@ CREATE INDEX IF NOT EXISTS idx_ecommerces_name ON ecommerces(name);
 -- FOREIGN KEY CONSTRAINTS: asegurar integridad referencial
 -- En tablas users y api_keys que ya existen
 ALTER TABLE users 
-    ADD CONSTRAINT IF NOT EXISTS fk_users_ecommerce_uid 
+    ADD CONSTRAINT fk_users_ecommerce_uid 
     FOREIGN KEY (ecommerce_id) REFERENCES ecommerces(uid) ON DELETE RESTRICT;
 
 ALTER TABLE api_keys
-    ADD CONSTRAINT IF NOT EXISTS fk_api_keys_ecommerce_uid
+    ADD CONSTRAINT fk_api_keys_ecommerce_uid
     FOREIGN KEY (ecommerce_id) REFERENCES ecommerces(uid) ON DELETE RESTRICT;
 
 -- COMENTARIOS DE DOCUMENTACIÓN
