@@ -48,75 +48,101 @@ public class UserService {
     private final SecurityContextHelper securityContextHelper;
     
     /**
-     * Crea un nuevo usuario vinculado a un ecommerce.
+     * Crea un nuevo usuario con validaciones de rol y ecommerce_id.
      * 
-     * SPEC-003 RN-05: SUPER_ADMIN y STORE_ADMIN pueden crear usuarios
+     * SPEC-005 HU-02.1: Crear STORE_ADMIN para ecommerce
+     * SPEC-005 RN-05: Gestión de usuarios por contexto de autorización
+     * SPEC-005 RN-01: SUPER_ADMIN sin vinculación a ecommerce
      * 
      * Validaciones:
-     * - SUPER_ADMIN o STORE_ADMIN (CRITERIO-3.1.1)
-     * - Role debe ser "STORE_USER" (no se pueden crear SUPER_ADMIN o STORE_ADMIN via API)
-     * - Ecommerce existe (CRITERIO-3.1.5)
-     * - Username es único globalmente (CRITERIO-3.1.2)
-     * - Email es único globalmente (CRITERIO-3.1.4)
-     * - Si STORE_ADMIN: solo puede crear en su propio ecommerce (CRITERIO-3.1.6)
+     * - SUPER_ADMIN o STORE_ADMIN pueden crear usuarios (CRÍTERION-2.1.3)
+     * - SUPER_ADMIN: puede crear cualquier rol en cualquier ecommerce
+     *   - Si role == SUPER_ADMIN: ecommerce_id DEBE ser NULL (RN-01)
+     *   - Si role != SUPER_ADMIN: ecommerce_id DEBE ser obligatorio
+     * - STORE_ADMIN: puede crear STORE_USER o STORE_ADMIN SOLO en su ecommerce (CRITERIO-2.1.5)
+     * - STORE_USER: NO puede crear usuarios (403 Forbidden) (CRITERIO-2.1.3)
+     * - Username es único globalmente (CRITERIO-2.1.2)
+     * - Email es único globalmente
      * 
      * @param request datos del nuevo usuario
      * @return UserResponse con datos del usuario creado
      * @throws AuthorizationException si no es SUPER_ADMIN/STORE_ADMIN o intenta crear en otro ecommerce
-     * @throws BadRequestException si role no es "STORE_USER" o ecommerce no existe
+     * @throws BadRequestException si validación fallida (role no permitido, ecommerce_id requerido, ecommerce no existe)
      * @throws ConflictException si username/email duplicado globalmente
      */
     @Transactional
     public UserResponse createUser(UserCreateRequest request) {
-        // AUTORIZACIÓN: Solo SUPER_ADMIN y STORE_ADMIN pueden crear usuarios
         String currentRole = securityContextHelper.getCurrentUserRole();
+        UUID currentUserEcommerceId = securityContextHelper.getCurrentUserEcommerceId();
+        
+        // ============ AUTORIZACIÓN ============
+        // Solo SUPER_ADMIN y STORE_ADMIN pueden crear usuarios
         if (!"SUPER_ADMIN".equals(currentRole) && !"STORE_ADMIN".equals(currentRole)) {
             log.warn("Intento de crear usuario sin permisos. Role actual: {}", currentRole);
             throw new AuthorizationException(
-                "Solo administradores pueden crear usuarios"
+                "Solo SUPER_ADMIN o STORE_ADMIN pueden crear usuarios"
             );
         }
         
-        // VALIDACIÓN: Si es STORE_ADMIN, solo puede crear en su propio ecommerce
+        // ============ VALIDACIÓN DE ROL ============
+        // Roles permitidos: SUPER_ADMIN, STORE_ADMIN, STORE_USER
+        if (!"SUPER_ADMIN".equals(request.role()) && 
+            !"STORE_ADMIN".equals(request.role()) && 
+            !"STORE_USER".equals(request.role())) {
+            log.warn("Intento de crear usuario con rol inválido: {}", request.role());
+            throw new BadRequestException(
+                "Roles permitidos: SUPER_ADMIN, STORE_ADMIN, STORE_USER"
+            );
+        }
+        
+        // ============ VALIDACIÓN DE ECOMMERCE_ID SEGÚN ROLE ============
+        // RN-01: SUPER_ADMIN debe tener ecommerce_id = NULL
+        if ("SUPER_ADMIN".equals(request.role())) {
+            if (request.ecommerceId() != null) {
+                log.warn("Intento de crear SUPER_ADMIN con ecommerce_id: {}", request.ecommerceId());
+                throw new BadRequestException(
+                    "SUPER_ADMIN no puede tener ecommerce_id asignado"
+                );
+            }
+        } else {
+            // STORE_ADMIN y STORE_USER DEBEN tener ecommerce_id
+            if (request.ecommerceId() == null) {
+                log.warn("Intento de crear usuario {} sin ecommerce_id", request.role());
+                throw new BadRequestException(
+                    String.format("%s requiere ecommerce_id obligatorio", request.role())
+                );
+            }
+            
+            // Validar que ecommerce existe
+            ecommerceService.validateEcommerceExists(request.ecommerceId());
+        }
+        
+        // ============ VALIDACIÓN DE CONTEXTO (STORE_ADMIN) ============
+        // STORE_ADMIN solo puede crear en su propio ecommerce
         if ("STORE_ADMIN".equals(currentRole)) {
-            UUID storeAdminEcommerce = securityContextHelper.getCurrentUserEcommerceId();
-            if (!storeAdminEcommerce.equals(request.ecommerceId())) {
+            if (!currentUserEcommerceId.equals(request.ecommerceId())) {
                 log.warn("STORE_ADMIN intenta crear usuario en otro ecommerce. Own: {}, Requested: {}", 
-                        storeAdminEcommerce, request.ecommerceId());
+                        currentUserEcommerceId, request.ecommerceId());
                 throw new AuthorizationException(
-                    "No puede crear usuarios fuera de su ecommerce"
+                    "Solo puede crear usuarios dentro de su ecommerce"
                 );
             }
         }
         
-        // VALIDACIÓN: Role debe ser "STORE_USER" (no permitimos crear SUPER_ADMIN o STORE_ADMIN)
-        if (!"STORE_USER".equals(request.role())) {
-            log.warn("Intento de crear usuario con rol no autorizado: {}", request.role());
-            throw new BadRequestException(
-                "Solo se pueden crear usuarios con rol STORE_USER"
-            );
-        }
-        
-        // Validar que ecommerce existe
-        ecommerceService.validateEcommerceExists(request.ecommerceId());
-        
-        // Validar que username es único globalmente
+        // ============ VALIDACIÓN DE UNICIDAD ============
+        // Username único globalmente
         if (userRepository.findByUsername(request.username()).isPresent()) {
             log.warn("Intento de crear usuario con username duplicado: {}", request.username());
-            throw new ConflictException(
-                "Username ya existe en el sistema"
-            );
+            throw new ConflictException("El username ya existe. Use otro.");
         }
         
-        // Validar que email es único globalmente
+        // Email único globalmente
         if (userRepository.findByEmail(request.email()).isPresent()) {
             log.warn("Intento de crear usuario con email duplicado: {}", request.email());
-            throw new ConflictException(
-                "Email ya existe en el sistema"
-            );
+            throw new ConflictException("El email ya existe. Use otro.");
         }
         
-        // Crear y guardar usuario
+        // ============ CREAR Y GUARDAR USUARIO ============
         UserEntity user = UserEntity.builder()
                 .username(request.username())
                 .email(request.email())
@@ -127,8 +153,8 @@ public class UserService {
                 .build();
         
         UserEntity saved = userRepository.save(user);
-        log.info("Usuario creado exitosamente: uid={}, username={}, email={}, ecommerce={}", 
-                saved.getUid(), saved.getUsername(), saved.getEmail(), saved.getEcommerceId());
+        log.info("Usuario creado exitosamente: uid={}, username={}, role={}, ecommerce={}", 
+                saved.getUid(), saved.getUsername(), saved.getRole(), saved.getEcommerceId());
         
         return toResponse(saved);
     }
