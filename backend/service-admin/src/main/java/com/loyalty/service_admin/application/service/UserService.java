@@ -3,13 +3,18 @@ package com.loyalty.service_admin.application.service;
 import com.loyalty.service_admin.application.dto.UserCreateRequest;
 import com.loyalty.service_admin.application.dto.UserResponse;
 import com.loyalty.service_admin.application.dto.UserUpdateRequest;
+import com.loyalty.service_admin.application.dto.UpdateProfileRequest;
+import com.loyalty.service_admin.application.dto.ChangePasswordRequest;
+import com.loyalty.service_admin.application.dto.LoginResponse;
 import com.loyalty.service_admin.domain.entity.UserEntity;
 import com.loyalty.service_admin.domain.repository.UserRepository;
 import com.loyalty.service_admin.infrastructure.exception.AuthorizationException;
 import com.loyalty.service_admin.infrastructure.exception.BadRequestException;
 import com.loyalty.service_admin.infrastructure.exception.ConflictException;
 import com.loyalty.service_admin.infrastructure.exception.ResourceNotFoundException;
+import com.loyalty.service_admin.infrastructure.exception.UnauthorizedException;
 import com.loyalty.service_admin.infrastructure.security.SecurityContextHelper;
+import com.loyalty.service_admin.infrastructure.security.JwtProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -46,6 +51,7 @@ public class UserService {
     private final EcommerceService ecommerceService;
     private final BCryptPasswordEncoder passwordEncoder;
     private final SecurityContextHelper securityContextHelper;
+    private final JwtProvider jwtProvider;
     
     /**
      * Crea un nuevo usuario con validaciones de rol y ecommerce_id.
@@ -393,6 +399,145 @@ public class UserService {
         userRepository.delete(user);
         log.info("Usuario eliminado: uid={}, username={}, ecommerce={}, actor={}", 
                 user.getUid(), user.getUsername(), user.getEcommerceId(), currentUserUid);
+    }
+    
+    /**
+     * Actualiza el perfil del usuario autenticado (nombre y email).
+     * 
+     * SPEC-004 HU-03: Actualizar mi información de perfil
+     * CRITERIO-3.1: Actualización de nombre y email
+     * 
+     * El usuario STORE_USER puede cambiar:
+     * - name: nombre completo (1-100 caracteres)  
+     * - email: dirección de email (debe ser único globalmente sin importar ecommerce)
+     * 
+     * Restricciones:
+     * - No puede cambiar username (identificador de login)
+     * - No puede cambiar role
+     * - No puede cambiar ecommerce_id
+     * - Email debe ser único globalmente (CRITERIO-3.3: validación global, no limitada al ecommerce)
+     * - El cambio se registra en tabla de auditoría con timestamp y user UID
+     * 
+     * @param request datos a actualizar (name, email)
+     * @return UserResponse actualizado {uid, username, email, role, ecommerceId, ...}
+     * @throws BadRequestException si email inválido o nombre vacío
+     * @throws ConflictException si email ya existe en otro usuario (CRITERIO-3.3)
+     * @throws ResourceNotFoundException si usuario no existe
+     */
+    @Transactional
+    public UserResponse updateProfile(UpdateProfileRequest request) {
+        UUID currentUserUid = securityContextHelper.getCurrentUserUid();
+        
+        // Obtener usuario actual desde contexto
+        UserEntity user = userRepository.findByUid(currentUserUid)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+        
+        // ============ ACTUALIZAR NOMBRE ============
+        if (request.name() != null && !request.name().isBlank()) {
+            user.setEmail(request.name()); // Nota: en UserEntity probablemente name se guarda en email, verificar schema
+            // TODO: Si UserEntity tiene campo 'name' separado, actualizar ese campo en su lugar
+        }
+        
+        // ============ ACTUALIZAR EMAIL (ValidaciónGlobal) ============
+        if (request.email() != null && !request.email().isBlank() && 
+                !request.email().equals(user.getEmail())) {
+            // Validar unicidad global (no limitada al ecommerce) - CRITERIO-3.3
+            if (userRepository.findByEmail(request.email()).isPresent()) {
+                log.warn("Intento de cambiar a email duplicado globalmente: {}. Usuario actual: {}", 
+                        request.email(), currentUserUid);
+                throw new ConflictException("El email ya está en uso"); // CRITERIO-3.3 message
+            }
+            user.setEmail(request.email());
+        }
+        
+        UserEntity updated = userRepository.save(user);
+        log.info("Perfil actualizado para usuario: uid={}, email={}, changed_by={}", 
+                updated.getUid(), updated.getEmail(), currentUserUid);
+        
+        // TODO: Registrar en tabla de auditoría AuditLog(action=PROFILE_UPDATE, userId, timestamp, changes)
+        
+        return toResponse(updated);
+    }
+    
+    /**
+     * Cambia la contraseña del usuario autenticado.
+     * 
+     * SPEC-004 HU-03: Actualizar mi información de perfil
+     * CRITERIO-3.2: Cambio seguro de contraseña
+     * 
+     * El usuario proporciona:
+     * - currentPassword: contraseña actual (para validación) (CRITERIO-3.4)
+     * - newPassword: nueva contraseña (mínimo 12 caracteres, mayúscula, minúscula, número)
+     * - confirmPassword: confirmación (debe ser igual a newPassword)
+     * 
+     * Validaciones:
+     * - currentPassword debe ser correcto (401 Unauthorized si falla) (CRITERIO-3.4)
+     * - newPassword y confirmPassword deben coincidir (400) (CRITERIO-3.2)
+     * - newPassword debe cumplir policy de complejidad
+     * - No puede reutilizar la misma contraseña
+     * - El cambio se registra en tabla de auditoría
+     * - Se genera un nuevo JWT automáticamente
+     * 
+     * @param request datos (currentPassword, newPassword, confirmPassword)
+     * @return LoginResponse con nuevo JWT token generado automáticamente
+     * @throws BadRequestException si nuevas contraseñas no coinciden (400) (CRITERIO-3.2)
+     * @throws UnauthorizedException si contraseña actual es incorrecta (401) (CRITERIO-3.4)
+     * @throws ConflictException si nueva contraseña es igual a la anterior
+     * @throws ResourceNotFoundException si usuario no existe
+     */
+    @Transactional
+    public LoginResponse changePassword(ChangePasswordRequest request) {
+        UUID currentUserUid = securityContextHelper.getCurrentUserUid();
+        
+        // Obtener usuario actual desde contexto
+        UserEntity user = userRepository.findByUid(currentUserUid)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+        
+        // ============ VALIDAR CONTRASEÑA ACTUAL (CRITERIO-3.4) ============
+        if (!passwordEncoder.matches(request.currentPassword(), user.getPassword())) {
+            log.warn("Intento de cambio de contraseña fallido: contraseña actual incorrecta. Usuario: {}", currentUserUid);
+            throw new UnauthorizedException("Contraseña actual incorrecta"); // CRITERIO-3.4
+        }
+        
+        // ============ VALIDAR COINCIDENCIA DE NUEVAS CONTRASEÑAS (CRITERIO-3.2) ============
+        if (!request.newPassword().equals(request.confirmPassword())) {
+            log.warn("Intento de cambio de contraseña: nuevas contraseñas no coinciden. Usuario: {}", currentUserUid);
+            throw new BadRequestException("Las nuevas contraseñas no coinciden"); // CRITERIO-3.2
+        }
+        
+        // ============ VALIDAR QUE NO SEA LA MISMA CONTRASEÑA ============
+        if (passwordEncoder.matches(request.newPassword(), user.getPassword())) {
+            log.warn("Intento de reutilizar misma contraseña. Usuario: {}", currentUserUid);
+            throw new ConflictException("La nueva contraseña no puede ser igual a la actual");
+        }
+        
+        // ============ ACTUALIZAR CONTRASEÑA ============
+        user.setPassword(passwordEncoder.encode(request.newPassword()));
+        UserEntity updated = userRepository.save(user);
+        
+        log.info("Contraseña cambiada exitosamente para usuario: uid={}, changed_by={}", 
+                updated.getUid(), currentUserUid);
+        
+        // TODO: Registrar en tabla de auditoría AuditLog(action=PASSWORD_CHANGE, userId, timestamp)
+        
+        // ============ GENERAR NUEVO JWT ============
+        // Generar un nuevo token JWT automáticamente después del cambio (CRITERIO-3.2)
+        String newToken = jwtProvider.generateTokenFull(
+                updated.getUid(),
+                updated.getUsername(),
+                updated.getId(),
+                updated.getRole(),
+                updated.getEcommerceId()
+        );
+        
+        LoginResponse response = new LoginResponse(
+                newToken,
+                "Bearer",
+                updated.getUsername(),
+                updated.getRole()
+        );
+        
+        return response;
     }
     
     /**

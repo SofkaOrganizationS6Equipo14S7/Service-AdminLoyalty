@@ -1,9 +1,9 @@
 ---
 id: SPEC-003
-status: APPROVED
+status: IN_PROGRESS
 feature: store-admin-management
 created: 2026-03-29
-updated: 2026-03-29
+updated: 2026-03-30
 author: spec-generator
 version: "1.0"
 related-specs: ["SPEC-001", "SPEC-002"]
