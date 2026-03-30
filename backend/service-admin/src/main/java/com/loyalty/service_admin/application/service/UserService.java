@@ -53,6 +53,7 @@ public class UserService {
     private final SecurityContextHelper securityContextHelper;
     private final JwtProvider jwtProvider;
     private final AuditService auditService;
+    private final PasswordValidator passwordValidator;
     
     /**
      * Crea un nuevo usuario con validaciones de rol y ecommerce_id.
@@ -147,6 +148,13 @@ public class UserService {
         if (userRepository.findByEmail(request.email()).isPresent()) {
             log.warn("Intento de crear usuario con email duplicado: {}", request.email());
             throw new ConflictException("El email ya existe. Use otro.");
+        }
+        
+        // ============ VALIDAR COMPLEJIDAD DE CONTRASEÑA (SPEC-004 RN-06) ============
+        if (!passwordValidator.isValid(request.password())) {
+            String errorMsg = passwordValidator.getErrorMessage(request.password());
+            log.warn("Intento de crear usuario con contraseña débil: {}. Username: {}", errorMsg, request.username());
+            throw new BadRequestException(errorMsg);
         }
         
         // ============ CREAR Y GUARDAR USUARIO ============
@@ -506,6 +514,13 @@ public class UserService {
         if (!request.newPassword().equals(request.confirmPassword())) {
             log.warn("Intento de cambio de contraseña: nuevas contraseñas no coinciden. Usuario: {}", currentUserUid);
             throw new BadRequestException("Las nuevas contraseñas no coinciden"); // CRITERIO-3.2
+        }
+        
+        // ============ VALIDAR COMPLEJIDAD DE CONTRASEÑA (SPEC-004 RN-06) ============
+        if (!passwordValidator.isValid(request.newPassword())) {
+            String errorMsg = passwordValidator.getErrorMessage(request.newPassword());
+            log.warn("Intento de cambio con contraseña débil: {}. Usuario: {}", errorMsg, currentUserUid);
+            throw new BadRequestException(errorMsg);
         }
         
         // ============ VALIDAR QUE NO SEA LA MISMA CONTRASEÑA ============
