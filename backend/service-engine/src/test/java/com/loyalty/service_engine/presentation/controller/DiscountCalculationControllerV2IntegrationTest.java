@@ -6,7 +6,6 @@ import com.loyalty.service_engine.application.service.DiscountCalculationService
 import com.loyalty.service_engine.application.service.EngineConfigurationCacheService;
 import com.loyalty.service_engine.infrastructure.exception.GlobalExceptionHandler;
 import com.loyalty.service_engine.infrastructure.security.ApiKeyAuthenticationFilter;
-import com.loyalty.service_engine.infrastructure.security.JwtAuthenticationFilter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,9 +33,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         GlobalExceptionHandler.class
 })
 class DiscountCalculationControllerV2IntegrationTest {
-
-    @MockBean
-    private JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @MockBean
     private ApiKeyAuthenticationFilter apiKeyAuthenticationFilter;
