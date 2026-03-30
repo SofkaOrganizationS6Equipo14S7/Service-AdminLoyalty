@@ -1,6 +1,6 @@
 ---
 id: SPEC-006
-status: DRAFT
+status: APPROVED
 feature: seasonal-rules
 created: 2026-03-30
 updated: 2026-03-30
@@ -427,14 +427,58 @@ Publicado por **Service-Admin** cuando se elimina una regla.
 ```
 
 **RabbitMQ Configuration**:
-- **Exchange**: `seasonal-exchange` (type: direct)
-- **Queue**: `seasonal-rules-queue` (consumida por Service-Engine)
+- **Exchange**: `seasonal-exchange` (type: direct, DURABLE)
+- **Queue**: `seasonal-rules-queue` (DURABLE, consumida por Service-Engine)
 - **Routing Keys**: 
   - `seasonal.rule.created`
   - `seasonal.rule.updated`
   - `seasonal.rule.deleted`
 - **Consumer** (Service-Engine): Invalida caché Caffeine e inserta/actualiza en tabla `seasonal_rules` (DB `loyalty_engine`)
 - **DLX** (Dead Letter Exchange): `seasonal-dlx` con retry logic por reintento
+- **Message Durability**: Mensajes son persistentes (PERSISTENT = true)
+- **Consumer Acknowledgment**: MANUAL (el consumer hace ACK solo después de guardar exitosamente)
+
+#### Idempotencia y Tolerancia a Fallos (Patrón UPSERT)
+
+**Problema**: Si RabbitMQ reintenta un evento (network timeout, consumer crash), el reader debe procesar el mismo mensaje 2+ veces sin duplicados ni inconsistencias.
+
+**Solución**: Lógica UPSERT en el consumer:
+```java
+@RabbitListener(queues = "seasonal-rules-queue")
+public void consumeSeasonalRuleEvent(SeasonalRuleEvent event, Channel channel, @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag) throws IOException {
+  try {
+    // UPSERT pattern: buscar por (ecommerce_id, uid)
+    Optional<SeasonalRuleEntity> existing = repository.findByUidAndEcommerceId(event.ruleUid(), event.ecommerceId());
+    
+    SeasonalRuleEntity entity = existing.orElseGet(() -> new SeasonalRuleEntity());
+    entity.setUid(event.ruleUid());
+    entity.setEcommerceId(event.ecommerceId());
+    entity.setName(event.name());
+    entity.setStartDate(event.startDate());
+    entity.setEndDate(event.endDate());
+    entity.setDiscountPercentage(event.discountPercentage());
+    entity.setActive(event.isActive());
+    entity.setUpdatedAt(Instant.now(Clock.systemUTC()));
+    
+    repository.save(entity);  // INSERT or UPDATE (idempotent)
+    cacheManager.invalidate(event.ecommerceId());
+    
+    // Manual ACK: confirmar al broker que procesamos exitosamente
+    channel.basicAck(deliveryTag, false);
+    
+  } catch (Exception e) {
+    log.error("Failed to process seasonal rule event, will retry", e);
+    // NACK + requeue: mensaje vuelve a la cola
+    channel.basicNack(deliveryTag, true);
+    throw e;  // Let container handle retry
+  }
+}
+```
+
+**Garantías**:
+- Idempotencia: Procesamiento repetido del mismo evento = mismo resultado final (no duplicados)
+- At-least-once delivery: RabbitMQ garantiza que el mensaje llega al menos 1 vez
+- Combinadas: Reintento seguro sin efectos secundarios
 
 ### Validaciones y Reglas de Negocio
 

@@ -43,6 +43,31 @@ public class RabbitMQConfig {
     @Value("${rabbitmq.routing.config-updated-dlq:config.updated.dlq}")
     private String configUpdatedDlqRoutingKey;
 
+    // Seasonal Rules exchange and queue
+    @Value("${rabbitmq.exchange.seasonal:loyalty.seasonal.exchange}")
+    private String seasonalExchange;
+
+    @Value("${rabbitmq.exchange.seasonal-dlx:loyalty.seasonal.dlx}")
+    private String seasonalDeadLetterExchange;
+
+    @Value("${rabbitmq.queue.seasonal-rules:loyalty.seasonal.rules.queue}")
+    private String seasonalRulesQueue;
+
+    @Value("${rabbitmq.queue.seasonal-rules-dlq:loyalty.seasonal.rules.dlq}")
+    private String seasonalRulesDlq;
+
+    @Value("${rabbitmq.routing.seasonal-created:seasonal.rule.created}")
+    private String seasonalCreatedRoutingKey;
+
+    @Value("${rabbitmq.routing.seasonal-updated:seasonal.rule.updated}")
+    private String seasonalUpdatedRoutingKey;
+
+    @Value("${rabbitmq.routing.seasonal-deleted:seasonal.rule.deleted}")
+    private String seasonalDeletedRoutingKey;
+
+    @Value("${rabbitmq.routing.seasonal-dlq:seasonal.rule.dlq}")
+    private String seasonalDlqRoutingKey;
+
     @Value("${rabbitmq.retry.max-attempts:5}")
     private int maxAttempts;
 
@@ -90,6 +115,66 @@ public class RabbitMQConfig {
     @Bean
     public Binding configUpdatedDlqBinding(DirectExchange configDeadLetterExchange, Queue configUpdatedDlq) {
         return BindingBuilder.bind(configUpdatedDlq).to(configDeadLetterExchange).with(configUpdatedDlqRoutingKey);
+    }
+    
+    // ============================================================================
+    // Seasonal Rules Exchange, Queues, and Bindings
+    // ============================================================================
+    
+    /**
+     * Direct Exchange for seasonal rule events
+     * Admin Service publishes: CREATED, UPDATED, DELETED events
+     * Engine Service consumes from this exchange
+     */
+    @Bean
+    public DirectExchange seasonalExchange() {
+        return new DirectExchange(seasonalExchange, true, false);
+    }
+
+    @Bean
+    public DirectExchange seasonalDeadLetterExchange() {
+        return new DirectExchange(seasonalDeadLetterExchange, true, false);
+    }
+
+    /**
+     * Queue for seasonal rules events (consumed by Service-Engine)
+     * Dead Letter: seasonal-rules-dlq with DLX configured
+     */
+    @Bean
+    public Queue seasonalRulesQueue() {
+        return new Queue(seasonalRulesQueue, true, false, false, Map.of(
+                "x-dead-letter-exchange", seasonalDeadLetterExchange,
+                "x-dead-letter-routing-key", seasonalDlqRoutingKey
+        ));
+    }
+
+    @Bean
+    public Queue seasonalRulesDlq() {
+        return new Queue(seasonalRulesDlq, true);
+    }
+
+    /**
+     * Bindings for seasonal rule events
+     * All three routing keys (created, updated, deleted) route to the same queue
+     */
+    @Bean
+    public Binding seasonalCreatedBinding(DirectExchange seasonalExchange, Queue seasonalRulesQueue) {
+        return BindingBuilder.bind(seasonalRulesQueue).to(seasonalExchange).with(seasonalCreatedRoutingKey);
+    }
+
+    @Bean
+    public Binding seasonalUpdatedBinding(DirectExchange seasonalExchange, Queue seasonalRulesQueue) {
+        return BindingBuilder.bind(seasonalRulesQueue).to(seasonalExchange).with(seasonalUpdatedRoutingKey);
+    }
+
+    @Bean
+    public Binding seasonalDeletedBinding(DirectExchange seasonalExchange, Queue seasonalRulesQueue) {
+        return BindingBuilder.bind(seasonalRulesQueue).to(seasonalExchange).with(seasonalDeletedRoutingKey);
+    }
+
+    @Bean
+    public Binding seasonalDlqBinding(DirectExchange seasonalDeadLetterExchange, Queue seasonalRulesDlq) {
+        return BindingBuilder.bind(seasonalRulesDlq).to(seasonalDeadLetterExchange).with(seasonalDlqRoutingKey);
     }
     
     /**
