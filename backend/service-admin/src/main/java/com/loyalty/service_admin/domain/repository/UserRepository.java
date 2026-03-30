@@ -81,3 +81,4 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
      * @return Lista de usuarios del ecommerce que coinciden
      */
     List<UserEntity> findByEcommerceIdAndEmailIgnoreCaseContaining(UUID ecommerceId, String emailLike);
+}
