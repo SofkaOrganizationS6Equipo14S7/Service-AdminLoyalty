@@ -4,6 +4,8 @@ import com.loyalty.service_admin.application.dto.EcommerceCreateRequest;
 import com.loyalty.service_admin.application.dto.EcommerceResponse;
 import com.loyalty.service_admin.application.dto.EcommerceUpdateStatusRequest;
 import com.loyalty.service_admin.application.service.EcommerceService;
+import com.loyalty.service_admin.infrastructure.exception.AuthorizationException;
+import com.loyalty.service_admin.infrastructure.security.SecurityContextHelper;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,10 +46,11 @@ import java.util.UUID;
 @RequestMapping("/api/v1/ecommerces")
 @RequiredArgsConstructor
 @Slf4j
-@PreAuthorize("hasRole('SUPER_ADMIN')")
+@PreAuthorize("isAuthenticated()")
 public class EcommerceController {
     
     private final EcommerceService ecommerceService;
+    private final SecurityContextHelper securityContextHelper;
     
     /**
      * POST /api/v1/ecommerces
@@ -82,6 +85,7 @@ public class EcommerceController {
      * @apiNote CRITERIO-1.1, 1.2, 1.3, 1.4, 1.5
      */
     @PostMapping
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<EcommerceResponse> createEcommerce(
             @Valid @RequestBody EcommerceCreateRequest request) {
         log.info("POST /api/v1/ecommerces - Creando ecommerce: slug={}", request.slug());
@@ -128,6 +132,7 @@ public class EcommerceController {
      * @apiNote CRITERIO-2.1
      */
     @GetMapping
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<Page<EcommerceResponse>> listEcommerces(
             @RequestParam(name = "status", required = false) String status,
             @RequestParam(name = "page", defaultValue = "0") int page,
@@ -173,6 +178,22 @@ public class EcommerceController {
     public ResponseEntity<EcommerceResponse> getEcommerceById(
             @PathVariable UUID uid) {
         log.info("GET /api/v1/ecommerces/{} - Obteniendo ecommerce", uid);
+        
+        String currentRole = securityContextHelper.getCurrentUserRole();
+        
+        // ============ VALIDAR ACCESO ============
+        // SUPER_ADMIN: puede acceder a cualquier ecommerce
+        // STORE_ADMIN/STORE_USER: solo pueden acceder a su propio ecommerce (SPEC-004 CRITERIO-3.5)
+        if (!"SUPER_ADMIN".equals(currentRole)) {
+            UUID userEcommerceId = securityContextHelper.getCurrentUserEcommerceId();
+            if (userEcommerceId == null || !userEcommerceId.equals(uid)) {
+                log.warn("Intento de acceso a ecommerce no autorizado: role={}, requested_uid={}, user_ecommerce={}", 
+                        currentRole, uid, userEcommerceId);
+                throw new AuthorizationException(
+                    "No tienes permiso para acceder a este ecommerce"
+                );
+            }
+        }
         
         EcommerceResponse response = ecommerceService.getEcommerceById(uid);
         
@@ -221,6 +242,7 @@ public class EcommerceController {
      * @apiNote CRITERIO-3.1, 3.2, 3.3, 3.4
      */
     @PutMapping("/{uid}")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<EcommerceResponse> updateEcommerceStatus(
             @PathVariable UUID uid,
             @Valid @RequestBody EcommerceUpdateStatusRequest request) {
