@@ -1,4 +1,4 @@
-# HU-04: Gestión de Reglas de Temporada
+# HU-06: Gestión de Reglas de Temporada
 
 ## Historia de Usuario
 

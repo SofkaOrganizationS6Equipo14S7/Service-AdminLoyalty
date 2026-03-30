@@ -20,7 +20,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Slf4j
 public class DataInitializer {
-    
+
     /**
      * Bean que se ejecuta al iniciar la aplicación.
      * Crea un usuario administrador por defecto.
@@ -37,9 +37,9 @@ public class DataInitializer {
                 
                 UserEntity adminUser = UserEntity.builder()
                         .username("admin")
+                        .email("admin@system.local")
                         .password(hashedPassword)
-                        .role("ADMIN")
-                        .ecommerceId(adminEcommerceId)
+                        .role("SUPER_ADMIN")
                         .active(true)
                         .build();
                 

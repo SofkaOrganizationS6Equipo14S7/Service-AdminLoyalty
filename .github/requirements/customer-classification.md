@@ -1,4 +1,4 @@
-# HU-08: Clasificación Dinámica de Clientes (Loyalty Tiers)
+# HU-10: Clasificación Dinámica de Clientes (Loyalty Tiers)
 
 ## Historia de Usuario
 
