@@ -3,12 +3,14 @@
 -- Description: Agregar columna email a la tabla users con validaciones de unicidad global
 -- SPEC-003: Administración de Ecommerce por STORE_ADMIN
 
--- Agregar columna email a usuarios (UNIQUE GLOBAL para consistencia con username en Login)
-ALTER TABLE users ADD COLUMN email VARCHAR(255) NOT NULL UNIQUE;
+-- Agregar columna email a usuarios sin NOT NULL primero (para no fallar con datos existentes)
+ALTER TABLE users ADD COLUMN email VARCHAR(255) UNIQUE;
 
--- ÍNDICES CRÍTICOS PARA PERFORMANCE
--- idx_suffix convención: idx_<table>_<columns>_<type>
-CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique ON users(email);
+-- Actualizar registros existentes con email derivado del username
+UPDATE users SET email = CONCAT(username, '@placeholder.local') WHERE email IS NULL;
+
+-- Ahora agregar NOT NULL
+ALTER TABLE users ALTER COLUMN email SET NOT NULL;
 
 -- Índice compuesto para filtrado eficiente por ecommerce (usado en listUsers)
 CREATE INDEX IF NOT EXISTS idx_users_ecommerce_id_active ON users(ecommerce_id, active);

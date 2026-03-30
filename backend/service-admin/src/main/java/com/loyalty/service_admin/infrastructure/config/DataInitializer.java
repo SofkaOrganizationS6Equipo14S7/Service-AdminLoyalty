@@ -31,8 +31,9 @@ public class DataInitializer {
                 
                 UserEntity adminUser = UserEntity.builder()
                         .username("admin")
+                        .email("admin@system.local")
                         .password(hashedPassword)
-                        .role("ADMIN")
+                        .role("SUPER_ADMIN")
                         .active(true)
                         .build();
                 
