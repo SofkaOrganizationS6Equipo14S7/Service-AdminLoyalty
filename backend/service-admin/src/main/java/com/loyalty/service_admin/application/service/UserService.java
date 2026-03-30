@@ -207,85 +207,115 @@ public class UserService {
     }
     
     /**
-     * Actualiza un usuario (username, email, password).
+     * Actualiza un usuario con autorización multi-contexto.
      * 
-     * SPEC-003 HU-03.3: Actualizar datos de usuario estándar
-     * SPEC-003 RN-05: SUPER_ADMIN y STORE_ADMIN pueden actualizar usuarios
+     * SPEC-005 HU-02.3: Modificar usuario por SUPER_ADMIN, STORE_ADMIN o el dueño del perfil
+     * SPEC-005 RN-05: Gestión de usuarios por contexto de autorización
      * 
      * Validaciones:
-     * - SUPER_ADMIN o STORE_ADMIN (CRITERIO-3.3.2)
-     * - Si STORE_ADMIN: usuario debe pertenecer a su propio ecommerce (TenantInterceptor)
-     * - Username y email no se pueden cambiar para duplicar globalmente (CRITERIO-3.3.1)
-     * - Role NO se puede cambiar (CRITERIO-3.3.3)
+     * - SUPER_ADMIN (HU-02.3.1): puede actualizar cualquier usuario (global scope)
+     * - STORE_ADMIN (HU-02.3.1B): puede actualizar usuarios de su ecommerce SOLO
+     * - STORE_USER (HU-02.3.1C): puede actualizar su propio perfil (sin ecommerce_id ni active)
      * 
-     * @param uid UUID único del usuario
-     * @param request datos a actualizar (todos opcionales). NO soporta cambios de: role, ecommerceId, active
+     * Restricciones de campo:
+     * - role: NUNCA cambiar
+     * - ecommerce_id: SOLO SUPER_ADMIN puede cambiar
+     * - active: SOLO SUPER_ADMIN puede cambiar
+     * - username/email/password: pueden cambiar SUPER_ADMIN, STORE_ADMIN (su ecommerce), STORE_USER (perfil propio)
+     * 
+     * @param uid UUID único del usuario a actualizar
+     * @param request datos a actualizar (username, email, password, ecommerceId, active)
      * @return UserResponse actualizado
-     * @throws AuthorizationException si no es SUPER_ADMIN/STORE_ADMIN o usuario no pertenece a su ecommerce
-     * @throws ResourceNotFoundException si no existe
-     * @throws ConflictException si username/email duplicado globalmente
+     * @throws AuthorizationException si no tiene permiso (CRITERIO-2.3.1D, CRITERIO-2.3.1E)
+     * @throws ResourceNotFoundException si usuario no existe
+     * @throws ConflictException si username/email duplicado
+     * @throws BadRequestException si intenta cambiar campo prohibido
      */
     @Transactional
     public UserResponse updateUser(UUID uid, UserUpdateRequest request) {
-        // AUTORIZACIÓN: Solo SUPER_ADMIN y STORE_ADMIN pueden actualizar usuarios
         String currentRole = securityContextHelper.getCurrentUserRole();
-        if (!"SUPER_ADMIN".equals(currentRole) && !"STORE_ADMIN".equals(currentRole)) {
-            log.warn("Intento de actualizar usuario sin permisos. Role actual: {}", currentRole);
-            throw new AuthorizationException(
-                "Solo administradores pueden actualizar usuarios"
-            );
-        }
+        UUID currentUserUid = securityContextHelper.getCurrentUserUid();
+        UUID currentUserEcommerceId = securityContextHelper.getCurrentUserEcommerceId();
         
         UserEntity user = userRepository.findByUid(uid)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
         
-        // VALIDACIÓN: Si es STORE_ADMIN, el usuario debe pertenecer a su ecommerce
-        // (suplementario a TenantInterceptor, pero buena práctica)
-        if ("STORE_ADMIN".equals(currentRole)) {
-            UUID storeAdminEcommerce = securityContextHelper.getCurrentUserEcommerceId();
-            if (!storeAdminEcommerce.equals(user.getEcommerceId())) {
-                log.warn("STORE_ADMIN intenta actualizar usuario de otro ecommerce. Own: {}, Target: {}", 
-                        storeAdminEcommerce, user.getEcommerceId());
+        // ============ AUTORIZACIÓN MULTI-CONTEXTO ============
+        // Validar que el usuario actual tiene permiso para actuar sobre este usuario
+        boolean canAct = securityContextHelper.canActOnUser(user.getEcommerceId(), uid);
+        if (!canAct) {
+            log.warn("Intento de acceso prohibido a usuario. Current: role={}, uid={}. Target: uid={}, ecommerce={}", 
+                    currentRole, currentUserUid, uid, user.getEcommerceId());
+            throw new AuthorizationException(
+                "No tiene permiso para editar este usuario"
+            );
+        }
+        
+        // ============ VALIDACIONES DE CAMPO ============
+        // Verificar intentos de cambiar campos prohibidos según el rol
+        if (!currentRole.equals("SUPER_ADMIN")) {
+            // STORE_ADMIN y STORE_USER no pueden cambiar ecommerce_id
+            if (request.ecommerceId() != null) {
+                log.warn("Intento de cambiar ecommerce_id by user with role={}. UID={}", currentRole, currentUserUid);
                 throw new AuthorizationException(
-                    "No puede editar usuarios de otro ecommerce"
+                    "No puede cambiar su ecommerce_id"
+                );
+            }
+            
+            // STORE_ADMIN y STORE_USER no pueden cambiar active
+            if (request.active() != null) {
+                log.warn("Intento de cambiar active by user with role={}. UID={}", currentRole, currentUserUid);
+                throw new AuthorizationException(
+                    "No puede cambiar su estado de activación"
                 );
             }
         }
         
-        // Actualizar username si se proporciona
+        // ============ ACTUALIZAR CAMPOS ============
+        // Username (opcional)
         if (request.username() != null && !request.username().isEmpty() && 
                 !request.username().equals(user.getUsername())) {
-            // Validar que nuevo username no existe globalmente
             if (userRepository.findByUsername(request.username()).isPresent()) {
                 log.warn("Intento de cambiar a username duplicado: {}", request.username());
-                throw new ConflictException(
-                    "Username ya existe en el sistema"
-                );
+                throw new ConflictException("Username ya existe en el sistema");
             }
             user.setUsername(request.username());
         }
         
-        // Actualizar email si se proporciona
+        // Email (opcional)
         if (request.email() != null && !request.email().isEmpty() && 
                 !request.email().equals(user.getEmail())) {
-            // Validar que nuevo email no existe globalmente
             if (userRepository.findByEmail(request.email()).isPresent()) {
                 log.warn("Intento de cambiar a email duplicado: {}", request.email());
-                throw new ConflictException(
-                    "Email ya existe en el sistema"
-                );
+                throw new ConflictException("Email ya existe en el sistema");
             }
             user.setEmail(request.email());
         }
         
-        // Actualizar password si se proporciona
+        // Password (opcional)
         if (request.password() != null && !request.password().isEmpty()) {
             user.setPassword(passwordEncoder.encode(request.password()));
         }
         
+        // Ecommerce ID (ONLY SUPER_ADMIN) (opcional)
+        if (request.ecommerceId() != null && currentRole.equals("SUPER_ADMIN")) {
+            if (!request.ecommerceId().equals(user.getEcommerceId())) {
+                // Validar que el nuevo ecommerce existe
+                ecommerceService.validateEcommerceExists(request.ecommerceId());
+                user.setEcommerceId(request.ecommerceId());
+                log.info("Ecommerce cambiado para usuario uid={}: {} -> {}", 
+                        uid, user.getEcommerceId(), request.ecommerceId());
+            }
+        }
+        
+        // Active flag (ONLY SUPER_ADMIN) (opcional)
+        if (request.active() != null && currentRole.equals("SUPER_ADMIN")) {
+            user.setActive(request.active());
+        }
+        
         UserEntity updated = userRepository.save(user);
-        log.info("Usuario actualizado: uid={}, username={}, email={}, ecommerce={}", 
-                updated.getUid(), updated.getUsername(), updated.getEmail(), updated.getEcommerceId());
+        log.info("Usuario actualizado: uid={}, username={}, ecommerce={}, active={}", 
+                updated.getUid(), updated.getUsername(), updated.getEcommerceId(), updated.getActive());
         
         return toResponse(updated);
     }
