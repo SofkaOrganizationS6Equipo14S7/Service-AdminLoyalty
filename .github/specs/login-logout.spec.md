@@ -1,5 +1,5 @@
 ---
-id: SPEC-001
+id: SPEC-006
 status: APPROVED
 feature: login-logout
 created: 2026-03-26
