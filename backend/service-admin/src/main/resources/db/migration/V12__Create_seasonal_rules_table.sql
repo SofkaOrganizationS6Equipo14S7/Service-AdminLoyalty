@@ -18,8 +18,10 @@ CREATE TABLE seasonal_rules (
     CONSTRAINT fk_seasonal_rules_ecommerce FOREIGN KEY (ecommerce_id) REFERENCES ecommerces(uid) ON DELETE CASCADE,
     CONSTRAINT discount_percentage_range CHECK (discount_percentage >= 0 AND discount_percentage <= 100),
     CONSTRAINT valid_date_range CHECK (start_date < end_date),
-    CONSTRAINT unique_seasonal_rule_per_ecommerce UNIQUE (ecommerce_id, start_date, end_date) WHERE is_active = true
+    CONSTRAINT unique_seasonal_rule_per_ecommerce UNIQUE (ecommerce_id, start_date, end_date)
 );
+
+CREATE UNIQUE INDEX unique_seasonal_rule_active_per_ecommerce ON seasonal_rules(ecommerce_id, start_date, end_date) WHERE is_active = true;
 
 CREATE INDEX idx_seasonal_rules_ecommerce_id ON seasonal_rules(ecommerce_id);
 CREATE INDEX idx_seasonal_rules_date_range ON seasonal_rules(start_date, end_date);

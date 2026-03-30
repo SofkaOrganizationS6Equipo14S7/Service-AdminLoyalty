@@ -40,7 +40,8 @@ public interface SeasonalRuleRepository extends JpaRepository<SeasonalRuleEntity
         SELECT sr FROM SeasonalRuleEntity sr
         WHERE sr.ecommerceId = :ecommerceId
         AND sr.isActive = true
-        AND (sr.startDate, sr.endDate) OVERLAPS (CAST(:startDate AS java.time.Instant), CAST(:endDate AS java.time.Instant))
+        AND sr.startDate <= :endDate
+        AND sr.endDate >= :startDate
         AND (:excludeUid IS NULL OR sr.uid != :excludeUid)
     """)
     List<SeasonalRuleEntity> findOverlappingRules(

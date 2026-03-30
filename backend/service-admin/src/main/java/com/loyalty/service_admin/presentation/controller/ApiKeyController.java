@@ -24,9 +24,6 @@ public class ApiKeyController {
     }
     
     /**
-     * POST /api/v1/ecommerces/{ecommerceId}/api-keys
-     * Crea una nueva API Key para un ecommerce.
-     * 
      * @param ecommerceId UUID del ecommerce
      * @param request body vacío
      * @return HTTP 201 Created con ApiKeyResponse
@@ -42,9 +39,6 @@ public class ApiKeyController {
     }
     
     /**
-     * GET /api/v1/ecommerces/{ecommerceId}/api-keys
-     * Lista todas las API Keys de un ecommerce.
-     * 
      * @param ecommerceId UUID del ecommerce
      * @return HTTP 200 OK con lista de ApiKeyListResponse
      */
@@ -58,9 +52,6 @@ public class ApiKeyController {
     }
     
     /**
-     * DELETE /api/v1/ecommerces/{ecommerceId}/api-keys/{keyId}
-     * Elimina (revoca) una API Key.
-     * 
      * @param ecommerceId UUID del ecommerce propietario
      * @param keyId UUID de la API Key a eliminar
      * @return HTTP 204 No Content

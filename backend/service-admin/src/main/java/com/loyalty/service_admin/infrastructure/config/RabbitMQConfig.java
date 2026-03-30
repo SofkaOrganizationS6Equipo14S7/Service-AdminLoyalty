@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.DirectExchange;
+import org.springframework.amqp.core.FanoutExchange;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -122,13 +123,13 @@ public class RabbitMQConfig {
     // ============================================================================
     
     /**
-     * Direct Exchange for seasonal rule events
+     * Fanout Exchange for seasonal rule events
      * Admin Service publishes: CREATED, UPDATED, DELETED events
      * Engine Service consumes from this exchange
      */
     @Bean
-    public DirectExchange seasonalExchange() {
-        return new DirectExchange(seasonalExchange, true, false);
+    public FanoutExchange seasonalExchange() {
+        return new FanoutExchange(seasonalExchange, true, false);
     }
 
     @Bean
@@ -154,22 +155,21 @@ public class RabbitMQConfig {
     }
 
     /**
-     * Bindings for seasonal rule events
-     * All three routing keys (created, updated, deleted) route to the same queue
+     * Bindings for seasonal rule events (Fanout - no routing keys needed)
      */
     @Bean
-    public Binding seasonalCreatedBinding(DirectExchange seasonalExchange, Queue seasonalRulesQueue) {
-        return BindingBuilder.bind(seasonalRulesQueue).to(seasonalExchange).with(seasonalCreatedRoutingKey);
+    public Binding seasonalCreatedBinding(FanoutExchange seasonalExchange, Queue seasonalRulesQueue) {
+        return BindingBuilder.bind(seasonalRulesQueue).to(seasonalExchange);
     }
 
     @Bean
-    public Binding seasonalUpdatedBinding(DirectExchange seasonalExchange, Queue seasonalRulesQueue) {
-        return BindingBuilder.bind(seasonalRulesQueue).to(seasonalExchange).with(seasonalUpdatedRoutingKey);
+    public Binding seasonalUpdatedBinding(FanoutExchange seasonalExchange, Queue seasonalRulesQueue) {
+        return BindingBuilder.bind(seasonalRulesQueue).to(seasonalExchange);
     }
 
     @Bean
-    public Binding seasonalDeletedBinding(DirectExchange seasonalExchange, Queue seasonalRulesQueue) {
-        return BindingBuilder.bind(seasonalRulesQueue).to(seasonalExchange).with(seasonalDeletedRoutingKey);
+    public Binding seasonalDeletedBinding(FanoutExchange seasonalExchange, Queue seasonalRulesQueue) {
+        return BindingBuilder.bind(seasonalRulesQueue).to(seasonalExchange);
     }
 
     @Bean

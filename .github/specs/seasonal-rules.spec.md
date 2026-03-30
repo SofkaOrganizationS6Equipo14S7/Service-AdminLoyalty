@@ -427,12 +427,8 @@ Publicado por **Service-Admin** cuando se elimina una regla.
 ```
 
 **RabbitMQ Configuration**:
-- **Exchange**: `seasonal-exchange` (type: direct, DURABLE)
+- **Exchange**: `seasonal-exchange` (type: **fanout**, DURABLE)
 - **Queue**: `seasonal-rules-queue` (DURABLE, consumida por Service-Engine)
-- **Routing Keys**: 
-  - `seasonal.rule.created`
-  - `seasonal.rule.updated`
-  - `seasonal.rule.deleted`
 - **Consumer** (Service-Engine): Invalida caché Caffeine e inserta/actualiza en tabla `seasonal_rules` (DB `loyalty_engine`)
 - **DLX** (Dead Letter Exchange): `seasonal-dlx` con retry logic por reintento
 - **Message Durability**: Mensajes son persistentes (PERSISTENT = true)
