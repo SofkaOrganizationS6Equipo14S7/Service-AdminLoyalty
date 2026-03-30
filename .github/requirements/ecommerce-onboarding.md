@@ -1,4 +1,4 @@
-# HU-13: Registro de Ecommerces (Onboarding)
+# HU-15: Registro de Ecommerces (Onboarding)
 
 ## Historia de Usuario
 

@@ -1,4 +1,4 @@
-# HU-07: Límite y Prioridad de Descuentos
+# HU-09: Límite y Prioridad de Descuentos
 
 ## Historia de Usuario
 
