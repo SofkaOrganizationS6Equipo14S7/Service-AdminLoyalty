@@ -50,36 +50,50 @@ public class UserService {
     /**
      * Crea un nuevo usuario vinculado a un ecommerce.
      * 
-     * SPEC-002 RN-07: Solo SUPER_ADMIN puede hacer CRUD de usuarios
+     * SPEC-003 RN-05: SUPER_ADMIN y STORE_ADMIN pueden crear usuarios
      * 
      * Validaciones:
-     * - Solo SUPER_ADMIN (CRITERIO-1.1)
-     * - Role debe ser "USER" (no se pueden crear SUPER_ADMIN via API)
-     * - Ecommerce existe (CRITERIO-1.2)
-     * - Username es único globalmente (CRITERIO-1.3)
+     * - SUPER_ADMIN o STORE_ADMIN (CRITERIO-3.1.1)
+     * - Role debe ser "STORE_USER" (no se pueden crear SUPER_ADMIN o STORE_ADMIN via API)
+     * - Ecommerce existe (CRITERIO-3.1.5)
+     * - Username es único globalmente (CRITERIO-3.1.2)
+     * - Email es único globalmente (CRITERIO-3.1.4)
+     * - Si STORE_ADMIN: solo puede crear en su propio ecommerce (CRITERIO-3.1.6)
      * 
      * @param request datos del nuevo usuario
      * @return UserResponse con datos del usuario creado
-     * @throws AuthorizationException si no es SUPER_ADMIN
-     * @throws BadRequestException si role no es "USER" o ecommerce no existe
-     * @throws ConflictException si username duplicado
+     * @throws AuthorizationException si no es SUPER_ADMIN/STORE_ADMIN o intenta crear en otro ecommerce
+     * @throws BadRequestException si role no es "STORE_USER" o ecommerce no existe
+     * @throws ConflictException si username/email duplicado globalmente
      */
     @Transactional
     public UserResponse createUser(UserCreateRequest request) {
-        // AUTORIZACIÓN: Solo SUPER_ADMIN puede crear usuarios
-        if (!securityContextHelper.isCurrentUserSuperAdmin()) {
-            log.warn("Intento de crear usuario sin permisos. Role actual: {}", 
-                    securityContextHelper.getCurrentUserRole());
+        // AUTORIZACIÓN: Solo SUPER_ADMIN y STORE_ADMIN pueden crear usuarios
+        String currentRole = securityContextHelper.getCurrentUserRole();
+        if (!"SUPER_ADMIN".equals(currentRole) && !"STORE_ADMIN".equals(currentRole)) {
+            log.warn("Intento de crear usuario sin permisos. Role actual: {}", currentRole);
             throw new AuthorizationException(
-                "Solo los administradores pueden crear usuarios"
+                "Solo administradores pueden crear usuarios"
             );
         }
         
-        // VALIDACIÓN: Role debe ser "USER" (no permitimos crear SUPER_ADMIN)
-        if (!"USER".equals(request.role())) {
+        // VALIDACIÓN: Si es STORE_ADMIN, solo puede crear en su propio ecommerce
+        if ("STORE_ADMIN".equals(currentRole)) {
+            UUID storeAdminEcommerce = securityContextHelper.getCurrentUserEcommerceId();
+            if (!storeAdminEcommerce.equals(request.ecommerceId())) {
+                log.warn("STORE_ADMIN intenta crear usuario en otro ecommerce. Own: {}, Requested: {}", 
+                        storeAdminEcommerce, request.ecommerceId());
+                throw new AuthorizationException(
+                    "No puede crear usuarios fuera de su ecommerce"
+                );
+            }
+        }
+        
+        // VALIDACIÓN: Role debe ser "STORE_USER" (no permitimos crear SUPER_ADMIN o STORE_ADMIN)
+        if (!"STORE_USER".equals(request.role())) {
             log.warn("Intento de crear usuario con rol no autorizado: {}", request.role());
             throw new BadRequestException(
-                "Solo se pueden crear usuarios con rol USER"
+                "Solo se pueden crear usuarios con rol STORE_USER"
             );
         }
         
@@ -90,13 +104,22 @@ public class UserService {
         if (userRepository.findByUsername(request.username()).isPresent()) {
             log.warn("Intento de crear usuario con username duplicado: {}", request.username());
             throw new ConflictException(
-                "El username ya existe en otra organización, debe ser único globalmente"
+                "Username ya existe en el sistema"
+            );
+        }
+        
+        // Validar que email es único globalmente
+        if (userRepository.findByEmail(request.email()).isPresent()) {
+            log.warn("Intento de crear usuario con email duplicado: {}", request.email());
+            throw new ConflictException(
+                "Email ya existe en el sistema"
             );
         }
         
         // Crear y guardar usuario
         UserEntity user = UserEntity.builder()
                 .username(request.username())
+                .email(request.email())
                 .password(passwordEncoder.encode(request.password()))
                 .role(request.role())
                 .ecommerceId(request.ecommerceId())
@@ -104,8 +127,8 @@ public class UserService {
                 .build();
         
         UserEntity saved = userRepository.save(user);
-        log.info("Usuario creado exitosamente: uid={}, username={}, ecommerce={}", 
-                saved.getUid(), saved.getUsername(), saved.getEcommerceId());
+        log.info("Usuario creado exitosamente: uid={}, username={}, email={}, ecommerce={}", 
+                saved.getUid(), saved.getUsername(), saved.getEmail(), saved.getEcommerceId());
         
         return toResponse(saved);
     }
@@ -184,47 +207,75 @@ public class UserService {
     }
     
     /**
-     * Actualiza un usuario (username, password, active, ecommerceId).
+     * Actualiza un usuario (username, email, password).
      * 
-     * SPEC-002 RN-07: Solo SUPER_ADMIN puede hacer CRUD de usuarios
-     * SPEC-002 CRITERIO-5.1: Actualizar permite cambiar contraseña y estado activo
+     * SPEC-003 HU-03.3: Actualizar datos de usuario estándar
+     * SPEC-003 RN-05: SUPER_ADMIN y STORE_ADMIN pueden actualizar usuarios
      * 
      * Validaciones:
-     * - Solo SUPER_ADMIN (RN-07)
-     * - Username es único globalmente si se cambia (CRITERIO-4.4)
-     * - Ecommerce existe si se cambia (CRITERIO-4.3)
+     * - SUPER_ADMIN o STORE_ADMIN (CRITERIO-3.3.2)
+     * - Si STORE_ADMIN: usuario debe pertenecer a su propio ecommerce (TenantInterceptor)
+     * - Username y email no se pueden cambiar para duplicar globalmente (CRITERIO-3.3.1)
+     * - Role NO se puede cambiar (CRITERIO-3.3.3)
      * 
      * @param uid UUID único del usuario
-     * @param request datos a actualizar (todos opcionales)
+     * @param request datos a actualizar (todos opcionales). NO soporta cambios de: role, ecommerceId, active
      * @return UserResponse actualizado
-     * @throws AuthorizationException si no es SUPER_ADMIN
+     * @throws AuthorizationException si no es SUPER_ADMIN/STORE_ADMIN o usuario no pertenece a su ecommerce
      * @throws ResourceNotFoundException si no existe
-     * @throws ConflictException si username duplicado
+     * @throws ConflictException si username/email duplicado globalmente
      */
     @Transactional
     public UserResponse updateUser(UUID uid, UserUpdateRequest request) {
-        // AUTORIZACIÓN: Solo SUPER_ADMIN puede actualizar usuarios
-        if (!securityContextHelper.isCurrentUserSuperAdmin()) {
-            log.warn("Intento de actualizar usuario sin permisos. Role actual: {}", 
-                    securityContextHelper.getCurrentUserRole());
+        // AUTORIZACIÓN: Solo SUPER_ADMIN y STORE_ADMIN pueden actualizar usuarios
+        String currentRole = securityContextHelper.getCurrentUserRole();
+        if (!"SUPER_ADMIN".equals(currentRole) && !"STORE_ADMIN".equals(currentRole)) {
+            log.warn("Intento de actualizar usuario sin permisos. Role actual: {}", currentRole);
             throw new AuthorizationException(
-                "Solo los administradores pueden actualizar usuarios"
+                "Solo administradores pueden actualizar usuarios"
             );
         }
         
         UserEntity user = userRepository.findByUid(uid)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
         
+        // VALIDACIÓN: Si es STORE_ADMIN, el usuario debe pertenecer a su ecommerce
+        // (suplementario a TenantInterceptor, pero buena práctica)
+        if ("STORE_ADMIN".equals(currentRole)) {
+            UUID storeAdminEcommerce = securityContextHelper.getCurrentUserEcommerceId();
+            if (!storeAdminEcommerce.equals(user.getEcommerceId())) {
+                log.warn("STORE_ADMIN intenta actualizar usuario de otro ecommerce. Own: {}, Target: {}", 
+                        storeAdminEcommerce, user.getEcommerceId());
+                throw new AuthorizationException(
+                    "No puede editar usuarios de otro ecommerce"
+                );
+            }
+        }
+        
         // Actualizar username si se proporciona
-        if (request.username() != null && !request.username().equals(user.getUsername())) {
+        if (request.username() != null && !request.username().isEmpty() && 
+                !request.username().equals(user.getUsername())) {
             // Validar que nuevo username no existe globalmente
             if (userRepository.findByUsername(request.username()).isPresent()) {
                 log.warn("Intento de cambiar a username duplicado: {}", request.username());
                 throw new ConflictException(
-                    "El username ya existe en otra organización, debe ser único globalmente"
+                    "Username ya existe en el sistema"
                 );
             }
             user.setUsername(request.username());
+        }
+        
+        // Actualizar email si se proporciona
+        if (request.email() != null && !request.email().isEmpty() && 
+                !request.email().equals(user.getEmail())) {
+            // Validar que nuevo email no existe globalmente
+            if (userRepository.findByEmail(request.email()).isPresent()) {
+                log.warn("Intento de cambiar a email duplicado: {}", request.email());
+                throw new ConflictException(
+                    "Email ya existe en el sistema"
+                );
+            }
+            user.setEmail(request.email());
         }
         
         // Actualizar password si se proporciona
@@ -232,20 +283,9 @@ public class UserService {
             user.setPassword(passwordEncoder.encode(request.password()));
         }
         
-        // Actualizar estado activo si se proporciona
-        if (request.active() != null) {
-            user.setActive(request.active());
-        }
-        
-        // Actualizar ecommerce si se proporciona
-        if (request.ecommerceId() != null && !request.ecommerceId().equals(user.getEcommerceId())) {
-            ecommerceService.validateEcommerceExists(request.ecommerceId());
-            user.setEcommerceId(request.ecommerceId());
-        }
-        
         UserEntity updated = userRepository.save(user);
-        log.info("Usuario actualizado: uid={}, username={}, ecommerce={}", 
-                updated.getUid(), updated.getUsername(), updated.getEcommerceId());
+        log.info("Usuario actualizado: uid={}, username={}, email={}, ecommerce={}", 
+                updated.getUid(), updated.getUsername(), updated.getEmail(), updated.getEcommerceId());
         
         return toResponse(updated);
     }
@@ -253,31 +293,45 @@ public class UserService {
     /**
      * Elimina un usuario (irreversible).
      * 
-     * SPEC-002 RN-07: Solo SUPER_ADMIN puede hacer CRUD de usuarios
-     * SPEC-002 CRITERIO-5.2: Eliminar usuario (no se puede auto-eliminar)
+     * SPEC-003 HU-03.4: Eliminar usuario estándar
+     * SPEC-003 RN-05: SUPER_ADMIN y STORE_ADMIN pueden eliminar usuarios
      * 
      * Validaciones:
-     * - Solo SUPER_ADMIN (RN-07)
-     * - Usuario no puede eliminarse a sí mismo (CRITERIO-5.2)
+     * - SUPER_ADMIN o STORE_ADMIN (CRITERIO-3.4.2)
+     * - Si STORE_ADMIN: usuario debe pertenecer a su propio ecommerce (TenantInterceptor)
+     * - Usuario no puede eliminarse a sí mismo (CRITERIO-3.4.3)
      * 
      * @param uid UUID único del usuario a eliminar
-     * @throws AuthorizationException si no es SUPER_ADMIN
+     * @throws AuthorizationException si no es SUPER_ADMIN/STORE_ADMIN o usuario no pertenece a su ecommerce
      * @throws ResourceNotFoundException si no existe
      * @throws BadRequestException si intenta auto-eliminarse
      */
     @Transactional
     public void deleteUser(UUID uid) {
-        // AUTORIZACIÓN: Solo SUPER_ADMIN puede eliminar usuarios
-        if (!securityContextHelper.isCurrentUserSuperAdmin()) {
-            log.warn("Intento de eliminar usuario sin permisos. Role actual: {}", 
-                    securityContextHelper.getCurrentUserRole());
+        // AUTORIZACIÓN: Solo SUPER_ADMIN y STORE_ADMIN pueden eliminar usuarios
+        String currentRole = securityContextHelper.getCurrentUserRole();
+        if (!"SUPER_ADMIN".equals(currentRole) && !"STORE_ADMIN".equals(currentRole)) {
+            log.warn("Intento de eliminar usuario sin permisos. Role actual: {}", currentRole);
             throw new AuthorizationException(
-                "Solo los administradores pueden eliminar usuarios"
+                "Solo administradores pueden eliminar usuarios"
             );
         }
         
         UserEntity user = userRepository.findByUid(uid)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+        
+        // VALIDACIÓN: Si es STORE_ADMIN, el usuario debe pertenecer a su ecommerce
+        // (suplementario a TenantInterceptor, pero buena práctica)
+        if ("STORE_ADMIN".equals(currentRole)) {
+            UUID storeAdminEcommerce = securityContextHelper.getCurrentUserEcommerceId();
+            if (!storeAdminEcommerce.equals(user.getEcommerceId())) {
+                log.warn("STORE_ADMIN intenta eliminar usuario de otro ecommerce. Own: {}, Target: {}", 
+                        storeAdminEcommerce, user.getEcommerceId());
+                throw new AuthorizationException(
+                    "No puede eliminar usuarios de otro ecommerce"
+                );
+            }
+        }
         
         // Validar que no se elimina a sí mismo
         UUID currentUserUid = securityContextHelper.getCurrentUserUid();
@@ -287,7 +341,8 @@ public class UserService {
         }
         
         userRepository.delete(user);
-        log.info("Usuario eliminado: uid={}, username={}", user.getUid(), user.getUsername());
+        log.info("Usuario eliminado: uid={}, username={}, ecommerce={}", 
+                user.getUid(), user.getUsername(), user.getEcommerceId());
     }
     
     /**
@@ -300,7 +355,7 @@ public class UserService {
                 user.getUid(),
                 user.getUsername(),
                 user.getRole(),
-                null, // email no está en entity según SPEC-002
+                user.getEmail(),
                 user.getEcommerceId(),
                 user.getActive(),
                 user.getCreatedAt(),
