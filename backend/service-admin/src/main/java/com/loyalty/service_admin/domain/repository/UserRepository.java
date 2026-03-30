@@ -46,9 +46,38 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
      * 
      * EXAMPLE: findByRoleAndEcommerceId("USER", uuid) → List<UserEntity>
      *
-     * @param role nombre del rol (e.g., "USER", "SUPER_ADMIN")
+     * @param role nombre del rol (e.g., "STORE_USER", "SUPER_ADMIN")
      * @param ecommerceId UUID del ecommerce (null para SUPER_ADMIN)
      * @return Lista de usuarios con ese rol en ese ecommerce
      */
     List<UserEntity> findByRoleAndEcommerceId(String role, UUID ecommerceId);
-}
+    
+    /**
+     * Busca un usuario por su email (búsqueda global, no por ecommerce).
+     * Utilizado en endpoints para validar unicidad global de email.
+     * Email es único en toda la plataforma (SPEC-003 RN-04).
+     *
+     * @param email dirección de correo del usuario
+     * @return Optional con el usuario si existe
+     */
+    Optional<UserEntity> findByEmail(String email);
+    
+    /**
+     * Busca usuarios de un ecommerce cuyo username contiene el patrón (búsqueda case-insensitive).
+     * Utilizado en GET /api/v1/users?search=pattern para búsqueda dentro del ecommerce.
+     * 
+     * @param ecommerceId UUID del ecommerce
+     * @param usernameLike patrón de búsqueda en username (ej. "admin")
+     * @return Lista de usuarios del ecommerce que coinciden
+     */
+    List<UserEntity> findByEcommerceIdAndUsernameIgnoreCaseContaining(UUID ecommerceId, String usernameLike);
+    
+    /**
+     * Busca usuarios de un ecommerce cuyo email contiene el patrón (búsqueda case-insensitive).
+     * Utilizado en GET /api/v1/users?search=pattern para búsqueda dentro del ecommerce.
+     * 
+     * @param ecommerceId UUID del ecommerce
+     * @param emailLike patrón de búsqueda en email (ej. "admin@")
+     * @return Lista de usuarios del ecommerce que coinciden
+     */
+    List<UserEntity> findByEcommerceIdAndEmailIgnoreCaseContaining(UUID ecommerceId, String emailLike);

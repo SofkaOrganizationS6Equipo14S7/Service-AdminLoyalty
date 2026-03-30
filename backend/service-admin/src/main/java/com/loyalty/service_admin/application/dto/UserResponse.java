@@ -11,8 +11,9 @@ import java.util.UUID;
  * - GET /api/v1/users/{uid} (obtener usuario)
  * - POST /api/v1/users (crear usuario)
  * - PUT /api/v1/users/{uid} (actualizar usuario)
+ * - DELETE /api/v1/users/{uid} (eliminar usuario)
  * 
- * Implementa SPEC-002: Gestión de usuarios por ecommerce
+ * Implementa SPEC-003: Administración de Ecommerce por STORE_ADMIN
  */
 public record UserResponse(
     UUID uid,

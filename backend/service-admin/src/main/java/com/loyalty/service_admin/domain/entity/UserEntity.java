@@ -12,18 +12,23 @@ import java.util.UUID;
 /**
  * Entidad de Usuario para LOYALTY system.
  * 
- * SPEC-002: Gestión de Usuarios por Ecommerce (v2.0)
+ * SPEC-003: Administración de Ecommerce por STORE_ADMIN
  * 
- * Dos roles únicos:
+ * Tres roles únicos:
  * - SUPER_ADMIN: ecommerce_id = NULL (sin restricción)
- * - USER: ecommerce_id NOT NULL (obligatoriamente vinculado a ecommerce)
+ * - STORE_ADMIN: ecommerce_id NOT NULL (vinculado a exactamente un ecommerce, puede gestionar usuarios)
+ * - STORE_USER: ecommerce_id NOT NULL (vinculado a exactamente un ecommerce, usuario estándar)
  * 
- * CHECK constraint: (role='SUPER_ADMIN' AND ecommerce_id IS NULL) OR (role='USER' AND ecommerce_id IS NOT NULL)
+ * Username y email son globalmente únicos para simplificar Login sin requerir slug de tienda.
+ * 
+ * CHECK constraint: (role='SUPER_ADMIN' AND ecommerce_id IS NULL) OR (role IN ('STORE_ADMIN', 'STORE_USER') AND ecommerce_id IS NOT NULL)
  */
 @Entity
 @Table(name = "users", indexes = {
     @Index(name = "idx_username", columnList = "username", unique = true),
+    @Index(name = "idx_email", columnList = "email", unique = true),
     @Index(name = "idx_ecommerce_id", columnList = "ecommerce_id"),
+    @Index(name = "idx_ecommerce_id_active", columnList = "ecommerce_id, active"),
     @Index(name = "idx_active", columnList = "active"),
     @Index(name = "idx_role", columnList = "role"),
     @Index(name = "idx_uid", columnList = "uid", unique = true)
@@ -43,6 +48,9 @@ public class UserEntity {
     
     @Column(name = "username", unique = true, nullable = false, length = 50)
     private String username;
+    
+    @Column(name = "email", unique = true, nullable = false, length = 255)
+    private String email;
     
     @Column(name = "password", nullable = false, length = 255)
     private String password;
