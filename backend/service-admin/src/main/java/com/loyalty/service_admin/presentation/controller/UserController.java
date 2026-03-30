@@ -18,22 +18,22 @@ import java.util.UUID;
  * Controller para gestión de usuarios por ecommerce.
  * 
  * Endpoints:
- * - POST   /api/v1/users           — Crear usuario (solo SUPER_ADMIN)
+ * - POST   /api/v1/users           — Crear usuario (SUPER_ADMIN y STORE_ADMIN)
  * - GET    /api/v1/users           — Listar usuarios (filtrado según ecommerce del usuario)
  * - GET    /api/v1/users/{uid}     — Obtener un usuario
- * - PUT    /api/v1/users/{uid}     — Actualizar usuario (solo SUPER_ADMIN)
- * - DELETE /api/v1/users/{uid}     — Eliminar usuario (solo SUPER_ADMIN)
+ * - PUT    /api/v1/users/{uid}     — Actualizar usuario (SUPER_ADMIN y STORE_ADMIN)
+ * - DELETE /api/v1/users/{uid}     — Eliminar usuario (SUPER_ADMIN y STORE_ADMIN)
  * 
- * Implementa SPEC-002: Gestión de Usuarios por Ecommerce
- * - HU-01: Crear usuario vinculado a ecommerce
- * - HU-02: Validar acceso según ecommerce del usuario
- * - HU-03: Listar usuarios por ecommerce
- * - HU-04: Actualizar usuario (cambio de ecommerce)
- * - HU-05: Eliminar usuario
+ * Implementa SPEC-003: Administración de Ecommerce por STORE_ADMIN
+ * - HU-03.1: Crear usuario estándar por STORE_ADMIN
+ * - HU-03.2: Listar usuarios por ecommerce del STORE_ADMIN
+ * - HU-03.3: Actualizar datos de usuario estándar
+ * - HU-03.4: Eliminar usuario estándar
  * 
  * Notas de Implementación:
  * - AuthenticationFilter DEBE estar registrado como @Bean (no @Component)
  * - UserPrincipal almacena ecommerce_id para aislamiento automático
+ * - TenantInterceptor valida autorización en TODAS las operaciones (GET, POST, PUT, DELETE)
  */
 @RestController
 @RequestMapping("/api/v1/users")
@@ -47,11 +47,11 @@ public class UserController {
      * POST /api/v1/users
      * Crea un nuevo usuario vinculado a un ecommerce.
      * 
-     * Requiere: rol SUPER_ADMIN
+     * Requiere: rol SUPER_ADMIN o STORE_ADMIN (STORE_ADMIN solo para su propio ecommerce)
      * 
      * @param request datos del nuevo usuario
      * @return 201 Created con UserResponse
-     * @apiNote CRITERIO-1.1: Crear usuario exitosamente con ecommerce válido
+     * @apiNote CRITERIO-3.1.1: Crear usuario exitosamente con ecommerce válido
      */
     @PostMapping
     public ResponseEntity<UserResponse> createUser(@Valid @RequestBody UserCreateRequest request) {
@@ -98,14 +98,14 @@ public class UserController {
     
     /**
      * PUT /api/v1/users/{uid}
-     * Actualiza un usuario (solo username y ecommerceId).
+     * Actualiza un usuario (username, email, password).
      * 
-     * Requiere: rol SUPER_ADMIN
+     * Requiere: rol SUPER_ADMIN o STORE_ADMIN (STORE_ADMIN solo para usuarios de su ecommerce)
      * 
      * @param uid UUID del usuario
-     * @param request datos a actualizar (campos opcionales)
+     * @param request datos a actualizar (campos opcionales: username, email, password)
      * @return 200 OK con UserResponse actualizado
-     * @apiNote CRITERIO-4.1, 4.2: Actualizar usuario con validaciones
+     * @apiNote CRITERIO-3.3.1, 3.3.2, 3.3.3: Actualizar usuario con validaciones
      */
     @PutMapping("/{uid}")
     public ResponseEntity<UserResponse> updateUser(
@@ -120,13 +120,13 @@ public class UserController {
      * DELETE /api/v1/users/{uid}
      * Elimina un usuario permanentemente.
      * 
-     * Requiere: rol SUPER_ADMIN
+     * Requiere: rol SUPER_ADMIN o STORE_ADMIN (STORE_ADMIN solo para usuarios de su ecommerce)
      * Validaciones:
      * - Usuario no puede eliminarse a sí mismo
      * 
      * @param uid UUID del usuario
      * @return 204 No Content
-     * @apiNote CRITERIO-5.1, 5.2: Eliminar con validaciones
+     * @apiNote CRITERIO-3.4.1, 3.4.2, 3.4.3: Eliminar con validaciones
      */
     @DeleteMapping("/{uid}")
     public ResponseEntity<Void> deleteUser(@PathVariable UUID uid) {
