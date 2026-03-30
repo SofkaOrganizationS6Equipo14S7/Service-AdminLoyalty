@@ -52,6 +52,7 @@ public class UserService {
     private final BCryptPasswordEncoder passwordEncoder;
     private final SecurityContextHelper securityContextHelper;
     private final JwtProvider jwtProvider;
+    private final AuditService auditService;
     
     /**
      * Crea un nuevo usuario con validaciones de rol y ecommerce_id.
@@ -454,7 +455,9 @@ public class UserService {
         log.info("Perfil actualizado para usuario: uid={}, email={}, changed_by={}", 
                 updated.getUid(), updated.getEmail(), currentUserUid);
         
-        // TODO: Registrar en tabla de auditoría AuditLog(action=PROFILE_UPDATE, userId, timestamp, changes)
+        // Registrar en tabla de auditoría (SPEC-004 RN-08)
+        auditService.auditProfileUpdate(updated.getUid(), 
+                String.format("Perfil actualizado: nombre=%s, email=%s", request.name(), request.email()));
         
         return toResponse(updated);
     }
@@ -518,7 +521,8 @@ public class UserService {
         log.info("Contraseña cambiada exitosamente para usuario: uid={}, changed_by={}", 
                 updated.getUid(), currentUserUid);
         
-        // TODO: Registrar en tabla de auditoría AuditLog(action=PASSWORD_CHANGE, userId, timestamp)
+        // Registrar en tabla de auditoría (SPEC-004 RN-08)
+        auditService.auditPasswordChange(updated.getUid(), null);
         
         // ============ GENERAR NUEVO JWT ============
         // Generar un nuevo token JWT automáticamente después del cambio (CRITERIO-3.2)
