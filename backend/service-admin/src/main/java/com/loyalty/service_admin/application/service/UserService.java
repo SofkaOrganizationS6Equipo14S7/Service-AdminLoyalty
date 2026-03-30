@@ -321,58 +321,52 @@ public class UserService {
     }
     
     /**
-     * Elimina un usuario (irreversible).
+     * Elimina un usuario permanentemente con autorización multi-contexto.
      * 
-     * SPEC-003 HU-03.4: Eliminar usuario estándar
-     * SPEC-003 RN-05: SUPER_ADMIN y STORE_ADMIN pueden eliminar usuarios
+     * SPEC-005 HU-02.5: Eliminar STORE_ADMIN de un ecommerce
+     * SPEC-005 RN-05: Gestión de usuarios por contexto de autorización
      * 
      * Validaciones:
-     * - SUPER_ADMIN o STORE_ADMIN (CRITERIO-3.4.2)
-     * - Si STORE_ADMIN: usuario debe pertenecer a su propio ecommerce (TenantInterceptor)
-     * - Usuario no puede eliminarse a sí mismo (CRITERIO-3.4.3)
+     * - SUPER_ADMIN (HU-02.5.1): puede eliminar cualquier usuario (global scope)
+     * - STORE_ADMIN (HU-02.5.1B): puede eliminar usuarios de su ecommerce SOLO
+     * - STORE_USER: NO puede eliminar usuarios (403 Forbidden)
+     * - Auto-eliminación: NEGADA para todos (400 Bad Request) (HU-02.5.2)
+     * - STORE_ADMIN intenta eliminar de otro ecommerce: 403 Forbidden (HU-02.5.1C)
      * 
      * @param uid UUID único del usuario a eliminar
-     * @throws AuthorizationException si no es SUPER_ADMIN/STORE_ADMIN o usuario no pertenece a su ecommerce
-     * @throws ResourceNotFoundException si no existe
-     * @throws BadRequestException si intenta auto-eliminarse
+     * @throws AuthorizationException si no tiene permiso (CRITERIO-2.5.1C, CRITERIO-2.5.1D)
+     * @throws ResourceNotFoundException si usuario no existe
+     * @throws BadRequestException si intenta auto-eliminación (CRITERIO-2.5.2)
      */
     @Transactional
     public void deleteUser(UUID uid) {
-        // AUTORIZACIÓN: Solo SUPER_ADMIN y STORE_ADMIN pueden eliminar usuarios
         String currentRole = securityContextHelper.getCurrentUserRole();
-        if (!"SUPER_ADMIN".equals(currentRole) && !"STORE_ADMIN".equals(currentRole)) {
-            log.warn("Intento de eliminar usuario sin permisos. Role actual: {}", currentRole);
-            throw new AuthorizationException(
-                "Solo administradores pueden eliminar usuarios"
-            );
-        }
+        UUID currentUserUid = securityContextHelper.getCurrentUserUid();
         
         UserEntity user = userRepository.findByUid(uid)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
         
-        // VALIDACIÓN: Si es STORE_ADMIN, el usuario debe pertenecer a su ecommerce
-        // (suplementario a TenantInterceptor, pero buena práctica)
-        if ("STORE_ADMIN".equals(currentRole)) {
-            UUID storeAdminEcommerce = securityContextHelper.getCurrentUserEcommerceId();
-            if (!storeAdminEcommerce.equals(user.getEcommerceId())) {
-                log.warn("STORE_ADMIN intenta eliminar usuario de otro ecommerce. Own: {}, Target: {}", 
-                        storeAdminEcommerce, user.getEcommerceId());
-                throw new AuthorizationException(
-                    "No puede eliminar usuarios de otro ecommerce"
-                );
-            }
-        }
-        
-        // Validar que no se elimina a sí mismo
-        UUID currentUserUid = securityContextHelper.getCurrentUserUid();
+        // ============ VALIDACIÓN DE AUTO-ELIMINACIÓN ============
+        // Ningún usuario puede eliminar su propio perfil
         if (currentUserUid.equals(uid)) {
-            log.warn("Intento de auto-eliminación por usuario: {}", uid);
+            log.warn("Intento de auto-eliminación por usuario: uid={}, role={}", uid, currentRole);
             throw new BadRequestException("No puede eliminarse a sí mismo");
         }
         
+        // ============ AUTORIZACIÓN MULTI-CONTEXTO ============
+        // Validar que el usuario actual tiene permiso para eliminar este usuario
+        boolean canAct = securityContextHelper.canActOnUser(user.getEcommerceId(), uid);
+        if (!canAct) {
+            log.warn("Intento de eliminación prohibida. Current: role={}, uid={}. Target: uid={}, ecommerce={}", 
+                    currentRole, currentUserUid, uid, user.getEcommerceId());
+            throw new AuthorizationException(
+                "No tiene permiso para eliminar este usuario"
+            );
+        }
+        
         userRepository.delete(user);
-        log.info("Usuario eliminado: uid={}, username={}, ecommerce={}", 
-                user.getUid(), user.getUsername(), user.getEcommerceId());
+        log.info("Usuario eliminado: uid={}, username={}, ecommerce={}, actor={}", 
+                user.getUid(), user.getUsername(), user.getEcommerceId(), currentUserUid);
     }
     
     /**
