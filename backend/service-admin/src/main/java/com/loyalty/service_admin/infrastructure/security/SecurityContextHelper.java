@@ -77,4 +77,45 @@ public class SecurityContextHelper {
     public boolean isCurrentUserSuperAdmin() {
         return "SUPER_ADMIN".equals(getCurrentUserPrincipal().getRole());
     }
+    
+    /**
+     * Valida si el usuario actual puede actuar sobre otro usuario.
+     * 
+     * Implementa SPEC-005 RN-05: Gestión de usuarios por contexto de autorización
+     * 
+     * Reglas de autorización multitenant:
+     * 1. SUPER_ADMIN: puede actuar sobre cualquier usuario en cualquier ecommerce
+     * 2. STORE_ADMIN: puede actuar sobre usuarios SOLO de su ecommerce_id
+     * 3. STORE_USER: puede actuar sobre su propio perfil (uid == target uid)
+     * 4. STORE_USER sobre otro usuario: NEGADO (false)
+     * 
+     * @param targetUserEcommerceId ecommerce_id del usuario objetivo (puede ser null para SUPER_ADMIN)
+     * @param targetUserUid uid del usuario objetivo
+     * @return true si el usuario actual tiene permiso para actuar sobre el objetivo
+     */
+    public boolean canActOnUser(UUID targetUserEcommerceId, UUID targetUserUid) {
+        UserPrincipal currentPrincipal = getCurrentUserPrincipal();
+        String currentRole = currentPrincipal.getRole();
+        UUID currentUserUid = currentPrincipal.getUid();
+        UUID currentUserEcommerceId = currentPrincipal.getEcommerceId();
+        
+        // SUPER_ADMIN: acceso global
+        if ("SUPER_ADMIN".equals(currentRole)) {
+            return true;
+        }
+        
+        // STORE_ADMIN: acceso limitado a su ecommerce
+        if ("STORE_ADMIN".equals(currentRole)) {
+            return currentUserEcommerceId != null && 
+                   currentUserEcommerceId.equals(targetUserEcommerceId);
+        }
+        
+        // STORE_USER: acceso solo a su propio perfil
+        if ("STORE_USER".equals(currentRole)) {
+            return currentUserUid.equals(targetUserUid);
+        }
+        
+        // Rol desconocido: NEGADO
+        return false;
+    }
 }

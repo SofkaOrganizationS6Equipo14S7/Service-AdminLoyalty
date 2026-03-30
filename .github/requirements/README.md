@@ -31,5 +31,6 @@ requirements/<feature>.md  →  /generate-spec  →  specs/<feature>.spec.md
 |---------|---------|--------|
 | Creación de Usuarios por Administrador | `user-creation.md` | LISTO PARA SPEC |
 | Módulo de Conversiones | `conversiones.md` | LISTO PARA SPEC |
+| Registro de Ecommerces (Onboarding) | `ecommerce-onboarding.md` | LISTO PARA SPEC |
 
 > Actualiza esta tabla al agregar o procesar requerimientos.
