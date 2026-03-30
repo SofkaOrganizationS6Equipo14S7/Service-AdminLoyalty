@@ -6,8 +6,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.mindrot.jbcrypt.BCrypt;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.util.UUID;
 
 /**
  * Inicializador de datos para la base de datos.
@@ -23,7 +26,10 @@ public class DataInitializer {
      * Crea un usuario administrador por defecto.
      */
     @Bean
-    public CommandLineRunner initDatabase(UserRepository userRepository) {
+    public CommandLineRunner initDatabase(
+            UserRepository userRepository,
+            @Value("${app.bootstrap.admin-ecommerce-id:00000000-0000-0000-0000-000000000001}") UUID adminEcommerceId
+    ) {
         return args -> {
             // Verificar si ya existen usuarios
             if (userRepository.count() == 0) {
@@ -33,11 +39,12 @@ public class DataInitializer {
                         .username("admin")
                         .password(hashedPassword)
                         .role("ADMIN")
+                        .ecommerceId(adminEcommerceId)
                         .active(true)
                         .build();
                 
                 userRepository.save(adminUser);
-                log.info("Usuario administrador creado: admin");
+                log.info("Usuario administrador creado: admin (ecommerceId={})", adminEcommerceId);
             } else {
                 log.info("Base de datos ya contiene usuarios, no se crea usuario por defecto");
             }
