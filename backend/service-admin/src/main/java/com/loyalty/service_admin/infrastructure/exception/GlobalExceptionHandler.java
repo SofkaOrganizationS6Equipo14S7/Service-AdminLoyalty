@@ -1,198 +1,104 @@
 package com.loyalty.service_admin.infrastructure.exception;
 
 import io.jsonwebtoken.JwtException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.time.Instant;
-import java.util.Map;
 import java.util.stream.Collectors;
 
-/**
- * Handler global de excepciones.
- * 
- * Maneja todas las excepciones de la aplicación y las convierte en respuestas HTTP consistentes.
- * Cumple con SPEC-001 v1.1 para manejo de JwtException.
- */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-    
-    /**
-     * Maneja cuando no se encuentra una API Key.
-     */
-    @ExceptionHandler(ApiKeyNotFoundException.class)
-    public ResponseEntity<Map<String, Object>> handleApiKeyNotFound(ApiKeyNotFoundException e) {
-        return ResponseEntity
-            .status(HttpStatus.NOT_FOUND)
-            .body(Map.of(
-                "timestamp", Instant.now().toString(),
-                "status", HttpStatus.NOT_FOUND.value(),
-                "error", "Not Found",
-                "message", e.getMessage()
-            ));
-    }
-    
-    /**
-     * Maneja cuando no se encuentra un ecommerce.
-     */
-    @ExceptionHandler(EcommerceNotFoundException.class)
-    public ResponseEntity<Map<String, Object>> handleEcommerceNotFound(EcommerceNotFoundException e) {
-        return ResponseEntity
-            .status(HttpStatus.NOT_FOUND)
-            .body(Map.of(
-                "timestamp", Instant.now().toString(),
-                "status", HttpStatus.NOT_FOUND.value(),
-                "error", "Not Found",
-                "message", e.getMessage()
-            ));
-    }
-    
-    /**
-     * Maneja fallos de autenticación o autorización.
-     */
-    @ExceptionHandler(UnauthorizedException.class)
-    public ResponseEntity<Map<String, Object>> handleUnauthorized(UnauthorizedException e) {
-        return ResponseEntity
-            .status(HttpStatus.UNAUTHORIZED)
-            .body(Map.of(
-                "timestamp", Instant.now().toString(),
-                "status", HttpStatus.UNAUTHORIZED.value(),
-                "error", "Unauthorized",
-                "message", e.getMessage()
-            ));
-    }
-    
-    /**
-     * Maneja cuando ocurren excepciones de argumento (IllegalArgumentException).
-     */
-    @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<Map<String, Object>> handleIllegalArgument(IllegalArgumentException e) {
-        return ResponseEntity
-            .status(HttpStatus.BAD_REQUEST)
-            .body(Map.of(
-                "timestamp", Instant.now().toString(),
-                "status", HttpStatus.BAD_REQUEST.value(),
-                "error", "Bad Request",
-                "message", e.getMessage()
-            ));
-    }
-    
-    /**
-     * Maneja errores de validación en argumentos.
-     */
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Map<String, Object>> handleMethodArgumentNotValid(MethodArgumentNotValidException e) {
+    public ResponseEntity<ApiErrorResponse> handleMethodArgumentNotValid(MethodArgumentNotValidException e, HttpServletRequest request) {
         String errors = e.getBindingResult()
-            .getFieldErrors()
-            .stream()
-            .map(error -> error.getField() + ": " + error.getDefaultMessage())
-            .collect(Collectors.joining(", "));
-        
-        return ResponseEntity
-            .status(HttpStatus.BAD_REQUEST)
-            .body(Map.of(
-                "timestamp", Instant.now().toString(),
-                "status", HttpStatus.BAD_REQUEST.value(),
-                "error", "Bad Request",
-                "message", "Validation failed: " + errors
-            ));
+                .getFieldErrors()
+                .stream()
+                .map(error -> error.getField() + ": " + error.getDefaultMessage())
+                .collect(Collectors.joining(", "));
+        return build(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Validation failed: " + errors, request);
     }
-    
-    /**
-     * Maneja excepciones de JWT (inválido, expirado, etc.).
-     * Cumple con SPEC-001 v1.1 para validación de tokens.
-     */
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ApiErrorResponse> handleConstraintViolation(ConstraintViolationException e, HttpServletRequest request) {
+        String errors = e.getConstraintViolations().stream()
+                .map(v -> v.getPropertyPath() + ": " + v.getMessage())
+                .collect(Collectors.joining(", "));
+        return build(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", errors, request);
+    }
+
     @ExceptionHandler(JwtException.class)
-    public ResponseEntity<Map<String, Object>> handleJwtException(JwtException e) {
-        return ResponseEntity
-            .status(HttpStatus.UNAUTHORIZED)
-            .body(Map.of(
-                "timestamp", Instant.now().toString(),
-                "status", HttpStatus.UNAUTHORIZED.value(),
-                "error", "Unauthorized",
-                "message", "Token no válido o expirado"
-            ));
+    public ResponseEntity<ApiErrorResponse> handleJwtException(JwtException e, HttpServletRequest request) {
+        return build(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "Token no válido o expirado", request);
     }
-    
-    /**
-     * Maneja BadRequestException (validación de datos inválidos).
-     * Implementa SPEC-002 para validación de entrada de usuarios.
-     */
+
+    @ExceptionHandler({UnauthorizedException.class, AuthenticationCredentialsNotFoundException.class})
+    public ResponseEntity<ApiErrorResponse> handleUnauthorized(RuntimeException e, HttpServletRequest request) {
+        return build(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", e.getMessage(), request);
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ApiErrorResponse> handleIllegalArgument(IllegalArgumentException e, HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, "BAD_REQUEST", e.getMessage(), request);
+    }
+
     @ExceptionHandler(BadRequestException.class)
-    public ResponseEntity<Map<String, Object>> handleBadRequest(BadRequestException e) {
-        return ResponseEntity
-            .status(HttpStatus.BAD_REQUEST)
-            .body(Map.of(
-                "timestamp", Instant.now().toString(),
-                "status", HttpStatus.BAD_REQUEST.value(),
-                "error", "Bad Request",
-                "message", e.getMessage()
-            ));
+    public ResponseEntity<ApiErrorResponse> handleBadRequest(BadRequestException e, HttpServletRequest request) {
+        String code = e.getMessage() != null && e.getMessage().startsWith("VALIDATION_ERROR")
+                ? "VALIDATION_ERROR"
+                : "BAD_REQUEST";
+        return build(HttpStatus.BAD_REQUEST, code, e.getMessage(), request);
     }
-    
-    /**
-     * Maneja ConflictException (violación de restricciones de unicidad).
-     * Principalmente: username duplicado globalmente (SPEC-002 RN-03).
-     */
+
     @ExceptionHandler(ConflictException.class)
-    public ResponseEntity<Map<String, Object>> handleConflict(ConflictException e) {
-        return ResponseEntity
-            .status(HttpStatus.CONFLICT)
-            .body(Map.of(
-                "timestamp", Instant.now().toString(),
-                "status", HttpStatus.CONFLICT.value(),
-                "error", "Conflict",
-                "message", e.getMessage()
-            ));
+    public ResponseEntity<ApiErrorResponse> handleConflict(ConflictException e, HttpServletRequest request) {
+        return build(HttpStatus.CONFLICT, "CONFLICT", e.getMessage(), request);
     }
-    
-    /**
-     * Maneja AuthorizationException (acceso denegado por restricciones multi-tenant).
-     * Implementa SPEC-002 punto 2: validación de aislamiento por ecommerce_id.
-     */
+
+    @ExceptionHandler(ConfigurationAlreadyExistsException.class)
+    public ResponseEntity<ApiErrorResponse> handleConfigurationAlreadyExists(ConfigurationAlreadyExistsException e, HttpServletRequest request) {
+        return build(HttpStatus.CONFLICT, "CONFIG_ALREADY_EXISTS", e.getMessage(), request);
+    }
+
+    @ExceptionHandler(ConfigurationNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleConfigurationNotFound(ConfigurationNotFoundException e, HttpServletRequest request) {
+        return build(HttpStatus.NOT_FOUND, "CONFIG_NOT_FOUND", e.getMessage(), request);
+    }
+
     @ExceptionHandler(AuthorizationException.class)
-    public ResponseEntity<Map<String, Object>> handleAuthorization(AuthorizationException e) {
-        return ResponseEntity
-            .status(HttpStatus.FORBIDDEN)
-            .body(Map.of(
-                "timestamp", Instant.now().toString(),
-                "status", HttpStatus.FORBIDDEN.value(),
-                "error", "Forbidden",
-                "message", e.getMessage()
-            ));
+    public ResponseEntity<ApiErrorResponse> handleAuthorization(AuthorizationException e, HttpServletRequest request) {
+        return build(HttpStatus.FORBIDDEN, "FORBIDDEN", e.getMessage(), request);
     }
-    
-    /**
-     * Maneja ResourceNotFoundException (recurso no encontrado).
-     * Se aplica cuando: usuario con UID no existe, ecommerce no existe, etc.
-     */
-    @ExceptionHandler(ResourceNotFoundException.class)
-    public ResponseEntity<Map<String, Object>> handleResourceNotFound(ResourceNotFoundException e) {
-        return ResponseEntity
-            .status(HttpStatus.NOT_FOUND)
-            .body(Map.of(
-                "timestamp", Instant.now().toString(),
-                "status", HttpStatus.NOT_FOUND.value(),
-                "error", "Not Found",
-                "message", e.getMessage()
-            ));
+
+    @ExceptionHandler({
+            ResourceNotFoundException.class,
+            ApiKeyNotFoundException.class,
+            EcommerceNotFoundException.class
+    })
+    public ResponseEntity<ApiErrorResponse> handleNotFound(RuntimeException e, HttpServletRequest request) {
+        return build(HttpStatus.NOT_FOUND, "NOT_FOUND", e.getMessage(), request);
     }
-    
-    /**
-     * Manejador genérico para cualquier excepción.
-     */
+
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Map<String, Object>> handleGenericException(Exception e) {
-        return ResponseEntity
-            .status(HttpStatus.INTERNAL_SERVER_ERROR)
-            .body(Map.of(
-                "timestamp", Instant.now().toString(),
-                "status", HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                "error", "Internal Server Error",
-                "message", e.getMessage()
-            ));
+    public ResponseEntity<ApiErrorResponse> handleGenericException(Exception e, HttpServletRequest request) {
+        return build(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", e.getMessage(), request);
+    }
+
+    private ResponseEntity<ApiErrorResponse> build(HttpStatus status, String code, String message, HttpServletRequest request) {
+        return ResponseEntity.status(status).body(new ApiErrorResponse(
+                Instant.now(),
+                status.value(),
+                status.getReasonPhrase(),
+                code,
+                message,
+                request.getRequestURI()
+        ));
     }
 }

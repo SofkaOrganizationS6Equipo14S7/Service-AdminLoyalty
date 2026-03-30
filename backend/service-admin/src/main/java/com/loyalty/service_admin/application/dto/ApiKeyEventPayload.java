@@ -8,7 +8,7 @@ import java.time.Instant;
 public record ApiKeyEventPayload(
     String eventType,           // API_KEY_CREATED o API_KEY_DELETED
     String keyId,               // UUID de la key
-    String keyString,           // La key completa en formato UUID
+    String hashedKey,           // SHA-256 hash de la API Key (nunca plaintext)
     String ecommerceId,         // UUID del ecommerce propietario
     Instant timestamp           // Momento del evento (UTC)
 ) {
