@@ -838,7 +838,7 @@ COMMENT ON TABLE fidelity_ranges IS 'Replica: Sincronizada desde Admin Service v
 - [x] Crear domain events: `FidelityRangeCreatedEvent`, `FidelityRangeUpdatedEvent`, `FidelityRangeDeletedEvent`
 - [x] Crear `FidelityRangeEventPublisher` (RabbitMQ producer)
 - [x] Crear migraciones BD (`V14_`, `V15_`)
-- [ ] Integrar autenticación/autorización (JWT + permisos `fidelity:read`, `fidelity:write`)
+- [x] Integrar autenticación/autorización (JWT + permisos `fidelity:read`, `fidelity:write`)
 - [ ] Test unitarios de validadores (overlap, progression)
 - [ ] Test unitarios de service
 - [ ] Test de integración de endpoints
@@ -851,7 +851,7 @@ COMMENT ON TABLE fidelity_ranges IS 'Replica: Sincronizada desde Admin Service v
 - [x] Crear `FidelityRangeCache` (Caffeine) — en memoria para /calculate
 - [x] Crear `FidelityRangeStartupLoader` — pre-carga caché desde BD al startup
 - [x] Implementar lógica de fallthrough en clasificación (cliente en hueco → nivel inferior)
-- [ ] Integrar cache en `/calculate` endpoint (para clasificación en memoria sin latencia BD)
+- [x] Integrar cache en `/calculate` endpoint (para clasificación en memoria sin latencia BD)
 - [ ] Test de consumidor RabbitMQ (eventos create/update/delete)
 - [ ] Test de startup loader (caché pre-cargado correctamente)
 - [ ] Test de clasificación con fallthrough (Cliente en rango exacto, cliente en hueco)
