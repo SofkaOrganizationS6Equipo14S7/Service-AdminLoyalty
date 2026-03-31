@@ -1,19 +1,17 @@
-package com.loyalty.service_engine.domain.entity;
+package com.loyalty.service_admin.domain.entity;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
- * Entidad réplica para almacenar la configuración de tope máximo de descuentos (HU-09).
- * 
- * IMPORTANTE: Esta es una COPIA IDÉNTICA de la tabla en Service-Admin (master).
- * Se actualiza vía RabbitMQ cuando cambia en Admin.
- * Ver loyalty_engine BD (replica) y loyalty_admin BD (master).
+ * Entidad que representa la configuración de límite máximo de descuentos para un ecommerce.
+ * Fuente de verdad (master) para HU-09: Límite y Prioridad de Descuentos.
  * 
  * Reglas:
  * - Solo una configuración activa por ecommerce

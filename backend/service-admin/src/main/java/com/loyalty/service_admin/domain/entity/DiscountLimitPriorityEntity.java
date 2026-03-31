@@ -1,18 +1,17 @@
-package com.loyalty.service_engine.domain.entity;
+package com.loyalty.service_admin.domain.entity;
 
+import com.loyalty.service_admin.domain.model.DiscountType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
- * Entidad réplica para almacenar la prioridad de aplicación de descuentos (HU-09).
- * 
- * IMPORTANTE: Esta es una COPIA IDÉNTICA de la tabla en Service-Admin (master).
- * Se actualiza vía RabbitMQ cuando cambia en Admin.
- * Ver loyalty_engine BD (replica) y loyalty_admin BD (master).
+ * Entidad que representa la prioridad de un tipo de descuento dentro de una configuración de límite.
+ * Fuente de verdad (master) para HU-09: Límite y Prioridad de Descuentos.
  * 
  * Reglas:
  * - Los niveles de prioridad deben ser secuenciales (1, 2, 3, ..., N)
@@ -28,25 +27,26 @@ import java.util.UUID;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class DiscountPriorityEntity {
-    
+public class DiscountLimitPriorityEntity {
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "uid")
     private UUID uid;
-    
+
     @Column(name = "discount_config_id", nullable = false)
     private UUID discountConfigId;
-    
+
+    @Enumerated(EnumType.STRING)
     @Column(name = "discount_type", nullable = false, length = 50)
-    private String discountType;
-    
+    private DiscountType discountType;
+
     @Column(name = "priority_level", nullable = false)
     private Integer priorityLevel;
-    
+
     @Column(name = "created_at", nullable = false, updatable = false, columnDefinition = "TIMESTAMP WITH TIME ZONE")
     private OffsetDateTime createdAt;
-    
+
     @PrePersist
     protected void onCreate() {
         createdAt = OffsetDateTime.now();

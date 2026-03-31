@@ -1,13 +1,12 @@
-package com.loyalty.service_engine.application.dto;
+package com.loyalty.service_admin.application.dto;
 
 import java.time.OffsetDateTime;
 import java.util.List;
 
 /**
- * DTO que representa la respuesta con las prioridades de descuentos (réplica).
- * IDÉNTICA a la versión en Service-Admin para mantener consistencia de API.
+ * DTO que representa la respuesta con las prioridades de descuentos configuradas.
  */
-public record DiscountPriorityResponse(
+public record DiscountLimitPriorityResponse(
     String uid,
     String discountConfigId,
     List<PriorityEntry> priorities,

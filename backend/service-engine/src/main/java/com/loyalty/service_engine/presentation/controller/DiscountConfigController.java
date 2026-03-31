@@ -1,137 +1,79 @@
 package com.loyalty.service_engine.presentation.controller;
 
-import com.loyalty.service_engine.application.dto.DiscountCalculateRequest;
-import com.loyalty.service_engine.application.dto.DiscountCalculateResponse;
-import com.loyalty.service_engine.application.dto.DiscountConfigCreateRequest;
 import com.loyalty.service_engine.application.dto.DiscountConfigResponse;
-import com.loyalty.service_engine.application.dto.DiscountPriorityRequest;
 import com.loyalty.service_engine.application.dto.DiscountPriorityResponse;
-import com.loyalty.service_engine.application.service.DiscountCalculationEngine;
 import com.loyalty.service_engine.application.service.DiscountConfigService;
 import com.loyalty.service_engine.application.service.DiscountPriorityService;
-import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.UUID;
-
 /**
- * Controlador para gestionar la configuración de descuentos y cálculos.
+ * Controlador READ-ONLY para acceso a configuración de descuentos desde la réplica.
  * 
- * Endpoints:
- * - POST /api/v1/discount-config → Configurar límite máximo de descuentos
- * - GET /api/v1/discount-config → Obtener configuración vigente
- * - POST /api/v1/discount-priority → Configurar prioridad de tipos de descuento
- * - GET /api/v1/discount-priority → Obtener prioridades vigentes
- * - POST /api/v1/discount-calculate → Calcular descuentos respetando límite y prioridad
+ * IMPORTANTE: Este controller es SOLO LECTURA desde BD réplica (loyalty_engine).
+ * Las escrituras de configuración se hacen SOLO en Service-Admin (8081).
+ * 
+ * Endpoints (HU-09 SPEC-compliant):
+ * - GET /api/v1/discount-config?ecommerceId=... → Obtener config activa (audit/debug)
+ * - GET /api/v1/discount-priority?configId=... → Obtener prioridades (audit/debug)
+ * 
+ * Nota: applyDiscountLimit() es un servicio INTERNO para SPEC-011 (engine-calculate).
+ *       No está expuesto como endpoint HTTP.
  */
 @RestController
-@RequestMapping("/api/v1/discount")
+@RequestMapping("/api/v1")
 @Slf4j
 public class DiscountConfigController {
     
     private final DiscountConfigService discountConfigService;
     private final DiscountPriorityService discountPriorityService;
-    private final DiscountCalculationEngine discountCalculationEngine;
     
     public DiscountConfigController(
         DiscountConfigService discountConfigService,
-        DiscountPriorityService discountPriorityService,
-        DiscountCalculationEngine discountCalculationEngine
+        DiscountPriorityService discountPriorityService
     ) {
         this.discountConfigService = discountConfigService;
         this.discountPriorityService = discountPriorityService;
-        this.discountCalculationEngine = discountCalculationEngine;
     }
     
     /**
-     * Configura el límite máximo de descuentos.
-     * Solo administradores pueden llamar este endpoint (requiere JWT con ROLE_ADMIN).
+     * GET /api/v1/discount-config?ecommerceId=...
+     * Obtiene la configuración activa de límite de descuentos desde la réplica.
      * 
-     * @param request Datos de configuración (maxDiscountLimit, currencyCode)
-     * @param authentication Authentication extraído del JWT
-     * @return 201 Created con la nueva configuración
+     * IMPORTANTE: Esta es una lectura desde BD réplica (loyalty_engine) para auditoría/debugging.
+     * Para modificar configuración, USE Service-Admin POST /api/v1/discount-config.
+     * 
+     * @param ecommerceId UUID del ecommerce
+     * @return 200 OK con configuración activa de la réplica
+     * @return 404 Not Found si no existe configuración activa en la réplica
      */
-    @PostMapping("/config")
-    public ResponseEntity<DiscountConfigResponse> updateDiscountConfig(
-        @Valid @RequestBody DiscountConfigCreateRequest request,
-        Authentication authentication
+    @GetMapping("/discount-config")
+    public ResponseEntity<DiscountConfigResponse> getDiscountConfig(
+            @RequestParam String ecommerceId
     ) {
-        // Extraer username del JWT (está en authentication.getName())
-        String username = authentication.getName();
-        
-        // Convertir username a UUID determinístico
-        UUID userId = UUID.nameUUIDFromBytes(username.getBytes());
-        
-        log.info("Updating discount config. User: {} (ID: {})", username, userId);
-        DiscountConfigResponse response = discountConfigService.updateConfig(request, userId);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
-    }
-    
-    /**
-     * Obtiene la configuración vigente de límite máximo de descuentos.
-     * 
-     * @return 200 OK con la configuración activa
-     */
-    @GetMapping("/config")
-    public ResponseEntity<DiscountConfigResponse> getActiveDiscountConfig() {
-        log.info("Fetching active discount config");
-        DiscountConfigResponse response = discountConfigService.getActiveConfig();
+        log.info("Fetching discount config from replica for ecommerce: {}", ecommerceId);
+        DiscountConfigResponse response = discountConfigService.getActiveConfig(ecommerceId);
         return ResponseEntity.ok(response);
     }
     
     /**
-     * Configura las prioridades de tipos de descuento.
-     * Los descuentos se aplican en orden de prioridad (1 = máxima).
-     * Solo administradores pueden llamar este endpoint.
+     * GET /api/v1/discount-priority?configId=...
+     * Obtiene las prioridades vigentes desde la réplica.
      * 
-     * @param request Datos de prioridades (discountConfigId, lista de tipos con prioridad)
-     * @return 201 Created con las nuevas prioridades
+     * IMPORTANTE: Lectura desde BD réplica (loyalty_engine).
+     * Para modificar prioridades, USE Service-Admin POST /api/v1/discount-priority.
+     * 
+     * @param configId UUID de la configuración
+     * @return 200 OK con prioridades de la réplica
+     * @return 404 Not Found si no existe prioridad en la réplica
      */
-    @PostMapping("/priority")
-    public ResponseEntity<DiscountPriorityResponse> saveDiscountPriorities(
-        @Valid @RequestBody DiscountPriorityRequest request
+    @GetMapping("/discount-priority")
+    public ResponseEntity<DiscountPriorityResponse> getDiscountPriority(
+            @RequestParam String configId
     ) {
-        log.info("Saving discount priorities for config: {}", request.discountConfigId());
-        DiscountPriorityResponse response = discountPriorityService.savePriorities(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
-    }
-    
-    /**
-     * Obtiene las prioridades vigentes de tipos de descuento.
-     * 
-     * @return 200 OK con las prioridades activas
-     */
-    @GetMapping("/priority")
-    public ResponseEntity<DiscountPriorityResponse> getActiveDiscountPriorities() {
-        log.info("Fetching active discount priorities");
-        DiscountPriorityResponse response = discountPriorityService.getActivePriorities();
-        return ResponseEntity.ok(response);
-    }
-    
-    /**
-     * Calcula el total de descuentos aplicables a una transacción.
-     * Respeta el límite máximo configurado y la prioridad de tipos.
-     * 
-     * Algoritmo:
-     * 1. Obtiene límite máximo de descuentos vigente
-     * 2. Obtiene prioridades vigentes de tipos de descuento
-     * 3. Ordena los descuentos por prioridad (1 = primero)
-     * 4. Acumula hasta alcanzar el límite máximo
-     * 5. Retorna desglose de original vs aplicado
-     * 
-     * @param request Datos de transacción (transactionId, lista de descuentos por cantidad)
-     * @return 200 OK con cálculo completo
-     */
-    @PostMapping("/calculate")
-    public ResponseEntity<DiscountCalculateResponse> calculateDiscounts(
-        @Valid @RequestBody DiscountCalculateRequest request
-    ) {
-        log.info("Calculating discounts for transaction: {}", request.transactionId());
-        DiscountCalculateResponse response = discountCalculationEngine.calculateDiscounts(request);
+        log.info("Fetching discount priorities from replica for config: {}", configId);
+        DiscountPriorityResponse response = discountPriorityService.getPriorities(configId);
         return ResponseEntity.ok(response);
     }
 }
