@@ -4,7 +4,10 @@ import com.loyalty.service_admin.application.dto.ProductRuleCreateRequest;
 import com.loyalty.service_admin.application.dto.ProductRuleEvent;
 import com.loyalty.service_admin.application.dto.ProductRuleResponse;
 import com.loyalty.service_admin.application.dto.ProductRuleUpdateRequest;
+import com.loyalty.service_admin.application.port.out.ConfigurationPersistencePort;
+import com.loyalty.service_admin.domain.entity.DiscountConfigurationEntity;
 import com.loyalty.service_admin.domain.entity.ProductRuleEntity;
+import com.loyalty.service_admin.domain.model.CapType;
 import com.loyalty.service_admin.domain.repository.ProductRuleRepository;
 import com.loyalty.service_admin.infrastructure.exception.ConflictException;
 import com.loyalty.service_admin.infrastructure.exception.ResourceNotFoundException;
@@ -34,13 +37,16 @@ public class ProductRuleService {
     
     private final ProductRuleRepository productRuleRepository;
     private final ProductRuleEventPublisher eventPublisher;
+    private final ConfigurationPersistencePort configurationPort;
     
     public ProductRuleService(
         ProductRuleRepository productRuleRepository,
-        ProductRuleEventPublisher eventPublisher
+        ProductRuleEventPublisher eventPublisher,
+        ConfigurationPersistencePort configurationPort
     ) {
         this.productRuleRepository = productRuleRepository;
         this.eventPublisher = eventPublisher;
+        this.configurationPort = configurationPort;
     }
     
     /**
@@ -73,6 +79,9 @@ public class ProductRuleService {
                 String.format("Active rule already exists for product_type: %s", request.productType())
             );
         }
+        
+        // Validate discount percentage against global configuration limits
+        validateDiscountAgainstConfiguration(ecommerceId, request.discountPercentage());
         
         // Create entity
         UUID ruleUid = UUID.randomUUID();
@@ -176,6 +185,8 @@ public class ProductRuleService {
             rule.setName(request.name());
         }
         if (request.discountPercentage() != null) {
+            // Validate discount percentage against global configuration limits
+            validateDiscountAgainstConfiguration(ecommerceId, request.discountPercentage());
             rule.setDiscountPercentage(request.discountPercentage());
         }
         if (request.benefit() != null) {
@@ -283,5 +294,41 @@ public class ProductRuleService {
             Instant.now()
         );
         eventPublisher.publishProductRuleDeleted(event);
+    }
+    
+    /**
+     * Validate discount percentage against ecommerce global configuration limits
+     * 
+     * If a DiscountConfigurationEntity exists for the ecommerce with capType=PERCENTAGE,
+     * the discount percentage must not exceed the configured cap value.
+     * If no configuration exists, discount is allowed between 0-100.
+     * 
+     * @param ecommerceId the ecommerce ID
+     * @param discountPercentage the discount percentage to validate
+     * @throws IllegalArgumentException if discount exceeds configured maximum
+     */
+    private void validateDiscountAgainstConfiguration(UUID ecommerceId, BigDecimal discountPercentage) {
+        var config = configurationPort.findByEcommerceId(ecommerceId);
+        
+        if (config.isPresent()) {
+            DiscountConfigurationEntity discountConfig = config.get();
+            
+            // Only validate if cap_type is PERCENTAGE
+            if (discountConfig.getCapType() == CapType.PERCENTAGE) {
+                BigDecimal maxDiscount = discountConfig.getCapValue();
+                
+                if (discountPercentage.compareTo(maxDiscount) > 0) {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            "Discount percentage %.2f%% exceeds maximum allowed by configuration: %.2f%%", 
+                            discountPercentage, maxDiscount
+                        )
+                    );
+                }
+                
+                log.debug("Discount validation passed for ecommerce: {} discount: {} maxAllowed: {}", 
+                    ecommerceId, discountPercentage, maxDiscount);
+            }
+        }
     }
 }
