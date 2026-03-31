@@ -529,6 +529,14 @@ VALUES
 - [ ] Registrar en `GlobalExceptionHandler` → HTTP 400 + mensaje descriptivo
 - [x] Crear `ClassificationMatrixUnavailableException` si caché y DB no disponibles → HTTP 503
 
+#### Integración con Flujo de Descuentos (HU-09)
+- [x] Agregar campos a `DiscountCalculateRequestV2`: `totalSpent`, `orderCount`, `loyaltyPoints` (métricas del cliente)
+- [x] Agregar `ClassificationInfo` a `DiscountCalculateResponseV2` con: `tierUid`, `tierName`, `tierLevel`, `classificationReason`
+- [x] Inyectar `ClassificationEngine` en `DiscountCalculationServiceV2`
+- [x] Implementar método `classifyCustomer()` en `DiscountCalculationServiceV2` que llama a `ClassificationEngine.classify()`
+- [x] Integración completada: `/calculate` ahora clasifica automáticamente al cliente durante el cálculo de descuentos
+- [x] Respuesta de `/calculate` incluye tier asignado en campo `classification`
+
 #### Tests Backend
 - [ ] `test_classificationEngine_classify_bronce_success` — payload bajo aplica a Bronce
 - [ ] `test_classificationEngine_classify_platino_success` — payload alto aplica a Platino
@@ -537,6 +545,8 @@ VALUES
 - [ ] `test_classificationController_post_calculate_returns_200` — happy path
 - [ ] `test_classificationController_post_calculate_returns_400_missing_field` — payload inválido
 - [ ] `test_classificationController_post_calculate_returns_401_no_api_key` — sin autenticación
+- [ ] `test_discountCalculationServiceV2_integrates_classification` — verifica que /calculate retorna tier asignado
+- [ ] `test_discountCalculationServiceV2_handles_classification_failure_gracefully` — manejo de errores de clasificación
 
 ### Frontend
 - [ ] **Opcional (futura HU)**: Dashboard admin para visualizar tiers y reglas (tabla de tiers, tabla de reglas, crear/editar modal)
