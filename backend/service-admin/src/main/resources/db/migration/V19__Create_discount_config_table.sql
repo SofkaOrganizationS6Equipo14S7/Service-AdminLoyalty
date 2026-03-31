@@ -3,7 +3,7 @@
 
 CREATE TABLE IF NOT EXISTS discount_config (
     uid UUID PRIMARY KEY,
-    ecommerce_id UUID NOT NULL REFERENCES ecommerce(uid) ON DELETE CASCADE,
+    ecommerce_id UUID NOT NULL REFERENCES ecommerces(uid) ON DELETE CASCADE,
     max_discount_limit DECIMAL(10, 2) NOT NULL CHECK (max_discount_limit > 0),
     currency_code VARCHAR(3) NOT NULL,
     is_active BOOLEAN NOT NULL DEFAULT true,

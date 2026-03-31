@@ -9,7 +9,7 @@ CREATE TABLE product_rules (
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(ecommerce_id) REFERENCES ecommerces(id) ON DELETE CASCADE,
+    FOREIGN KEY(ecommerce_id) REFERENCES ecommerces(uid) ON DELETE CASCADE,
     UNIQUE(ecommerce_id, product_type, is_active)  -- Solo 1 activa por producto tipo
 );
 
