@@ -827,18 +827,18 @@ COMMENT ON TABLE fidelity_ranges IS 'Replica: Sincronizada desde Admin Service v
 
 ### Backend (Admin Service)
 
-- [ ] Crear entidad `FidelityRangeEntity` en `domain/entities`
-- [ ] Crear DTOs: `CreateFidelityRangeRequest`, `UpdateFidelityRangeRequest`, `FidelityRangeResponse`
-- [ ] Crear `FidelityRangeRepository` (JpaRepository)
-- [ ] Crear validadores:
-  - [ ] `NoOverlapValidator` — verifica no superposición (ESTRICTA)
-  - [ ] `ProgressionValidator` — verifica progresión ascendente de min_points
-- [ ] Crear `FidelityRangeService` con lógica de validación y CRUD
-- [ ] Crear `FidelityRangeController` con endpoints REST
-- [ ] Crear domain events: `FidelityRangeCreatedEvent`, `FidelityRangeUpdatedEvent`, `FidelityRangeDeletedEvent`
-- [ ] Crear `FidelityRangeEventPublisher` (RabbitMQ producer)
-- [ ] Crear migraciones BD (`V13_`, `V14_`)
-- [ ] Integrar autenticación/autorización (JWT + permisos `fidelity:read`, `fidelity:write`)
+- [x] Crear entidad `FidelityRangeEntity` en `domain/entities`
+- [x] Crear DTOs: `CreateFidelityRangeRequest`, `UpdateFidelityRangeRequest`, `FidelityRangeResponse`
+- [x] Crear `FidelityRangeRepository` (JpaRepository)
+- [x] Crear validadores:
+  - [x] `NoOverlapValidator` — verifica no superposición (ESTRICTA)
+  - [x] `ProgressionValidator` — verifica progresión ascendente de min_points
+- [x] Crear `FidelityRangeService` con lógica de validación y CRUD
+- [x] Crear `FidelityRangeController` con endpoints REST
+- [x] Crear domain events: `FidelityRangeCreatedEvent`, `FidelityRangeUpdatedEvent`, `FidelityRangeDeletedEvent`
+- [x] Crear `FidelityRangeEventPublisher` (RabbitMQ producer)
+- [x] Crear migraciones BD (`V14_`, `V15_`)
+- [x] Integrar autenticación/autorización (JWT + permisos `fidelity:read`, `fidelity:write`)
 - [ ] Test unitarios de validadores (overlap, progression)
 - [ ] Test unitarios de service
 - [ ] Test de integración de endpoints
@@ -846,12 +846,12 @@ COMMENT ON TABLE fidelity_ranges IS 'Replica: Sincronizada desde Admin Service v
 
 ### Engine Service (Autonomía & Cold Start)
 
-- [ ] Crear tabla réplica `fidelity_ranges` (`V15_`) — sincronizada desde Admin vía RabbitMQ
-- [ ] Crear `FidelityRangeListener` (RabbitMQ consumer) — sincroniza create/update/delete
-- [ ] Crear `FidelityRangeCache` (Caffeine) — en memoria para /calculate
-- [ ] Crear `FidelityRangeStartupLoader` — pre-carga caché desde BD al startup
-- [ ] Implementar lógica de fallthrough en clasificación (cliente en hueco → nivel inferior)
-- [ ] Integrar cache en `/calculate` endpoint (para clasificación en memoria sin latencia BD)
+- [x] Crear tabla réplica `fidelity_ranges` (`V14_`) — sincronizada desde Admin vía RabbitMQ
+- [x] Crear `FidelityRangeListener` (RabbitMQ consumer) — sincroniza create/update/delete
+- [x] Crear `FidelityRangeCache` (Caffeine) — en memoria para /calculate
+- [x] Crear `FidelityRangeStartupLoader` — pre-carga caché desde BD al startup
+- [x] Implementar lógica de fallthrough en clasificación (cliente en hueco → nivel inferior)
+- [x] Integrar cache en `/calculate` endpoint (para clasificación en memoria sin latencia BD)
 - [ ] Test de consumidor RabbitMQ (eventos create/update/delete)
 - [ ] Test de startup loader (caché pre-cargado correctamente)
 - [ ] Test de clasificación con fallthrough (Cliente en rango exacto, cliente en hueco)
