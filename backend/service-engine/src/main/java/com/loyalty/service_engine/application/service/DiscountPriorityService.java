@@ -1,23 +1,24 @@
 package com.loyalty.service_engine.application.service;
 
-import com.loyalty.service_engine.application.dto.DiscountPriorityRequest;
 import com.loyalty.service_engine.application.dto.DiscountPriorityResponse;
 import com.loyalty.service_engine.domain.entity.DiscountConfigEntity;
 import com.loyalty.service_engine.domain.entity.DiscountPriorityEntity;
 import com.loyalty.service_engine.domain.repository.DiscountConfigRepository;
 import com.loyalty.service_engine.domain.repository.DiscountPriorityRepository;
 import com.loyalty.service_engine.infrastructure.exception.ResourceNotFoundException;
-import com.loyalty.service_engine.infrastructure.exception.BadRequestException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * Servicio para gestionar la configuración de prioridad de descuentos en el engine.
+ * Servicio READ-ONLY para acceso a prioridades de descuentos desde BD réplica (loyalty_engine).
+ * 
+ * IMPORTANTE: Este servicio SOLO LEE de la réplica. Las escrituras se hacen en Service-Admin.
  */
 @Service
 @Slf4j
@@ -35,75 +36,49 @@ public class DiscountPriorityService {
     }
     
     /**
-     * Obtiene la configuración vigente de prioridad de descuentos.
-     * @return DiscountPriorityResponse con las prioridades activas
-     * @throws ResourceNotFoundException si no existe configuración de prioridades
+     * GET /api/v1/discount-priority?configId=...
+     * 
+     * Obtiene las prioridades vigentes desde la BD réplica.
+     * Se usa para auditoría/debugging (lectura pura).
+     * 
+     * @param configId UUID de la configuración
+     * @return DiscountPriorityResponse con las prioridades de la réplica
+     * @throws ResourceNotFoundException si no existen prioridades para esa config
      */
     @Transactional(readOnly = true)
-    public DiscountPriorityResponse getActivePriorities() {
-        DiscountConfigEntity config = discountConfigRepository.findByIsActiveTrue()
-            .orElseThrow(() -> {
-                log.warn("No active discount config found when retrieving priorities");
-                return new ResourceNotFoundException("discount_config_not_found");
-            });
-        
-        List<DiscountPriorityEntity> priorities = discountPriorityRepository
-            .findByDiscountConfigIdOrderByPriorityLevel(config.getId());
-        
-        if (priorities.isEmpty()) {
-            log.warn("No discount priorities found for config: {}", config.getId());
-            throw new ResourceNotFoundException("discount_priority_not_found");
+    public DiscountPriorityResponse getPriorities(String configId) {
+        try {
+            UUID configUuid = UUID.fromString(configId);
+            
+            // Validar que la configuración existe
+            DiscountConfigEntity config = discountConfigRepository.findById(configUuid)
+                .orElseThrow(() -> {
+                    log.warn("Discount config not found in replica: {}", configId);
+                    return new ResourceNotFoundException("discount_config_not_found");
+                });
+            
+            // Obtener prioridades ordenadas
+            List<DiscountPriorityEntity> priorities = discountPriorityRepository
+                .findByDiscountConfigIdOrderByPriorityLevel(configUuid);
+            
+            if (priorities.isEmpty()) {
+                log.warn("No discount priorities found in replica for config: {}", configId);
+                throw new ResourceNotFoundException("discount_priority_not_found");
+            }
+            
+            log.info("Fetching discount priorities from replica for config: {}", configId);
+            return toDiscountPriorityResponse(config, priorities);
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid configId format: {}", configId);
+            throw new ResourceNotFoundException("invalid_config_id");
         }
-        
-        return toDiscountPriorityResponse(config, priorities);
     }
     
     /**
-     * Guarda la configuración de prioridades de descuentos.
-     * Valida que las prioridades sean secuenciales (1..N) y únicas.
+     * Obtiene las prioridades vigentes de forma INTERNA (sin parámetro).
+     * Usado por otros servicios (ej: DiscountLimitService, RabbitMQ consumer).
      * 
-     * @param request Datos de las prioridades a guardar
-     * @return DiscountPriorityResponse con la configuración guardada
-     * @throws ResourceNotFoundException si la configuración de límite no existe
-     * @throws BadRequestException si las prioridades son inválidas
-     */
-    @Transactional
-    public DiscountPriorityResponse savePriorities(DiscountPriorityRequest request) {
-        // Validar que exista la configuración de límite máximo
-        UUID configId = UUID.fromString(request.discountConfigId());
-        DiscountConfigEntity config = discountConfigRepository.findById(configId)
-            .orElseThrow(() -> {
-                log.warn("Discount config not found: {}", configId);
-                return new ResourceNotFoundException("discount_config_not_found");
-            });
-        
-        // Validar que las prioridades sean válidas
-        validatePriorities(request.priorities());
-        
-        // Eliminar prioridades antiguas
-        discountPriorityRepository.deleteByDiscountConfigId(configId);
-        log.debug("Deleted existing priorities for config: {}", configId);
-        
-        // Guardar nuevas prioridades
-        List<DiscountPriorityEntity> prioritiesToSave = request.priorities().stream()
-            .map(item -> {
-                DiscountPriorityEntity entity = new DiscountPriorityEntity();
-                entity.setDiscountConfigId(configId);
-                entity.setDiscountType(item.discountType());
-                entity.setPriorityLevel(item.priorityLevel());
-                return entity;
-            })
-            .collect(Collectors.toList());
-        
-        List<DiscountPriorityEntity> saved = discountPriorityRepository.saveAll(prioritiesToSave);
-        log.info("Discount priorities saved for config: {}. Count: {}", configId, saved.size());
-        
-        return toDiscountPriorityResponse(config, saved);
-    }
-    
-    /**
-     * Obtiene las prioridades vigentes de forma interna (sin lanzar excepción).
-     * @return Lista de prioridades o lista vacía si no existen
+     * @return Lista de prioridades ordenadas o lista vacía
      */
     @Transactional(readOnly = true)
     public List<DiscountPriorityEntity> getActivePrioritiesEntity() {
@@ -111,71 +86,43 @@ public class DiscountPriorityService {
         if (config == null) {
             return List.of();
         }
-        return discountPriorityRepository.findByDiscountConfigIdOrderByPriorityLevel(config.getId());
+        return discountPriorityRepository.findByDiscountConfigIdOrderByPriorityLevel(config.getUid());
     }
     
     /**
-     * Valida que las prioridades sean secuenciales comenzando desde 1, sin duplicados.
-     * @param priorities Lista de prioridades a validar
-     * @throws BadRequestException si las prioridades son inválidas
+     * Obtiene las prioridades para una config específica de forma INTERNA.
+     * Usado por otros servicios (ej: DiscountLimitService).
+     * 
+     * @param configUid UUID de la configuración
+     * @return Lista de prioridades ordenadas o lista vacía
      */
-    private void validatePriorities(List<DiscountPriorityRequest.DiscountPriorityItem> priorities) {
-        if (priorities == null || priorities.isEmpty()) {
-            throw new BadRequestException("priorities_empty: at least one discount type must be configured");
-        }
-        
-        // Validar que no haya duplicados en tipos de descuento
-        boolean hasDuplicateTypes = priorities.stream()
-            .map(DiscountPriorityRequest.DiscountPriorityItem::discountType)
-            .distinct()
-            .count() != priorities.size();
-        
-        if (hasDuplicateTypes) {
-            throw new BadRequestException("duplicate_discount_type: each discount type must appear only once");
-        }
-        
-        // Validar que no haya duplicados en prioridades
-        boolean hasDuplicateLevels = priorities.stream()
-            .map(DiscountPriorityRequest.DiscountPriorityItem::priorityLevel)
-            .distinct()
-            .count() != priorities.size();
-        
-        if (hasDuplicateLevels) {
-            throw new BadRequestException("duplicate_priority_level: each discount type must have unique priority");
-        }
-        
-        // Validar que las prioridades sean secuenciales (1..N)
-        List<Integer> levels = priorities.stream()
-            .map(DiscountPriorityRequest.DiscountPriorityItem::priorityLevel)
-            .sorted()
-            .collect(Collectors.toList());
-        
-        for (int i = 0; i < levels.size(); i++) {
-            if (levels.get(i) != i + 1) {
-                throw new BadRequestException("priority_sequence_invalid: must be sequential starting from 1");
-            }
-        }
+    @Transactional(readOnly = true)
+    public List<DiscountPriorityEntity> getPrioritiesEntityByConfigId(UUID configUid) {
+        return discountPriorityRepository.findByDiscountConfigIdOrderByPriorityLevel(configUid);
     }
     
     /**
-     * Convierte entidades a DTO.
+     * Convierte entidades a DTO
      */
     private DiscountPriorityResponse toDiscountPriorityResponse(
         DiscountConfigEntity config,
         List<DiscountPriorityEntity> entities
     ) {
-        List<DiscountPriorityResponse.DiscountPriority> priorities = entities.stream()
-            .map(entity -> new DiscountPriorityResponse.DiscountPriority(
+        List<DiscountPriorityResponse.PriorityEntry> priorities = entities.stream()
+            .map(entity -> new DiscountPriorityResponse.PriorityEntry(
                 entity.getDiscountType(),
-                entity.getPriorityLevel()
+                entity.getPriorityLevel(),
+                entity.getCreatedAt()
             ))
             .collect(Collectors.toList());
         
+        OffsetDateTime createdAt = entities.isEmpty() ? null : entities.get(0).getCreatedAt();
+        
         return new DiscountPriorityResponse(
             UUID.randomUUID().toString(),
-            config.getId().toString(),
-            entities.isEmpty() ? null : entities.get(0).getCreatedAt(),
-            priorities
+            config.getUid().toString(),
+            priorities,
+            createdAt
         );
     }
 }

@@ -1,28 +1,24 @@
 package com.loyalty.service_engine.application.dto;
 
-import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.util.List;
 
 /**
- * Response para la configuración de prioridad de descuentos.
- * @param uid ID único de la configuración de prioridad
- * @param discountConfigId ID de la configuración de tope máximo asociada
- * @param createdAt Timestamp de creación (UTC)
- * @param priorities Lista de elementos DiscountPriority
+ * DTO que representa la respuesta con las prioridades de descuentos (réplica).
+ * IDÉNTICA a la versión en Service-Admin para mantener consistencia de API.
  */
 public record DiscountPriorityResponse(
     String uid,
     String discountConfigId,
-    Instant createdAt,
-    List<DiscountPriority> priorities
+    List<PriorityEntry> priorities,
+    OffsetDateTime createdAt
 ) {
     /**
-     * Representa un par de tipo de descuento y su nivel de prioridad.
-     * @param discountType Tipo de descuento (ej. LOYALTY_POINTS, COUPON)
-     * @param priorityLevel Nivel de prioridad (1 = máxima prioridad)
+     * Entrada individual de prioridad en la respuesta.
      */
-    public record DiscountPriority(
+    public record PriorityEntry(
         String discountType,
-        Integer priorityLevel
+        Integer priorityLevel,
+        OffsetDateTime createdAt
     ) {}
 }

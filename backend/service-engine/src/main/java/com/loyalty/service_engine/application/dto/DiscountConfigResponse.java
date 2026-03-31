@@ -1,22 +1,17 @@
 package com.loyalty.service_engine.application.dto;
 
-import java.math.BigDecimal;
-import java.time.Instant;
+import java.time.OffsetDateTime;
 
 /**
- * Response para la configuración de tope máximo de descuentos.
- * @param uid ID único de la configuración
- * @param maxDiscountLimit Límite máximo de descuentos en moneda base
- * @param currencyCode Código de moneda ISO 4217 (ej. USD)
- * @param isActive Flag indicando si la configuración está vigente
- * @param createdAt Timestamp de creación (UTC)
- * @param updatedAt Timestamp de última actualización (UTC)
+ * DTO que representa la respuesta con la configuración de límite de descuentos (réplica).
+ * IDÉNTICA a la versión en Service-Admin para mantener consistencia de API.
  */
 public record DiscountConfigResponse(
     String uid,
-    BigDecimal maxDiscountLimit,
+    String ecommerceId,
+    String maxDiscountLimit,
     String currencyCode,
     Boolean isActive,
-    Instant createdAt,
-    Instant updatedAt
+    OffsetDateTime createdAt,
+    OffsetDateTime updatedAt
 ) {}
