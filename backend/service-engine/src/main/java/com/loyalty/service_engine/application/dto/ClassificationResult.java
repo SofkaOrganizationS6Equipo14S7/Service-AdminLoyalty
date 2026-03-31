@@ -1,9 +1,6 @@
 package com.loyalty.service_engine.application.dto;
 
 import java.util.Optional;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 
 /**
  * Result of fidelity classification for a client.
@@ -12,12 +9,14 @@ import lombok.RequiredArgsConstructor;
  * 2. Fallthrough: client in gap, assign nearest lower level
  * 3. NONE: client does not qualify (points below minimum entry level)
  */
-@Getter
-@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public class ClassificationResult {
     public static final ClassificationResult NONE = new ClassificationResult(null);
 
     private final FidelityRangeDTO range;
+
+    private ClassificationResult(FidelityRangeDTO range) {
+        this.range = range;
+    }
 
     /**
      * Factory method to create a classified result.
@@ -39,6 +38,13 @@ public class ClassificationResult {
      */
     public Optional<FidelityRangeDTO> asOptional() {
         return Optional.ofNullable(range);
+    }
+
+    /**
+     * Get the range directly. May be null if NONE.
+     */
+    public FidelityRangeDTO getRange() {
+        return range;
     }
 
     @Override
