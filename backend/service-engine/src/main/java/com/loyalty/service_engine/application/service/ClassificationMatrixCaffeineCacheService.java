@@ -61,7 +61,7 @@ public class ClassificationMatrixCaffeineCacheService {
     public void putRules(List<ClassificationRuleReplicaEntity> rules) {
         Map<UUID, List<ClassificationRuleReplicaEntity>> rulesByTier = new HashMap<>();
         for (ClassificationRuleReplicaEntity rule : rules) {
-            rulesByTier.computeIfAbsent(rule.getTierUid(), _ -> new java.util.ArrayList<>()).add(rule);
+            rulesByTier.computeIfAbsent(rule.getTierUid(), key -> new java.util.ArrayList<>()).add(rule);
         }
         cache.put(RULES_CACHE_KEY, rulesByTier);
         log.info("Cached {} classification rules grouped by tier", rules.size());
