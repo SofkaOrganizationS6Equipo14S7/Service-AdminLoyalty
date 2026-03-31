@@ -86,6 +86,11 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.NOT_FOUND, "NOT_FOUND", e.getMessage(), request);
     }
 
+    @ExceptionHandler(ClassificationValidationException.class)
+    public ResponseEntity<ApiErrorResponse> handleClassificationValidation(ClassificationValidationException e, HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, "CLASSIFICATION_VALIDATION_ERROR", e.getMessage(), request);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleGenericException(Exception e, HttpServletRequest request) {
         return build(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", e.getMessage(), request);

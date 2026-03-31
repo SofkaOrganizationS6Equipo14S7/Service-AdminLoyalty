@@ -526,8 +526,10 @@ VALUES
 
 #### Exception Handlers
 - [x] Crear `ClassificationValidationException` si payload inválido (extiende `BadRequestException`)
-- [ ] Registrar en `GlobalExceptionHandler` → HTTP 400 + mensaje descriptivo
+- [x] Registrar en `GlobalExceptionHandler` → HTTP 400 + mensaje descriptivo
 - [x] Crear `ClassificationMatrixUnavailableException` si caché y DB no disponibles → HTTP 503
+  - ✅ Registrado en service-admin `GlobalExceptionHandler` para `ClassificationValidationException` → HTTP 400 (code: `CLASSIFICATION_VALIDATION_ERROR`)
+  - ✅ Registrado en service-engine `GlobalExceptionHandler` para `ClassificationMatrixUnavailableException` → HTTP 503 (code: `CLASSIFICATION_MATRIX_UNAVAILABLE`)
 
 #### Integración con Flujo de Descuentos (HU-09)
 - [x] Agregar campos a `DiscountCalculateRequestV2`: `totalSpent`, `orderCount`, `loyaltyPoints` (métricas del cliente)
