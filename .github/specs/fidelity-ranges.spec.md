@@ -846,11 +846,11 @@ COMMENT ON TABLE fidelity_ranges IS 'Replica: Sincronizada desde Admin Service v
 
 ### Engine Service (Autonomía & Cold Start)
 
-- [ ] Crear tabla réplica `fidelity_ranges` (`V15_`) — sincronizada desde Admin vía RabbitMQ
-- [ ] Crear `FidelityRangeListener` (RabbitMQ consumer) — sincroniza create/update/delete
-- [ ] Crear `FidelityRangeCache` (Caffeine) — en memoria para /calculate
-- [ ] Crear `FidelityRangeStartupLoader` — pre-carga caché desde BD al startup
-- [ ] Implementar lógica de fallthrough en clasificación (cliente en hueco → nivel inferior)
+- [x] Crear tabla réplica `fidelity_ranges` (`V14_`) — sincronizada desde Admin vía RabbitMQ
+- [x] Crear `FidelityRangeListener` (RabbitMQ consumer) — sincroniza create/update/delete
+- [x] Crear `FidelityRangeCache` (Caffeine) — en memoria para /calculate
+- [x] Crear `FidelityRangeStartupLoader` — pre-carga caché desde BD al startup
+- [x] Implementar lógica de fallthrough en clasificación (cliente en hueco → nivel inferior)
 - [ ] Integrar cache en `/calculate` endpoint (para clasificación en memoria sin latencia BD)
 - [ ] Test de consumidor RabbitMQ (eventos create/update/delete)
 - [ ] Test de startup loader (caché pre-cargado correctamente)
