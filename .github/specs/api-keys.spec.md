@@ -1,5 +1,5 @@
 ---
-id: SPEC-007
+id: SPEC-005
 status: APPROVED
 feature: api-keys
 created: 2026-03-25

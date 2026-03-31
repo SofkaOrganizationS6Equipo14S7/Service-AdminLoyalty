@@ -29,8 +29,7 @@ import java.util.ArrayList;
 @Slf4j
 public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
     
-    private static final String AUTHORIZATION_HEADER = "Authorization";
-    private static final String BEARER_PREFIX = "Bearer ";
+    private static final String API_KEY_HEADER = "X-API-KEY";
     
     private final ApiKeyCache apiKeyCache;
     
@@ -54,24 +53,15 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
         
-        // Extraer header Authorization
-        String authHeader = request.getHeader(AUTHORIZATION_HEADER);
+        // Extraer header X-API-KEY
+        String apiKey = request.getHeader(API_KEY_HEADER);
         
         // Validar que el header existe
-        if (authHeader == null || authHeader.isEmpty()) {
-            log.warn("Request without Authorization header from: {}", request.getRemoteAddr());
-            sendUnauthorized(response, "Header Authorization requerido");
+        if (apiKey == null || apiKey.isEmpty()) {
+            log.warn("Request without X-API-KEY header from: {}", request.getRemoteAddr());
+            sendUnauthorized(response, "Header X-API-KEY requerido");
             return;
         }
-        
-        // Extraer el bearer token
-        if (!authHeader.startsWith(BEARER_PREFIX)) {
-            log.warn("Invalid Authorization header format from: {}", request.getRemoteAddr());
-            sendUnauthorized(response, "Formato de Authorization inválido");
-            return;
-        }
-        
-        String apiKey = authHeader.substring(BEARER_PREFIX.length());
         
         // Validar la API Key contra caché
         if (!apiKeyCache.validateKey(apiKey)) {
