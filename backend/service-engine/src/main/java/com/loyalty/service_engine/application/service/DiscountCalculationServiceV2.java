@@ -1,10 +1,14 @@
 package com.loyalty.service_engine.application.service;
 
+import com.loyalty.service_engine.application.dto.ClassifyRequestV1;
+import com.loyalty.service_engine.application.dto.ClassifyResponseV1;
 import com.loyalty.service_engine.application.dto.calculate.DiscountCalculateRequestV2;
 import com.loyalty.service_engine.application.dto.calculate.DiscountCalculateResponseV2;
 import com.loyalty.service_engine.application.dto.configuration.ConfigurationUpdatedEvent;
 import com.loyalty.service_engine.domain.model.EngineDiscountConfiguration;
 import com.loyalty.service_engine.infrastructure.exception.BadRequestException;
+import com.loyalty.service_engine.infrastructure.exception.ServiceUnavailableException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -16,19 +20,36 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+/**
+ * Servicio de cálculo de descuentos con clasificación automática de fidelidad.
+ * Integra el ClassificationEngine para asignar un tier de fidelidad durante el cálculo.
+ */
 @Service
+@Slf4j
 public class DiscountCalculationServiceV2 {
 
     private final EngineConfigurationCacheService configurationCacheService;
+    private final ClassificationEngine classificationEngine;
 
-    public DiscountCalculationServiceV2(EngineConfigurationCacheService configurationCacheService) {
+    public DiscountCalculationServiceV2(
+            EngineConfigurationCacheService configurationCacheService,
+            ClassificationEngine classificationEngine
+    ) {
         this.configurationCacheService = configurationCacheService;
+        this.classificationEngine = classificationEngine;
     }
 
     public DiscountCalculateResponseV2 calculate(DiscountCalculateRequestV2 request) {
+        log.debug("Calculating discounts for ecommerce: {} with totalSpent: {}, orderCount: {}, loyaltyPoints: {}",
+                request.ecommerceId(), request.totalSpent(), request.orderCount(), request.loyaltyPoints());
+
         validateRequest(request);
         EngineDiscountConfiguration config = configurationCacheService.get(request.ecommerceId())
                 .orElseGet(() -> configurationCacheService.defaultFor(request.ecommerceId()));
+
+        // Clasificar cliente automáticamente usando métricas proporcionadas
+        ClassifyResponseV1 classification = classifyCustomer(request);
+        log.debug("Customer classified as: tier={}, level={}", classification.tierName(), classification.tierLevel());
 
         Map<String, EngineDiscountConfiguration.PriorityRule> priorityRuleByType = new HashMap<>();
         for (EngineDiscountConfiguration.PriorityRule rule : config.priority()) {
@@ -81,6 +102,14 @@ public class DiscountCalculationServiceV2 {
             capped = false;
         }
 
+        // Crear objeto de clasificación para incluir en la respuesta
+        DiscountCalculateResponseV2.ClassificationInfo classificationInfo = new DiscountCalculateResponseV2.ClassificationInfo(
+                classification.tierUid(),
+                classification.tierName(),
+                classification.tierLevel(),
+                classification.classificationReason()
+        );
+
         return new DiscountCalculateResponseV2(
                 request.ecommerceId(),
                 config.currency(),
@@ -90,8 +119,39 @@ public class DiscountCalculationServiceV2 {
                 applyRounding(totalApplied, config.roundingRule()),
                 capped,
                 applied,
+                classificationInfo,
                 Instant.now()
         );
+    }
+
+    /**
+     * Clasifica el cliente automáticamente usando el ClassificationEngine.
+     * Crea un ClassifyRequestV1 con las métricas proporcionadas y lo envía al engine.
+     * 
+     * @param request DTO con métricas del cliente (totalSpent, orderCount, loyaltyPoints)
+     * @return ClassifyResponseV1 con el tier asignado
+     * @throws ServiceUnavailableException si el motor de clasificación no está disponible
+     */
+    private ClassifyResponseV1 classifyCustomer(DiscountCalculateRequestV2 request) {
+        try {
+            ClassifyRequestV1 classificationRequest = new ClassifyRequestV1(
+                    request.totalSpent(),
+                    request.orderCount(),
+                    request.loyaltyPoints()
+            );
+            log.debug("Classifying customer with metrics: totalSpent={}, orderCount={}, loyaltyPoints={}",
+                    request.totalSpent(), request.orderCount(), request.loyaltyPoints());
+            
+            ClassifyResponseV1 response = classificationEngine.classify(classificationRequest);
+            log.info("Classification successful: tier={}, level={}", response.tierName(), response.tierLevel());
+            return response;
+        } catch (ServiceUnavailableException e) {
+            log.warn("Classification engine unavailable. Returning default tier (no classification).", e);
+            throw e; // Fallar rápido si el motor no está disponible
+        } catch (Exception e) {
+            log.error("Unexpected error during classification. Returning default tier.", e);
+            throw new ServiceUnavailableException("Classification service temporarily unavailable: " + e.getMessage());
+        }
     }
 
     private void validateRequest(DiscountCalculateRequestV2 request) {
