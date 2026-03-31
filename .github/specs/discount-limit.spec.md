@@ -1,6 +1,6 @@
 ---
 id: SPEC-0009
-status: DRAFT
+status: APPROVED
 feature: discount-limit
 created: 2026-03-30
 updated: 2026-03-30 (v1.1 — ajustes arquitectónicos: Admin maestro, Engine réplica, internalize applyDiscountLimit)
