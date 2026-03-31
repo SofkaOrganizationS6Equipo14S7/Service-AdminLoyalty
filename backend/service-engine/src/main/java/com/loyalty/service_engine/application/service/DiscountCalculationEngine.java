@@ -1,7 +1,9 @@
 package com.loyalty.service_engine.application.service;
 
+import com.loyalty.service_engine.application.dto.ClassificationResult;
 import com.loyalty.service_engine.application.dto.DiscountCalculateRequest;
 import com.loyalty.service_engine.application.dto.DiscountCalculateResponse;
+import com.loyalty.service_engine.application.dto.FidelityRangeDTO;
 import com.loyalty.service_engine.domain.entity.DiscountConfigEntity;
 import com.loyalty.service_engine.domain.entity.DiscountPriorityEntity;
 import com.loyalty.service_engine.infrastructure.exception.ResourceNotFoundException;
@@ -15,6 +17,7 @@ import java.util.stream.Collectors;
 
 /**
  * Motor crítico para calcular descuentos respetando prioridad y límite máximo.
+ * Incluye clasificación automática de fidelidad del cliente.
  * Garantiza que el descuento total nunca supere el límite configurado.
  * Utiliza caché en memoria (Caffeine) para acceso rápido a configuración.
  */
@@ -24,13 +27,16 @@ public class DiscountCalculationEngine {
     
     private final DiscountConfigService discountConfigService;
     private final DiscountPriorityService discountPriorityService;
+    private final FidelityClassificationService fidelityClassificationService;
     
     public DiscountCalculationEngine(
         DiscountConfigService discountConfigService,
-        DiscountPriorityService discountPriorityService
+        DiscountPriorityService discountPriorityService,
+        FidelityClassificationService fidelityClassificationService
     ) {
         this.discountConfigService = discountConfigService;
         this.discountPriorityService = discountPriorityService;
+        this.fidelityClassificationService = fidelityClassificationService;
     }
     
     /**
@@ -130,6 +136,15 @@ public class DiscountCalculationEngine {
             ))
             .collect(Collectors.toList());
         
+        // Clasificar cliente por fidelidad
+        ClassificationResult fidelityClassification = fidelityClassificationService.classify(
+            request.ecommerceId(),
+            request.clientFidelityPoints()
+        );
+        
+        DiscountCalculateResponse.FidelityClassification fidelityResponse = 
+            buildFidelityClassificationResponse(request.clientFidelityPoints(), fidelityClassification);
+        
         return new DiscountCalculateResponse(
             request.transactionId(),
             originalDiscountsResponse,
@@ -138,7 +153,36 @@ public class DiscountCalculationEngine {
             accumulatedDiscount,
             maxLimit,
             limitExceeded,
+            fidelityResponse,
             Instant.now()
+        );
+    }
+
+    /**
+     * Build fidelity classification response from ClassificationResult
+     */
+    private DiscountCalculateResponse.FidelityClassification buildFidelityClassificationResponse(
+        Integer clientPoints,
+        ClassificationResult classification
+    ) {
+        if (!classification.isClassified()) {
+            // Client did not qualify for any level (NONE)
+            return new DiscountCalculateResponse.FidelityClassification(
+                clientPoints,
+                null,    // no level
+                null,    // no level name
+                false,   // not classified
+                null     // no discount
+            );
+        }
+
+        FidelityRangeDTO range = classification.getRange();
+        return new DiscountCalculateResponse.FidelityClassification(
+            clientPoints,
+            range.uid(),
+            range.name(),
+            true,
+            range.discountPercentage()
         );
     }
 }
