@@ -56,7 +56,7 @@ public class FidelityRangeController {
      * @return 201 Created with the range response
      */
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') and hasAuthority('fidelity:write')")
     public ResponseEntity<FidelityRangeResponse> createFidelityRange(
         @Valid @RequestBody CreateFidelityRangeRequest request,
         Authentication auth
@@ -81,7 +81,7 @@ public class FidelityRangeController {
      * @return 200 OK with paginated list of ranges
      */
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') and hasAuthority('fidelity:read')")
     public ResponseEntity<Page<FidelityRangeResponse>> getFidelityRanges(
         @RequestParam(defaultValue = "0") int page,
         @RequestParam(defaultValue = "10") int size,
@@ -113,7 +113,7 @@ public class FidelityRangeController {
      * @return 200 OK with the range details
      */
     @GetMapping("/{uid}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') and hasAuthority('fidelity:read')")
     public ResponseEntity<FidelityRangeResponse> getFidelityRange(
         @PathVariable UUID uid,
         Authentication auth
@@ -138,7 +138,7 @@ public class FidelityRangeController {
      * @return 200 OK with the updated range
      */
     @PutMapping("/{uid}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') and hasAuthority('fidelity:write')")
     public ResponseEntity<FidelityRangeResponse> updateFidelityRange(
         @PathVariable UUID uid,
         @Valid @RequestBody UpdateFidelityRangeRequest request,
@@ -163,7 +163,7 @@ public class FidelityRangeController {
      * @return 204 No Content
      */
     @DeleteMapping("/{uid}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') and hasAuthority('fidelity:write')")
     public ResponseEntity<Void> deleteFidelityRange(
         @PathVariable UUID uid,
         Authentication auth
