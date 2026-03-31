@@ -255,91 +255,7 @@ VALUES
 - **Auth requerida**: sí (JWT)
 - **Response 200**: Array de reglas
 
----
 
-#### [ENGINE ENDPOINT] POST /api/v1/customers/classify
-- **Ubicación**: Service-Engine (8082)
-- **Descripción**: Clasifica un cliente en un tier de fidelidad. **El Engine SOLO expone este endpoint de lectura**. Los humanos no pueden modificar reglas aquí.
-- **Auth requerida**: sí (API Key en header `Authorization: Bearer <api_key>`)
-- **Request Body** (flexible, acepta múltiples métricas):
-  ```json
-  {
-    "total_spent": "1500.50",
-    "order_count": 7,
-    "loyalty_points": 2500
-  }
-  ```
-- **Response 200**:
-  ```json
-  {
-    "tier_uid": "00000000-0000-0000-0000-000000000002",
-    "tier_name": "Plata",
-    "tier_level": 2,
-    "matched_rules": [
-      { "metric_type": "total_spent", "value": "1500.50", "rule_uid": "..." },
-      { "metric_type": "order_count", "value": 7, "rule_uid": "..." }
-    ],
-    "classification_reason": "Qualified for Plata (total_spent: 1000-5000, order_count: 5-10)",
-    "calculated_at": "2026-03-26T14:30:00Z"
-  }
-  ```
-- **Response 400**: Campo obligatorio faltante, valor negativo o payload inválido
-  ```json
-  {
-    "error": "Bad Request",
-    "message": "total_spent must be non-negative",
-    "timestamp": "2026-03-26T14:30:00Z"
-  }
-  ```
-- **Response 401**: API Key ausente o inválida
-- **Response 503**: Caché vacío o réplica no sincronizada
-  ```json
-  {
-    "error": "Service Unavailable",
-    "message": "Classification matrix not available. Waiting for first sync from Admin.",
-    "timestamp": "2026-03-26T14:30:00Z"
-  }
-  ```
-  ```json
-  {
-    "error": "Unauthorized",
-    "message": "API Key missing or invalid",
-    "timestamp": "2026-03-26T14:30:00Z"
-  }
-  ```
-- **Response 503**: Caché vacía y DB no disponible
-  ```json
-  {
-    "error": "Service Unavailable",
-    "message": "Classification matrix unavailable",
-    "timestamp": "2026-03-26T14:30:00Z"
-  }
-  ```
-
-#### GET /api/v1/classification/tiers
-- **Descripción**: Lista todos los tiers activos (Bronce, Plata, Oro, Platino)
-- **Auth requerida**: sí (API Key o JWT)
-- **Response 200**:
-  ```json
-  [
-    {
-      "tier_uid": "00000000-0000-0000-0000-000000000001",
-      "name": "Bronce",
-      "level": 1,
-      "is_active": true,
-      "created_at": "2026-03-20T10:00:00Z",
-      "updated_at": "2026-03-26T14:00:00Z"
-    },
-    {
-      "tier_uid": "00000000-0000-0000-0000-000000000002",
-      "name": "Plata",
-      "level": 2,
-      "is_active": true,
-      "created_at": "2026-03-20T10:00:00Z",
-      "updated_at": "2026-03-26T14:00:00Z"
-    }
-  ]
-  ```
 
 #### POST /api/v1/admin/classification/tiers (ADMIN ONLY)
 - **Descripción**: Crea un nuevo tier (uso limitado; los tiers base Bronce, Plata, Oro, Platino son seeders)
@@ -445,7 +361,7 @@ VALUES
 - `com.loyalty.service_engine.application.dto`: `ClassificationCalculateRequest`, `ClassificationCalculateResponse`, `CustomerTierResponse`, `ClassificationRuleRequest`, `ClassificationRuleResponse`
 - `com.loyalty.service_engine.infrastructure.cache`: `ClassificationMatrixCache`
 - `com.loyalty.service_engine.infrastructure.rabbitmq`: `ClassificationEventPublisher`, `ClassificationEventConsumer`, `RabbitMQClassificationConfig`
-- `com.loyalty.service_engine.presentation.controller`: `ClassificationController`, `ClassificationAdminController`
+- `com.loyalty.service_engine.presentation.controller`: *Sin controladores en v1.0 (Data Plane interno)*
 
 #### Dependencias externas
 - **RabbitMQ**: Para sincronización asíncrona de matriz (ya configurado en proyecto)
@@ -459,10 +375,9 @@ VALUES
 - `DiscountCalculationEngine` (HU-07) para aplicar descuentos según tier (future integration)
 
 #### Impacto en punto de entrada (ServiceEngineApplication.java)
-- Registrar `ClassificationController` y `ClassificationAdminController`
 - Inicializar `ClassificationMatrixCache` en startup
-- Cargar matriz de BD en la primera llamada de `/calculate` (lazy initialization)
 - Registrar event consumer `ClassificationEventConsumer` en RabbitMQ
+- **No requiere registro de controllers** (Data Plane interno, sin endpoints públicos en v1.0)
 
 ### Arquitectura: Separación Admin ↔ Engine 🔀
 
@@ -478,10 +393,10 @@ VALUES
 │  - customer_tiers               │         │  - customer_tiers_replica       │
 │  - classification_rules         │         │  - classification_rules_replica │
 ├─────────────────────────────────┤         ├─────────────────────────────────┤
-│  Endpoints (CRUD):              │         │  Endpoints (Read-Only):         │
-│  POST   /admin/tiers            │         │  POST   /customers/classify     │
-│  POST   /admin/rules            │         │  GET    /tiers (opcional)       │
-│  PUT    /admin/rules/{uid}      │         │                                 │
+│  Endpoints (CRUD):              │         │  Endpoints Públicos:            │
+│  POST   /admin/tiers            │         │  (Ninguno en v1.0 — interno)    │
+│  POST   /admin/rules            │         │  Escucha RabbitMQ               │
+│  PUT    /admin/rules/{uid}      │         │  Carga BD réplica en startup    │
 │  DELETE /admin/rules/{uid}      │         │  Caché:                         │
 │  GET    /admin/rules            │         │  - Caffeine (TTL: 10 min)       │
 ├─────────────────────────────────┤         ├─────────────────────────────────┤
@@ -523,7 +438,7 @@ VALUES
 3. **Métrica flexible**: El campo `metric_type` permite clasificación por puntos, gasto, órdenes o métricas custom sin cambios de código
 4. **Cache TTL = 10 minutos**: Caffeine con `expireAfterWrite(10, TimeUnit.MINUTES)`
 5. **Virtual Threads**: Usar `spring.threads.virtual.enabled=true` si Java 21+ (ya en proyecto)
-6. **API Key en lugar de JWT para `/classify`**: El e-commerce se autentica con API Key. SecurityContext extrae e-commerce_id sin usar X-User-ID
+6. **API Key (futuro)**: Cuando se agreguen endpoints de clasificación en futuras HUs, se usará API Key para e-commerce (en lugar de JWT)
 7. **Graceful fallback**: Si caché vacía, consultar DB réplica directamente (no fallar)
 8. **Sincronización confiable**: RabbitMQ con retry policy (max 5 intentos, backoff exponencial 500ms→5000ms)
 9. **CRÍTICO**: Nunca poner endpoints CRUD en el Engine. Engine es sordo y mudo a humanos; solo escucha RabbitMQ
@@ -569,11 +484,10 @@ VALUES
     - `DELETE /api/v1/admin/classification-rules/{uid}` — soft-delete, publica evento, retorna 204
     - `GET /api/v1/admin/classification-rules` — lista reglas, retorna 200
     - Auth: JWT, rol SUPER_ADMIN
-- [x] **Crear SOLO en Service-ENGINE:**
-  - `ClassificationController` (read-only):
-    - `POST /api/v1/customers/classify` — ejecuta clasificación, retorna 200 con tier
-    - `GET /api/v1/tiers` (opcional) — lista tiers para referencia, retorna 200
-    - Auth: API Key
+- [x] Service-Engine: **Sin endpoints públicos**
+  - Engine es Data Plane (interno): solo escucha RabbitMQ
+  - Réplicas de tablas + Caché + Consumer (ver Infrastructure Layer)
+  - Endpoints públicos serán agregados en futuras HUs
 
 #### Implementación — Infrastructure Layer (Cache + Events)
 
