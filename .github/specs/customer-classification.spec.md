@@ -255,159 +255,7 @@ VALUES
 - **Auth requerida**: sí (JWT)
 - **Response 200**: Array de reglas
 
----
 
-#### [ENGINE ENDPOINT] POST /api/v1/customers/classify
-- **Ubicación**: Service-Engine (8082)
-- **Descripción**: Clasifica un cliente en un tier de fidelidad. **El Engine SOLO expone este endpoint de lectura**. Los humanos no pueden modificar reglas aquí.
-- **Auth requerida**: sí (API Key en header `Authorization: Bearer <api_key>`)
-- **Request Body** (flexible, acepta múltiples métricas):
-  ```json
-  {
-    "total_spent": "1500.50",
-    "order_count": 7,
-    "loyalty_points": 2500
-  }
-  ```
-- **Response 200**:
-  ```json
-  {
-    "tier_uid": "00000000-0000-0000-0000-000000000002",
-    "tier_name": "Plata",
-    "tier_level": 2,
-    "matched_rules": [
-      { "metric_type": "total_spent", "value": "1500.50", "rule_uid": "..." },
-      { "metric_type": "order_count", "value": 7, "rule_uid": "..." }
-    ],
-    "classification_reason": "Qualified for Plata (total_spent: 1000-5000, order_count: 5-10)",
-    "calculated_at": "2026-03-26T14:30:00Z"
-  }
-  ```
-- **Response 400**: Campo obligatorio faltante, valor negativo o payload inválido
-  ```json
-  {
-    "error": "Bad Request",
-    "message": "total_spent must be non-negative",
-    "timestamp": "2026-03-26T14:30:00Z"
-  }
-  ```
-- **Response 401**: API Key ausente o inválida
-- **Response 503**: Caché vacío o réplica no sincronizada
-  ```json
-  {
-    "error": "Service Unavailable",
-    "message": "Classification matrix not available. Waiting for first sync from Admin.",
-    "timestamp": "2026-03-26T14:30:00Z"
-  }
-  ```
-  ```json
-  {
-    "error": "Unauthorized",
-    "message": "API Key missing or invalid",
-    "timestamp": "2026-03-26T14:30:00Z"
-  }
-  ```
-- **Response 503**: Caché vacía y DB no disponible
-  ```json
-  {
-    "error": "Service Unavailable",
-    "message": "Classification matrix unavailable",
-    "timestamp": "2026-03-26T14:30:00Z"
-  }
-  ```
-
-#### GET /api/v1/classification/tiers
-- **Descripción**: Lista todos los tiers activos (Bronce, Plata, Oro, Platino)
-- **Auth requerida**: sí (API Key o JWT)
-- **Response 200**:
-  ```json
-  [
-    {
-      "tier_uid": "00000000-0000-0000-0000-000000000001",
-      "name": "Bronce",
-      "level": 1,
-      "is_active": true,
-      "created_at": "2026-03-20T10:00:00Z",
-      "updated_at": "2026-03-26T14:00:00Z"
-    },
-    {
-      "tier_uid": "00000000-0000-0000-0000-000000000002",
-      "name": "Plata",
-      "level": 2,
-      "is_active": true,
-      "created_at": "2026-03-20T10:00:00Z",
-      "updated_at": "2026-03-26T14:00:00Z"
-    }
-  ]
-  ```
-
-#### POST /api/v1/admin/classification/tiers (ADMIN ONLY)
-- **Descripción**: Crea un nuevo tier (uso limitado; los tiers base Bronce, Plata, Oro, Platino son seeders)
-- **Auth requerida**: sí (JWT de Administrador en service-admin)
-- **Request Body**:
-  ```json
-  {
-    "name": "Platino",
-    "level": 4
-  }
-  ```
-- **Response 201**: Tier creado
-  ```json
-  {
-    "tier_uid": "uuid",
-    "name": "Platino",
-    "level": 4,
-    "is_active": true,
-    "created_at": "2026-03-26T14:30:00Z",
-    "updated_at": "2026-03-26T14:30:00Z"
-  }
-  ```
-- **Response 409**: Tier con ese nombre ya existe
-
-#### POST /api/v1/admin/classification/rules (ADMIN ONLY)
-- **Descripción**: Define reglas de clasificación asociadas a tiers
-- **Auth requerida**: sí (JWT de Administrador)
-- **Request Body**:
-  ```json
-  {
-    "customer_tier_uid": "00000000-0000-0000-0000-000000000002",
-    "min_total_spent": "1000.00",
-    "max_total_spent": "5000.00",
-    "min_order_count": 5,
-    "max_order_count": 10,
-    "priority": 2
-  }
-  ```
-- **Response 201**: Regla creada
-  ```json
-  {
-    "rule_uid": "uuid",
-    "customer_tier_uid": "00000000-0000-0000-0000-000000000002",
-    "min_total_spent": "1000.00",
-    "max_total_spent": "5000.00",
-    "min_order_count": 5,
-    "max_order_count": 10,
-    "priority": 2,
-    "is_active": true,
-    "created_at": "2026-03-26T14:30:00Z",
-    "updated_at": "2026-03-26T14:30:00Z"
-  }
-  ```
-- **Response 400**: Prioridad duplicada para el mismo tier o rango inválido
-- **Response 409**: Regla conflictiva
-
-#### PUT /api/v1/admin/classification/rules/{rule_uid} (ADMIN ONLY)
-- **Descripción**: Actualiza una regla de clasificación
-- **Auth requerida**: sí (JWT de Administrador)
-- **Request Body**: Campos opcionales a actualizar
-- **Response 200**: Regla actualizada
-- **Response 404**: Regla no encontrada
-- **Observer Effect**: Al actualizar una regla, se publica evento `CustomerClassificationMatrixUpdated` en RabbitMQ para invalidar cachés del Engine
-
-#### GET /api/v1/admin/classification/rules
-- **Descripción**: Lista todas las reglas de clasificación
-- **Auth requerida**: sí (JWT)
-- **Response 200**: Array de reglas activas
 
 ### Eventos RabbitMQ
 
@@ -434,7 +282,7 @@ VALUES
 **Consumer Handler (service-engine):**
 - Recibe evento
 - Invalida `classificationMatrixCache` en Caffeine
-- En la siguiente solicitud de `/classification/calculate`, recarga desde DB
+- En la siguiente solicitud de `/calculate`, recarga desde DB
 
 ### Arquitectura y Dependencias
 
@@ -445,7 +293,7 @@ VALUES
 - `com.loyalty.service_engine.application.dto`: `ClassificationCalculateRequest`, `ClassificationCalculateResponse`, `CustomerTierResponse`, `ClassificationRuleRequest`, `ClassificationRuleResponse`
 - `com.loyalty.service_engine.infrastructure.cache`: `ClassificationMatrixCache`
 - `com.loyalty.service_engine.infrastructure.rabbitmq`: `ClassificationEventPublisher`, `ClassificationEventConsumer`, `RabbitMQClassificationConfig`
-- `com.loyalty.service_engine.presentation.controller`: `ClassificationController`, `ClassificationAdminController`
+- `com.loyalty.service_engine.presentation.controller`: *Sin controladores en v1.0 (Data Plane interno)*
 
 #### Dependencias externas
 - **RabbitMQ**: Para sincronización asíncrona de matriz (ya configurado en proyecto)
@@ -459,10 +307,9 @@ VALUES
 - `DiscountCalculationEngine` (HU-07) para aplicar descuentos según tier (future integration)
 
 #### Impacto en punto de entrada (ServiceEngineApplication.java)
-- Registrar `ClassificationController` y `ClassificationAdminController`
 - Inicializar `ClassificationMatrixCache` en startup
-- Cargar matriz de BD en la primera llamada de `/calculate` (lazy initialization)
 - Registrar event consumer `ClassificationEventConsumer` en RabbitMQ
+- **No requiere registro de controllers** (Data Plane interno, sin endpoints públicos en v1.0)
 
 ### Arquitectura: Separación Admin ↔ Engine 🔀
 
@@ -476,14 +323,14 @@ VALUES
 ├─────────────────────────────────┤         ├─────────────────────────────────┤
 │  DB Maestra:                    │         │  DB Réplica:                    │
 │  - customer_tiers               │         │  - customer_tiers_replica       │
-│  - classification_rules         │         │  - classification_rules_replica │
+│  - classification_rules         │         │  - classification_rules_replica  │
 ├─────────────────────────────────┤         ├─────────────────────────────────┤
-│  Endpoints (CRUD):              │         │  Endpoints (Read-Only):         │
-│  POST   /admin/tiers            │         │  POST   /customers/classify     │
-│  POST   /admin/rules            │         │  GET    /tiers (opcional)       │
-│  PUT    /admin/rules/{uid}      │         │                                 │
-│  DELETE /admin/rules/{uid}      │         │  Caché:                         │
-│  GET    /admin/rules            │         │  - Caffeine (TTL: 10 min)       │
+│  Endpoints (CRUD):              │         │  Endpoints Públicos:            │
+│  POST   /admin/tiers            │         │  (Ninguno — interno)            │
+│  POST   /admin/classification-rules            │         │  POST /calculate (con métricas) │
+│  PUT    /admin/classification-rules/{uid}      │         │  clasificación interna         │
+│  DELETE /admin/classification-rules/{uid}      │         │  Escucha RabbitMQ              │
+│  GET    /admin/classification-rules            │         │  Carga BD réplica en startup   │
 ├─────────────────────────────────┤         ├─────────────────────────────────┤
 │  Events Published:              │  RMQ    │  Events Consumed:               │
 │  - TierCreated                  │────────→│  - TierCreated                  │
@@ -493,16 +340,16 @@ VALUES
 └─────────────────────────────────┘         └─────────────────────────────────┘
         ↑ Humanos (JWT)                              ↑ E-commerce (API Key)
         |                                            |
-   Admin UI                                   POST /classify payload
-    (Futura HU)                           (total_spent, order_count, ...)
+   Admin UI                                   POST /calculate payload
+    (Futura HU)                          (total_spent, order_count, ...)
 ```
 
 **Flujo de Sincronización:**
-1. **Admin crea/actualiza regla** → POST `/admin/rules` + JWT
+1. **Admin crea/actualiza regla** → POST `/admin/classification-rules` + JWT
 2. **Admin DB actualizada** → Publica evento `RuleUpdatedEvent` en RabbitMQ
 3. **Engine consume evento** (listener en background)
 4. **Engine invalida Caffeine** → Carga nueva matriz desde su DB réplica
-5. **Engine responde `/classify`** con matriz actualizada
+5. **E-commerce llama /calculate** → Engine clasifica cliente internamente
 
 **Si Engine se reinicia (Cold Start):**
 - Lee su tabla réplica del PostgreSQL local
@@ -523,7 +370,7 @@ VALUES
 3. **Métrica flexible**: El campo `metric_type` permite clasificación por puntos, gasto, órdenes o métricas custom sin cambios de código
 4. **Cache TTL = 10 minutos**: Caffeine con `expireAfterWrite(10, TimeUnit.MINUTES)`
 5. **Virtual Threads**: Usar `spring.threads.virtual.enabled=true` si Java 21+ (ya en proyecto)
-6. **API Key en lugar de JWT para `/classify`**: El e-commerce se autentica con API Key. SecurityContext extrae e-commerce_id sin usar X-User-ID
+6. **API Key (futuro)**: Cuando se agreguen endpoints de clasificación en futuras HUs, se usará API Key para e-commerce (en lugar de JWT)
 7. **Graceful fallback**: Si caché vacía, consultar DB réplica directamente (no fallar)
 8. **Sincronización confiable**: RabbitMQ con retry policy (max 5 intentos, backoff exponencial 500ms→5000ms)
 9. **CRÍTICO**: Nunca poner endpoints CRUD en el Engine. Engine es sordo y mudo a humanos; solo escucha RabbitMQ
@@ -538,22 +385,22 @@ VALUES
 ### Backend
 
 #### Implementación — Domain Layer
-- [ ] Crear `CustomerTierEntity` con campos: uid, name (ENUM), level, is_active, timestamps en `com.loyalty.service_engine.domain.entity`
-- [ ] Crear `ClassificationRuleEntity` con campos: uid, customer_tier_uid, min/max_total_spent, min/max_order_count, priority, is_active, timestamps
-- [ ] Crear `CustomerTierRepository` con método `findByIsActiveTrue()` ordenado por level DESC
-- [ ] Crear `ClassificationRuleRepository` con métodos: `findByIsActiveTrueOrderByPriority()`, `findByCustomerTierUidAndIsActiveTrue()`
-- [ ] Crear `ClassificationMatrixCache` interface/contract
+- [x] Crear `CustomerTierEntity` con campos: uid, name (ENUM), level, is_active, timestamps en `com.loyalty.service_engine.domain.entity`
+- [x] Crear `ClassificationRuleEntity` con campos: uid, customer_tier_uid, min/max_total_spent, min/max_order_count, priority, is_active, timestamps
+- [x] Crear `CustomerTierRepository` con método `findByIsActiveTrue()` ordenado por level DESC
+- [x] Crear `ClassificationRuleRepository` con métodos: `findByIsActiveTrueOrderByPriority()`, `findByCustomerTierUidAndIsActiveTrue()`
+- [x] Crear `ClassificationMatrixCache` interface/contract
 
 #### Implementación — Application Layer (Services)
-- [ ] Crear `CustomerTierService`: operaciones CRUD (crear tier, listar activos)
-- [ ] Crear `ClassificationRuleService`: operaciones CRUD (crear regla, actualizar, listar activas)
-- [ ] Crear `ClassificationMatrixService`: cargar matriz desde DB, invalidar caché (invocado por event consumer)
-- [ ] Crear `ClassificationEngine`: método `classify(total_spent, order_count)` → StudentTierEntity (determinístico)
+- [x] Crear `CustomerTierService`: operaciones CRUD (crear tier, listar activos)
+- [x] Crear `ClassificationRuleService`: operaciones CRUD (crear regla, actualizar, listar activas)
+- [x] Crear `ClassificationMatrixService`: cargar matriz desde DB, invalidar caché (invocado por event consumer)
+- [x] Crear `ClassificationEngine`: método `classify(total_spent, order_count)` → StudentTierEntity (determinístico)
   - Cargar matriz activa desde caché (fallback a DB si vacía)
   - Evaluar todas las reglas
   - Seleccionar tier de mayor level entre los aplicables
   - Retornar ResponseDTO único tier
-- [ ] Crear DTOs (Java Records):
+- [x] Crear DTOs (Java Records):
   - `ClassificationCalculateRequest`: total_spent (BigDecimal), order_count (int)
   - `ClassificationCalculateResponse`: tier_uid, tier_name, tier_level, total_spent, order_count, calculated_at
   - `CustomerTierResponse`: tier_uid, name, level, is_active, timestamps
@@ -561,7 +408,7 @@ VALUES
   - `ClassificationRuleResponse`: rule_uid, customer_tier_uid, min/max_total_spent, min/max_order_count, priority, is_active, timestamps
 
 #### Implementación — Presentation Layer (Controllers)
-- [ ] **Crear SOLO en Service-ADMIN:**
+- [x] **Crear SOLO en Service-ADMIN:**
   - `ClassificationAdminController` (endpoints CRUD):
     - `POST /api/v1/admin/tiers` — crea tier, publica evento, retorna 201
     - `POST /api/v1/admin/classification-rules` — crea regla, publica evento, retorna 201
@@ -569,38 +416,37 @@ VALUES
     - `DELETE /api/v1/admin/classification-rules/{uid}` — soft-delete, publica evento, retorna 204
     - `GET /api/v1/admin/classification-rules` — lista reglas, retorna 200
     - Auth: JWT, rol SUPER_ADMIN
-- [ ] **Crear SOLO en Service-ENGINE:**
-  - `ClassificationController` (read-only):
-    - `POST /api/v1/customers/classify` — ejecuta clasificación, retorna 200 con tier
-    - `GET /api/v1/tiers` (opcional) — lista tiers para referencia, retorna 200
-    - Auth: API Key
+- [x] Service-Engine: **Sin endpoints públicos**
+  - Engine es Data Plane (interno): solo escucha RabbitMQ
+  - Réplicas de tablas + Caché + Consumer (ver Infrastructure Layer)
+  - Endpoints públicos serán agregados en futuras HUs
 
 #### Implementación — Infrastructure Layer (Cache + Events)
 
 **Service-Admin (Publisher):**
-- [ ] Crear `ClassificationEventPublisher`: publica eventos cuando se crea/actualiza/elimina regla
+- [x] Crear `ClassificationEventPublisher`: publica eventos cuando se crea/actualiza/elimina regla
   - `ClassificationRuleCreatedEvent`, `ClassificationRuleUpdatedEvent`, `ClassificationRuleDeletedEvent`
   - Intercambio: `classification-exchange` (Fanout)
 
 **Service-Engine (Consumer + Cache):**
-- [ ] Crear caché service: `ClassificationMatrixCaffeineCacheService`
+- [x] Crear caché service: `ClassificationMatrixCaffeineCacheService`
   - Implementa `ClassificationMatrixCache`
   - TTL: 10 minutos (`expireAfterWrite`)
   - Métodos: `get()`, `upsert()`, `invalidate()`, `isEmpty()`
   
-- [ ] Crear `ClassificationMatrixStartupLoader`
+- [x] Crear `ClassificationMatrixStartupLoader`
   - Ejecuta **post-construction** (con `@EventListener(ContextRefreshedEvent.class)`)
   - Lee tablas réplica (`customer_tiers_replica`, `classification_rules_replica`)
   - Popula Caffeine en milisegundos
   - **Garantiza operación autónoma si Admin no está disponible**
   
-- [ ] Crear `ClassificationEventConsumer`
+- [x] Crear `ClassificationEventConsumer`
   - Escucha queue `classification.matrix.queue`
   - Consume `ClassificationRuleCreatedEvent`, `ClassificationRuleUpdatedEvent`, `ClassificationRuleDeletedEvent`
   - Invalida Caffeine y recarga desde réplica
   - Idempotente: si evento duplicado, sin efectos secundarios
   
-- [ ] Crear `RabbitMQClassificationConfig` (Service-Engine):
+- [x] Crear `RabbitMQClassificationConfig` (Service-Engine):
   - Declare queue `classification.matrix.queue`
   - Declare binding a exchange `classification-exchange` (Fanout)
   - DLX para eventos muertos
@@ -609,7 +455,7 @@ VALUES
 #### Migrations
 
 **En Service-Admin:**
-- [ ] Crear `V13__Create_customer_tiers_table.sql`:
+- [x] Crear `V13__Create_customer_tiers_table.sql`:
   ```sql
   CREATE TABLE customer_tiers (
     uid UUID PRIMARY KEY,
@@ -622,7 +468,7 @@ VALUES
   );
   CREATE INDEX idx_customer_tiers_active_level ON customer_tiers(is_active, level);
   ```
-- [ ] Crear `V14__Create_classification_rules_table.sql`:
+- [x] Crear `V14__Create_classification_rules_table.sql`:
   ```sql
   CREATE TABLE classification_rules (
     uid UUID PRIMARY KEY,
@@ -643,11 +489,11 @@ VALUES
   CREATE INDEX idx_classification_rules_tier ON classification_rules(customer_tier_uid);
   CREATE INDEX idx_classification_rules_active ON classification_rules(is_active);
   ```
-- [ ] Crear `V15__Seed_default_tiers.sql`: Inserts Bronce, Plata, Oro, Platino
-- [ ] Crear `V16__Seed_default_classification_rules.sql`: Inserts reglas de ejemplo
+- [x] Crear `V15__Seed_default_tiers.sql`: Inserts Bronce, Plata, Oro, Platino
+- [x] Crear `V16__Seed_default_classification_rules.sql`: Inserts reglas de ejemplo
 
 **En Service-Engine (Réplicas para Cold Start):**
-- [ ] Crear `V13__Create_customer_tiers_replica_table.sql`:
+- [x] Crear `V13__Create_customer_tiers_replica_table.sql`:
   ```sql
   CREATE TABLE customer_tiers_replica (
     uid UUID PRIMARY KEY,
@@ -659,7 +505,7 @@ VALUES
   );
   CREATE INDEX idx_tiers_replica_active_level ON customer_tiers_replica(is_active, level);
   ```
-- [ ] Crear `V14__Create_classification_rules_replica_table.sql`:
+- [x] Crear `V14__Create_classification_rules_replica_table.sql`:
   ```sql
   CREATE TABLE classification_rules_replica (
     uid UUID PRIMARY KEY,
@@ -675,13 +521,23 @@ VALUES
   CREATE INDEX idx_rules_replica_active_metric ON classification_rules_replica(is_active, metric_type);
   CREATE INDEX idx_rules_replica_tier ON classification_rules_replica(tier_uid);
   ```
-- [ ] Crear `V15__Seed_tiers_replica_initial.sql`: Copy inicial desde Admin (si está disponible), o seeders manuales
-- [ ] Crear `V16__Seed_rules_replica_initial.sql`: Copy inicial desde Admin
+- [x] Crear `V15__Seed_tiers_replica_initial.sql`: Copy inicial desde Admin (si está disponible), o seeders manuales
+- [x] Crear `V16__Seed_rules_replica_initial.sql`: Copy inicial desde Admin
 
 #### Exception Handlers
-- [ ] Crear `ClassificationValidationException` si payload inválido (extiende `BadRequestException`)
-- [ ] Registrar en `GlobalExceptionHandler` → HTTP 400 + mensaje descriptivo
-- [ ] Crear `ClassificationMatrixUnavailableException` si caché y DB no disponibles → HTTP 503
+- [x] Crear `ClassificationValidationException` si payload inválido (extiende `BadRequestException`)
+- [x] Registrar en `GlobalExceptionHandler` → HTTP 400 + mensaje descriptivo
+- [x] Crear `ClassificationMatrixUnavailableException` si caché y DB no disponibles → HTTP 503
+  - ✅ Registrado en service-admin `GlobalExceptionHandler` para `ClassificationValidationException` → HTTP 400 (code: `CLASSIFICATION_VALIDATION_ERROR`)
+  - ✅ Registrado en service-engine `GlobalExceptionHandler` para `ClassificationMatrixUnavailableException` → HTTP 503 (code: `CLASSIFICATION_MATRIX_UNAVAILABLE`)
+
+#### Integración con Flujo de Descuentos (HU-09)
+- [x] Agregar campos a `DiscountCalculateRequestV2`: `totalSpent`, `orderCount`, `loyaltyPoints` (métricas del cliente)
+- [x] Agregar `ClassificationInfo` a `DiscountCalculateResponseV2` con: `tierUid`, `tierName`, `tierLevel`, `classificationReason`
+- [x] Inyectar `ClassificationEngine` en `DiscountCalculationServiceV2`
+- [x] Implementar método `classifyCustomer()` en `DiscountCalculationServiceV2` que llama a `ClassificationEngine.classify()`
+- [x] Integración completada: `/calculate` ahora clasifica automáticamente al cliente durante el cálculo de descuentos
+- [x] Respuesta de `/calculate` incluye tier asignado en campo `classification`
 
 #### Tests Backend
 - [ ] `test_classificationEngine_classify_bronce_success` — payload bajo aplica a Bronce
@@ -691,6 +547,8 @@ VALUES
 - [ ] `test_classificationController_post_calculate_returns_200` — happy path
 - [ ] `test_classificationController_post_calculate_returns_400_missing_field` — payload inválido
 - [ ] `test_classificationController_post_calculate_returns_401_no_api_key` — sin autenticación
+- [ ] `test_discountCalculationServiceV2_integrates_classification` — verifica que /calculate retorna tier asignado
+- [ ] `test_discountCalculationServiceV2_handles_classification_failure_gracefully` — manejo de errores de clasificación
 
 ### Frontend
 - [ ] **Opcional (futura HU)**: Dashboard admin para visualizar tiers y reglas (tabla de tiers, tabla de reglas, crear/editar modal)
@@ -699,7 +557,9 @@ VALUES
 - [ ] Crear Gherkin scenarios basados en CRITERIO-8.1 a 8.5 (para `/gherkin-case-generator`)
 - [ ] Test de end-to-end: Admin actualiza regla → RabbitMQ publica → Engine recibe → caché se invalida → siguiente `/calculate` usa matriz nueva
 - [ ] Performance test: `/classification/calculate` debe ser < 50ms (in-memory cache hit)
+- [ ] Test de Cold Start: Engine recarga matriz desde réplica local sin conexión a Admin
 
 ### Documentation
 - [ ] Actualizar README.md con descripción de clasificación de tiers y matriz de reglas
 - [ ] Documentar matriz de clasificación por defecto (Bronce, Plata, Oro, Platino) y rangos
+- [ ] Documentar arquitectura Admin ↔ Engine y sincronización RabbitMQ
