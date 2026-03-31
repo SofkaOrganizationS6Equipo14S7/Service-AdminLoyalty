@@ -1,6 +1,6 @@
 ---
 id: SPEC-007
-status: DRAFT
+status: IN_PROGRESS
 feature: product-rules
 created: 2026-03-30
 updated: 2026-03-30
@@ -597,43 +597,43 @@ src/main/java/com/loyalty/service_admin/
 ### Backend
 
 #### Migración y Base de Datos
-- [ ] Crear archivo `V13__Create_product_rules_table.sql` en `backend/service-admin/src/main/resources/db/migration/`
-- [ ] Definir tabla `product_rules` con todos los campos, constraints e índices según especificación
-- [ ] Validar que Flyway ejecute la migración al iniciar la aplicación
+- [x] Crear archivo `V13__Create_product_rules_table.sql` en `backend/service-admin/src/main/resources/db/migration/`
+- [x] Definir tabla `product_rules` con todos los campos, constraints e índices según especificación
+- [x] Validar que Flyway ejecute la migración al iniciar la aplicación
 
 #### Implementación Domain Layer
-- [ ] Crear `ProductRuleEntity.java` en `domain/entity/` — JPA entity con anotaciones `@Entity`, `@Table`, índices y constraints
-- [ ] Crear `ProductRuleRepository.java` interfaz en `domain/repository/` — métodos: `findByEcommerceIdAndProductTypeAndIsActive()`, `findByEcommerceIdAndUid()`, `findByEcommerceId()`
+- [x] Crear `ProductRuleEntity.java` en `domain/entity/` — JPA entity con anotaciones `@Entity`, `@Table`, índices y constraints
+- [x] Crear `ProductRuleRepository.java` interfaz en `domain/repository/` — métodos: `findByEcommerceIdAndProductTypeAndIsActive()`, `findByEcommerceIdAndUid()`, `findByEcommerceId()`
 
 #### Implementación Application Layer
-- [ ] Crear `ProductRuleCreateRequest.java` record en `application/dto/`
-- [ ] Crear `ProductRuleUpdateRequest.java` record en `application/dto/`
-- [ ] Crear `ProductRuleResponse.java` record en `application/dto/`
-- [ ] Crear `ProductRuleService.java` en `application/service/`
-  - [ ] Método `createProductRule(request, ecommerceId)` — validar duplicidad, descuento, persistir, publicar evento RabbitMQ
-  - [ ] Método `getProductRules(ecommerceId, page, size, active)` — listar paginado
-  - [ ] Método `getProductRuleByUid(ecommerceId, uid)` — obtener una regla
-  - [ ] Método `updateProductRule(ecommerceId, uid, request)` — validar descuento, persistir, publicar evento
-  - [ ] Método `deleteProductRule(ecommerceId, uid)` — marcar como inactiva, publicar evento
-  - [ ] Validaciones: descuento 0-100, respetar límites globales (consultar DiscountConfigurationRepository), validar campos obligatorios
+- [x] Crear `ProductRuleCreateRequest.java` record en `application/dto/`
+- [x] Crear `ProductRuleUpdateRequest.java` record en `application/dto/`
+- [x] Crear `ProductRuleResponse.java` record en `application/dto/`
+- [x] Crear `ProductRuleService.java` en `application/service/`
+  - [x] Método `createProductRule(request, ecommerceId)` — validar duplicidad, descuento, persistir, publicar evento RabbitMQ
+  - [x] Método `getProductRules(ecommerceId, page, size, active)` — listar paginado
+  - [x] Método `getProductRuleByUid(ecommerceId, uid)` — obtener una regla
+  - [x] Método `updateProductRule(ecommerceId, uid, request)` — validar descuento, persistir, publicar evento
+  - [x] Método `deleteProductRule(ecommerceId, uid)` — marcar como inactiva, publicar evento
+  - [x] Validaciones: descuento 0-100, respetar límites globales (consultar DiscountConfigurationRepository), validar campos obligatorios
 - [ ] Crear `ProductRuleMapper.java` en `application/mapper/` — conversión Entity ↔ Request/Response
 
 #### Implementación Infrastructure Layer
-- [ ] Crear `ProductRuleRepositoryImpl.java` en `infrastructure/persistence/` — implementar métodos de repository usando Spring Data JPA
-- [ ] Crear `ProductRuleEvent.java` record en `infrastructure/event/` — estructura del evento RabbitMQ
-- [ ] Crear `ProductRuleEventPublisher.java` en `infrastructure/event/` — publicar eventos a RabbitMQ (exchange: `product-rules.exchange`, routing key: `product.rules.{eventType}`)
-- [ ] Verificar que `ConflictException.java` y `ResourceNotFoundException.java` existen; si no, crearlas
+- [x] Crear `ProductRuleRepositoryImpl.java` en `infrastructure/persistence/` — implementar métodos de repository usando Spring Data JPA
+- [x] Crear `ProductRuleEvent.java` record en `infrastructure/event/` — estructura del evento RabbitMQ
+- [x] Crear `ProductRuleEventPublisher.java` en `infrastructure/event/` — publicar eventos a RabbitMQ (exchange: `product-rules.exchange`, routing key: `product.rules.{eventType}`)
+- [x] Verificar que `ConflictException.java` y `ResourceNotFoundException.java` existen; si no, crearlas
 
 #### Implementación Presentation Layer
-- [ ] Crear `ProductRuleController.java` en `presentation/controller/`
-  - [ ] Endpoint `POST /api/v1/product-rules` — crear regla, validar auth, extraer ecommerceId del JWT, retornar 201
-  - [ ] Endpoint `GET /api/v1/product-rules` — listar paginado, soportar query param `?page=&size=&active=`
-  - [ ] Endpoint `GET /api/v1/product-rules/{uid}` — obtener una regla, validar pertenencia a ecommerce
-  - [ ] Endpoint `PUT /api/v1/product-rules/{uid}` — actualizar regla, validar pertenencia y descuento
-  - [ ] Endpoint `DELETE /api/v1/product-rules/{uid}` — eliminar (soft delete), validar pertenencia
-  - [ ] Todas las rutas protegidas con `@PreAuthorize("hasRole('ADMIN')")`
-  - [ ] Manejo de excepciones: `ConflictException` → 409, `ResourceNotFoundException` → 404, `IllegalArgumentException` → 400, `Unauthorized` → 401
-- [ ] Registrar controller en punto de entrada de la app (si usa auto-scan de `@RestController`, está automático)
+- [x] Crear `ProductRuleController.java` en `presentation/controller/`
+  - [x] Endpoint `POST /api/v1/product-rules` — crear regla, validar auth, extraer ecommerceId del JWT, retornar 201
+  - [x] Endpoint `GET /api/v1/product-rules` — listar paginado, soportar query param `?page=&size=&active=`
+  - [x] Endpoint `GET /api/v1/product-rules/{uid}` — obtener una regla, validar pertenencia a ecommerce
+  - [x] Endpoint `PUT /api/v1/product-rules/{uid}` — actualizar regla, validar pertenencia y descuento
+  - [x] Endpoint `DELETE /api/v1/product-rules/{uid}` — eliminar (soft delete), validar pertenencia
+  - [x] Todas las rutas protegidas con `@PreAuthorize("hasRole('ADMIN')")`
+  - [x] Manejo de excepciones: `ConflictException` → 409, `ResourceNotFoundException` → 404, `IllegalArgumentException` → 400, `Unauthorized` → 401
+- [x] Registrar controller en punto de entrada de la app (si usa auto-scan de `@RestController`, está automático)
 
 #### Tests Backend
 - [ ] `ProductRuleServiceTest.test_createProductRule_success` — happy path
@@ -655,34 +655,35 @@ src/main/java/com/loyalty/service_admin/
 *La sincronización event-driven requiere que el Engine tenga su propia réplica local para cold start recovery.*
 
 #### Base de Datos (Engine)
-- [ ] Crear archivo `V14__Create_product_rules_replica_table.sql` en `backend/service-engine/src/main/resources/db/migration/`
-- [ ] Tabla `product_rules` idéntica a la del Admin (mismos campos, índices, constraints)
-- [ ] Validar que Flyway ejecute la migración al iniciar el Engine
+- [x] Crear archivo `V13__Create_product_rules_replica_table.sql` en `backend/service-engine/src/main/resources/db/migration/`
+- [x] Tabla `product_rules` idéntica a la del Admin (mismos campos, índices, constraints)
+- [x] Validar que Flyway ejecute la migración al iniciar el Engine
 
 #### Domain Layer (Engine)
-- [ ] Crear `ProductRuleEntity.java` en `domain/entity/` (réplica del Admin, misma estructura)
-- [ ] Crear `ProductRuleRepository.java` interfaz en `domain/repository/` — métodos: `findActiveByProductType()`, `findAllActive()`, `save()`, `update()`
+- [x] Crear `ProductRuleEntity.java` en `domain/entity/` (réplica del Admin, misma estructura)
+- [x] Crear `ProductRuleRepository.java` interfaz en `domain/repository/` — métodos: `findByIsActiveTrue()`, `findByEcommerceIdAndIsActiveTrue()`, `findByEcommerceIdAndProductTypeAndIsActiveTrue()`, `findByUid()`
 
 #### Application Layer (Engine)
-- [ ] Crear `ProductRuleSyncService.java` — servicio que consume eventos RabbitMQ
-  - [ ] Método `handleProductRuleCreated(ProductRuleEvent)` — insertar en tabla local
-  - [ ] Método `handleProductRuleUpdated(ProductRuleEvent)` — actualizar en tabla local
-  - [ ] Método `handleProductRuleDeleted(ProductRuleEvent)` — marcar como inactiva
-  - [ ] Método `invalidateProductRuleCache(productType)` — invalidar caché Caffeine
+- [x] Crear `ProductRuleSyncService.java` — servicio que consume eventos RabbitMQ
+  - [x] Método `handleProductRuleCreated(ProductRuleEvent)` — insertar en tabla local
+  - [x] Método `handleProductRuleUpdated(ProductRuleEvent)` — actualizar en tabla local
+  - [x] Método `handleProductRuleDeleted(ProductRuleEvent)` — marcar como inactiva
+  - [x] Método `invalidate(productType)` — invalidar caché Caffeine
+- [x] Crear `ProductRuleEvent.java` — DTO para eventos RabbitMQ
 
 #### Infrastructure Layer (Engine)
-- [ ] Crear `ProductRuleEventListener.java` — escucha eventos RabbitMQ vía `@RabbitListener`
-  - [ ] Vinculado a queue `engine-service.product-rules`
-  - [ ] Llama a `ProductRuleSyncService` para sincronizar BD local
-- [ ] Crear `ProductRuleCache.java` config — caché Caffeine para reglas
-  - [ ] Keys: `productType` (STRING)
-  - [ ] Values: List<ProductRuleEntity>
-  - [ ] TTL: 10 minutos
-- [ ] Crear `ProductRuleStartupLoader.java` — @Component con @PostConstruct
-  - [ ] Lee todas las reglas ACTIVAS de tabla local al iniciar
-  - [ ] Carga en caché Caffeine (cold start recovery)
-  - [ ] Log: "Loaded N product rules into cache at startup"
-- [ ] Crear `ProductRuleRepositoryImpl.java` — implementación JPA
+- [x] Crear `ProductRuleEventListener.java` — escucha eventos RabbitMQ vía `@RabbitListener`
+  - [x] Vinculado a queue `engine-service.product-rules` (configurable)
+  - [x] Llama a `ProductRuleSyncService` para sincronizar BD local
+- [x] Crear `ProductRuleCache.java` — caché Caffeine para reglas
+  - [x] Keys: `productType` (STRING)
+  - [x] Values: List<ProductRuleEntity>
+  - [x] TTL: 10 minutos
+  - [x] Métodos: get(), put(), invalidate(), invalidateAll(), loadAll(), getStats()
+- [x] Crear `ProductRuleStartupLoader.java` — @Component con @PostConstruct
+  - [x] Lee todas las reglas ACTIVAS de tabla local al iniciar
+  - [x] Carga en caché Caffeine (cold start recovery)
+  - [x] Log: "event=product_rules_startup_completed totalRules=N productTypes=M durationMs=X"
 
 #### Tests (Engine)
 - [ ] `ProductRuleSyncServiceTest.test_handleProductRuleCreated_insertsInLocalTable`
