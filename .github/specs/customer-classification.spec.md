@@ -257,74 +257,6 @@ VALUES
 
 
 
-#### POST /api/v1/admin/classification/tiers (ADMIN ONLY)
-- **Descripción**: Crea un nuevo tier (uso limitado; los tiers base Bronce, Plata, Oro, Platino son seeders)
-- **Auth requerida**: sí (JWT de Administrador en service-admin)
-- **Request Body**:
-  ```json
-  {
-    "name": "Platino",
-    "level": 4
-  }
-  ```
-- **Response 201**: Tier creado
-  ```json
-  {
-    "tier_uid": "uuid",
-    "name": "Platino",
-    "level": 4,
-    "is_active": true,
-    "created_at": "2026-03-26T14:30:00Z",
-    "updated_at": "2026-03-26T14:30:00Z"
-  }
-  ```
-- **Response 409**: Tier con ese nombre ya existe
-
-#### POST /api/v1/admin/classification/rules (ADMIN ONLY)
-- **Descripción**: Define reglas de clasificación asociadas a tiers
-- **Auth requerida**: sí (JWT de Administrador)
-- **Request Body**:
-  ```json
-  {
-    "customer_tier_uid": "00000000-0000-0000-0000-000000000002",
-    "min_total_spent": "1000.00",
-    "max_total_spent": "5000.00",
-    "min_order_count": 5,
-    "max_order_count": 10,
-    "priority": 2
-  }
-  ```
-- **Response 201**: Regla creada
-  ```json
-  {
-    "rule_uid": "uuid",
-    "customer_tier_uid": "00000000-0000-0000-0000-000000000002",
-    "min_total_spent": "1000.00",
-    "max_total_spent": "5000.00",
-    "min_order_count": 5,
-    "max_order_count": 10,
-    "priority": 2,
-    "is_active": true,
-    "created_at": "2026-03-26T14:30:00Z",
-    "updated_at": "2026-03-26T14:30:00Z"
-  }
-  ```
-- **Response 400**: Prioridad duplicada para el mismo tier o rango inválido
-- **Response 409**: Regla conflictiva
-
-#### PUT /api/v1/admin/classification/rules/{rule_uid} (ADMIN ONLY)
-- **Descripción**: Actualiza una regla de clasificación
-- **Auth requerida**: sí (JWT de Administrador)
-- **Request Body**: Campos opcionales a actualizar
-- **Response 200**: Regla actualizada
-- **Response 404**: Regla no encontrada
-- **Observer Effect**: Al actualizar una regla, se publica evento `CustomerClassificationMatrixUpdated` en RabbitMQ para invalidar cachés del Engine
-
-#### GET /api/v1/admin/classification/rules
-- **Descripción**: Lista todas las reglas de clasificación
-- **Auth requerida**: sí (JWT)
-- **Response 200**: Array de reglas activas
-
 ### Eventos RabbitMQ
 
 #### `CustomerClassificationMatrixUpdated` (Publisher: service-admin, Consumer: service-engine)
@@ -350,7 +282,7 @@ VALUES
 **Consumer Handler (service-engine):**
 - Recibe evento
 - Invalida `classificationMatrixCache` en Caffeine
-- En la siguiente solicitud de `/classification/calculate`, recarga desde DB
+- En la siguiente solicitud de `/calculate`, recarga desde DB
 
 ### Arquitectura y Dependencias
 
@@ -391,14 +323,14 @@ VALUES
 ├─────────────────────────────────┤         ├─────────────────────────────────┤
 │  DB Maestra:                    │         │  DB Réplica:                    │
 │  - customer_tiers               │         │  - customer_tiers_replica       │
-│  - classification_rules         │         │  - classification_rules_replica │
+│  - classification_rules         │         │  - classification_rules_replica  │
 ├─────────────────────────────────┤         ├─────────────────────────────────┤
 │  Endpoints (CRUD):              │         │  Endpoints Públicos:            │
-│  POST   /admin/tiers            │         │  (Ninguno en v1.0 — interno)    │
-│  POST   /admin/rules            │         │  Escucha RabbitMQ               │
-│  PUT    /admin/rules/{uid}      │         │  Carga BD réplica en startup    │
-│  DELETE /admin/rules/{uid}      │         │  Caché:                         │
-│  GET    /admin/rules            │         │  - Caffeine (TTL: 10 min)       │
+│  POST   /admin/tiers            │         │  (Ninguno — interno)            │
+│  POST   /admin/classification-rules            │         │  POST /calculate (con métricas) │
+│  PUT    /admin/classification-rules/{uid}      │         │  clasificación interna         │
+│  DELETE /admin/classification-rules/{uid}      │         │  Escucha RabbitMQ              │
+│  GET    /admin/classification-rules            │         │  Carga BD réplica en startup   │
 ├─────────────────────────────────┤         ├─────────────────────────────────┤
 │  Events Published:              │  RMQ    │  Events Consumed:               │
 │  - TierCreated                  │────────→│  - TierCreated                  │
@@ -408,16 +340,16 @@ VALUES
 └─────────────────────────────────┘         └─────────────────────────────────┘
         ↑ Humanos (JWT)                              ↑ E-commerce (API Key)
         |                                            |
-   Admin UI                                   POST /classify payload
-    (Futura HU)                           (total_spent, order_count, ...)
+   Admin UI                                   POST /calculate payload
+    (Futura HU)                          (total_spent, order_count, ...)
 ```
 
 **Flujo de Sincronización:**
-1. **Admin crea/actualiza regla** → POST `/admin/rules` + JWT
+1. **Admin crea/actualiza regla** → POST `/admin/classification-rules` + JWT
 2. **Admin DB actualizada** → Publica evento `RuleUpdatedEvent` en RabbitMQ
 3. **Engine consume evento** (listener en background)
 4. **Engine invalida Caffeine** → Carga nueva matriz desde su DB réplica
-5. **Engine responde `/classify`** con matriz actualizada
+5. **E-commerce llama /calculate** → Engine clasifica cliente internamente
 
 **Si Engine se reinicia (Cold Start):**
 - Lee su tabla réplica del PostgreSQL local

@@ -57,11 +57,18 @@ public class ClassificationRuleEventConsumer {
     public void handleRuleUpdated(ClassificationRuleUpdatedEvent event) {
         log.info("Received ClassificationRuleUpdatedEvent: ruleUid={}", event.ruleUid());
 
-        return;
-        /* Return is valid because the listener is idempotent.
-           If the same event arrives multiple times (retry), we don't update —
-           just invalidate cache. The next /classify call will reload from DB.
-        */
+        ruleReplicaRepo.findById(event.ruleUid()).ifPresent(rule -> {
+            rule.setMetricType(event.metricType());
+            rule.setMinValue(event.minValue());
+            rule.setMaxValue(event.maxValue());
+            rule.setPriority(event.priority());
+            rule.setIsActive(event.isActive());
+            ruleReplicaRepo.save(rule);
+            log.info("Rule updated in replica: uid={}", event.ruleUid());
+        });
+
+        cacheService.invalidate();
+        log.info("Cache invalidated after rule update");
     }
 
     @RabbitListener(queues = "${rabbitmq.queue.classification:classification.matrix.queue}")
