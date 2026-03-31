@@ -1,5 +1,5 @@
 ---
-id: SPEC-005
+id: SPEC-002
 status: APPROVED
 feature: superadmin-access-control
 created: 2026-03-29
