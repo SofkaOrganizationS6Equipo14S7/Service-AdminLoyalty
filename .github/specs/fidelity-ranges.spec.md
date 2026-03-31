@@ -827,17 +827,17 @@ COMMENT ON TABLE fidelity_ranges IS 'Replica: Sincronizada desde Admin Service v
 
 ### Backend (Admin Service)
 
-- [ ] Crear entidad `FidelityRangeEntity` en `domain/entities`
-- [ ] Crear DTOs: `CreateFidelityRangeRequest`, `UpdateFidelityRangeRequest`, `FidelityRangeResponse`
-- [ ] Crear `FidelityRangeRepository` (JpaRepository)
-- [ ] Crear validadores:
-  - [ ] `NoOverlapValidator` — verifica no superposición (ESTRICTA)
-  - [ ] `ProgressionValidator` — verifica progresión ascendente de min_points
-- [ ] Crear `FidelityRangeService` con lógica de validación y CRUD
-- [ ] Crear `FidelityRangeController` con endpoints REST
-- [ ] Crear domain events: `FidelityRangeCreatedEvent`, `FidelityRangeUpdatedEvent`, `FidelityRangeDeletedEvent`
-- [ ] Crear `FidelityRangeEventPublisher` (RabbitMQ producer)
-- [ ] Crear migraciones BD (`V13_`, `V14_`)
+- [x] Crear entidad `FidelityRangeEntity` en `domain/entities`
+- [x] Crear DTOs: `CreateFidelityRangeRequest`, `UpdateFidelityRangeRequest`, `FidelityRangeResponse`
+- [x] Crear `FidelityRangeRepository` (JpaRepository)
+- [x] Crear validadores:
+  - [x] `NoOverlapValidator` — verifica no superposición (ESTRICTA)
+  - [x] `ProgressionValidator` — verifica progresión ascendente de min_points
+- [x] Crear `FidelityRangeService` con lógica de validación y CRUD
+- [x] Crear `FidelityRangeController` con endpoints REST
+- [x] Crear domain events: `FidelityRangeCreatedEvent`, `FidelityRangeUpdatedEvent`, `FidelityRangeDeletedEvent`
+- [x] Crear `FidelityRangeEventPublisher` (RabbitMQ producer)
+- [x] Crear migraciones BD (`V14_`, `V15_`)
 - [ ] Integrar autenticación/autorización (JWT + permisos `fidelity:read`, `fidelity:write`)
 - [ ] Test unitarios de validadores (overlap, progression)
 - [ ] Test unitarios de service
