@@ -1,29 +1,41 @@
 package com.loyalty.service_admin.domain.entity;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
-/**
- * Represent a customer loyalty tier (Bronze, Silver, Gold, Platinum).
- * This is the source of truth for tier definitions.
- */
 @Entity
-@Table(name = "customer_tiers", indexes = {
-    @Index(name = "idx_customer_tiers_active_level", columnList = "is_active, level"),
-    @Index(name = "idx_customer_tiers_name", columnList = "name")
-})
+@Table(name = "customer_tiers")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class CustomerTierEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID uid;
+    private UUID id;
 
-    @Column(nullable = false, unique = true, length = 50)
+    @Column(name = "ecommerce_id", nullable = false)
+    private UUID ecommerceId;
+
+    @Column(name = "discount_type_id", nullable = false)
+    private UUID discountTypeId;
+
+    @Column(nullable = false, length = 100)
     private String name;
 
-    @Column(nullable = false)
-    private Integer level;
+    @Column(name = "discount_percentage", nullable = false, precision = 5, scale = 2)
+    private BigDecimal discountPercentage;
+
+    @Column(name = "hierarchy_level", nullable = false)
+    private Integer hierarchyLevel;
 
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
@@ -34,79 +46,14 @@ public class CustomerTierEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    // Constructors
-    public CustomerTierEntity() {
-    }
-
-    public CustomerTierEntity(String name, Integer level) {
-        this.name = name;
-        this.level = level;
-        this.isActive = true;
-        this.createdAt = Instant.now();
-        this.updatedAt = Instant.now();
-    }
-
-    // Getters and Setters
-    public UUID getUid() {
-        return uid;
-    }
-
-    public void setUid(UUID uid) {
-        this.uid = uid;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public Integer getLevel() {
-        return level;
-    }
-
-    public void setLevel(Integer level) {
-        this.level = level;
-    }
-
-    public Boolean getIsActive() {
-        return isActive;
-    }
-
-    public void setIsActive(Boolean isActive) {
-        this.isActive = isActive;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(Instant createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public Instant getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(Instant updatedAt) {
-        this.updatedAt = updatedAt;
-    }
-
     @PrePersist
     protected void onCreate() {
-        if (this.createdAt == null) {
-            this.createdAt = Instant.now();
-        }
-        if (this.updatedAt == null) {
-            this.updatedAt = Instant.now();
-        }
+        createdAt = Instant.now();
+        updatedAt = Instant.now();
     }
 
     @PreUpdate
     protected void onUpdate() {
-        this.updatedAt = Instant.now();
+        updatedAt = Instant.now();
     }
 }

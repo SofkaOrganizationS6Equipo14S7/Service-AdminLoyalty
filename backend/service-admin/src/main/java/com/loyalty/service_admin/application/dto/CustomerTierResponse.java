@@ -1,16 +1,16 @@
 package com.loyalty.service_admin.application.dto;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
-/**
- * DTO for customer tier response.
- * Returned in GET/POST/PUT operations.
- */
 public record CustomerTierResponse(
-    UUID uid,
+    UUID id,
+    UUID ecommerceId,
+    UUID discountTypeId,
     String name,
-    Integer level,
+    BigDecimal discountPercentage,
+    Integer hierarchyLevel,
     boolean isActive,
     Instant createdAt,
     Instant updatedAt
