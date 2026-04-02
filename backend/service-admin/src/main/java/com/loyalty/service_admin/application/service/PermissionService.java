@@ -42,7 +42,7 @@ public class PermissionService {
     @Cacheable(value = "rolePermissions", key = "#role")
     public Set<String> getPermissionsForRole(String role) {
         log.debug("Obteniendo permisos para rol: {}", role);
-        return rolePermissionRepository.findPermissionCodesByRole(role);
+        return rolePermissionRepository.findPermissionCodesByRoleName(role);
     }
     
     /**

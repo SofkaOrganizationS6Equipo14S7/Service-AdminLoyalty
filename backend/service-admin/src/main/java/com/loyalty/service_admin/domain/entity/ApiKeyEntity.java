@@ -23,9 +23,6 @@ public class ApiKeyEntity {
     @Column(name = "ecommerce_id", nullable = false)
     private UUID ecommerceId;
     
-    @Column(name = "key_prefix", nullable = false, length = 10)
-    private String keyPrefix;
-    
     @Column(name = "hashed_key", unique = true, nullable = false, length = 255)
     private String hashedKey;
     

@@ -1,7 +1,7 @@
 package com.loyalty.service_admin.infrastructure.rabbitmq;
 
-import com.loyalty.service_admin.domain.entity.DiscountConfigEntity;
-import com.loyalty.service_admin.domain.entity.DiscountLimitPriorityEntity;
+import com.loyalty.service_admin.domain.entity.DiscountSettingsEntity;
+import com.loyalty.service_admin.domain.entity.DiscountPriorityEntity;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Component;
@@ -30,11 +30,11 @@ public class DiscountConfigEventPublisher {
     /**
      * Publica evento cuando se actualiza la configuración de límite.
      */
-    public void publishDiscountConfigUpdated(DiscountConfigEntity config) {
+    public void publishDiscountConfigUpdated(DiscountSettingsEntity config) {
         DiscountConfigUpdatedEvent event = new DiscountConfigUpdatedEvent(
-            config.getUid().toString(),
+            config.getId().toString(),
             config.getEcommerceId().toString(),
-            config.getMaxDiscountLimit().toPlainString(),
+            config.getMaxDiscountCap().toPlainString(),
             config.getCurrencyCode(),
             config.getIsActive(),
             config.getUpdatedAt().toString()
@@ -42,7 +42,7 @@ public class DiscountConfigEventPublisher {
 
         try {
             rabbitTemplate.convertAndSend(EXCHANGE, ROUTING_KEY_CONFIG, event);
-            log.info("DiscountConfigUpdated event published for config: {}", config.getUid());
+            log.info("DiscountConfigUpdated event published for config: {}", config.getId());
         } catch (Exception e) {
             log.warn("Failed to publish DiscountConfigUpdated event: {}", e.getMessage());
             // No lanzar excepción, permitir fallback a lectura de DB
@@ -52,7 +52,7 @@ public class DiscountConfigEventPublisher {
     /**
      * Publica evento cuando se actualizan las prioridades.
      */
-    public void publishDiscountPriorityUpdated(UUID configId, List<DiscountLimitPriorityEntity> priorities) {
+    public void publishDiscountPriorityUpdated(UUID configId, List<DiscountPriorityEntity> priorities) {
         DiscountPriorityUpdatedEvent event = new DiscountPriorityUpdatedEvent(
             configId.toString(),
             priorities.size(),

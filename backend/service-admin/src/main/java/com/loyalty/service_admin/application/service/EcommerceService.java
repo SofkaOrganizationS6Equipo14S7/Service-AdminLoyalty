@@ -20,23 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
-/**
- * Servicio de gestión de ecommerces (multi-tenant).
- * 
- * SPEC-001: Registro y Gestión de Ecommerces
- * 
- * Responsabilidades:
- * - CRUD de ecommerces con validaciones de negocio
- * - Validación de slug único
- * - Cambio de estado (ACTIVE ↔ INACTIVE)
- * - Publicación de eventos RabbitMQ para cascada de desactivación
- * - Conversión entre entidades y DTOs
- * 
- * Implementa:
- * - HU-13.1: Registro exitoso de un nuevo ecommerce
- * - HU-13.2: Listar y obtener ecommerces
- * - HU-13.3: Actualizar estado de un ecommerce
- */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -46,18 +29,6 @@ public class EcommerceService {
     private final EcommerceEventPublisher eventPublisher;
     
     /**
-     * Crea un nuevo ecommerce.
-     * 
-     * CRITERIO-1.1: Registro exitoso con datos válidos
-     * CRITERIO-1.2: Rechazo por slug duplicado
-     * CRITERIO-1.3: Rechazo por datos incompletos
-     * 
-     * Validaciones:
-     * - Slug debe ser único
-     * - Name es obligatorio
-     * - UUID se genera automáticamente
-     * - Status inicialmente ACTIVE
-     * 
      * @param request EcommerceCreateRequest (name, slug)
      * @return EcommerceResponse con ecommerce creado
      * @throws ConflictException si slug ya existe
@@ -67,33 +38,26 @@ public class EcommerceService {
     public EcommerceResponse createEcommerce(EcommerceCreateRequest request) {
         log.info("Creando ecommerce: name={}, slug={}", request.name(), request.slug());
         
-        // Validación: Slug duplicado
         if (ecommerceRepository.existsBySlug(request.slug())) {
             log.warn("Intento de crear ecommerce con slug duplicado: {}", request.slug());
             throw new ConflictException(
                 String.format("El slug '%s' ya está en uso. Elige uno diferente.", request.slug())
             );
         }
-        
-        // Crear entidad (UUID y status se generan en @PrePersist)
+
         EcommerceEntity entity = EcommerceEntity.builder()
                 .name(request.name())
                 .slug(request.slug())
-                // Status y timestamps se generan automáticamente en @PrePersist
                 .build();
         
         EcommerceEntity saved = ecommerceRepository.save(entity);
         log.info("Ecommerce creado exitosamente: uid={}, slug={}, status={}", 
-                saved.getUid(), saved.getSlug(), saved.getStatus());
+                saved.getId(), saved.getSlug(), saved.getStatus());
         
         return toResponse(saved);
     }
     
     /**
-     * Lista ecommerces con paginación y filtrado por status.
-     * 
-     * CRITERIO-2.1: Listar todos los ecommerces
-     * 
      * @param status filtro opcional (ACTIVE/INACTIVE); null = todos
      * @param page número de página (0-indexed)
      * @param size tamaño de la página
@@ -109,7 +73,6 @@ public class EcommerceService {
         if (status != null && !status.isBlank()) {
             try {
                 EcommerceStatus statusEnum = EcommerceStatus.valueOf(status.toUpperCase());
-                // Usar Specification para filtrado dinámico
                 entities = ecommerceRepository.findAll(
                     (root, query, cb) -> cb.equal(root.get("status"), statusEnum),
                     pageable
@@ -120,15 +83,11 @@ public class EcommerceService {
         } else {
             entities = ecommerceRepository.findAll(pageable);
         }
-        
+
         return entities.map(this::toResponse);
     }
     
     /**
-     * Obtiene un ecommerce por UUID.
-     * 
-     * CRITERIO-2.2: Obtener ecommerce por uid
-     * 
      * @param uid identificador único del ecommerce
      * @return EcommerceResponse
      * @throws EcommerceNotFoundException si no existe
@@ -149,18 +108,6 @@ public class EcommerceService {
     }
     
     /**
-     * Actualiza el estado de un ecommerce (ACTIVE ↔ INACTIVE).
-     * 
-     * CRITERIO-3.1: Desactivación exitosa
-     * CRITERIO-3.2: Reactivación
-     * CRITERIO-3.3: Status inválido
-     * CRITERIO-3.4: No se pueden actualizar otros campos
-     * 
-     * Cascada en desactivación:
-     * - Emitir evento EcommerceStatusChangedEvent a RabbitMQ (Fanout Exchange)
-     * - service-admin invalida JWT de usuarios del ecommerce
-     * - service-engine invalida API Keys en caché Caffeine
-     * 
      * @param uid identificador único del ecommerce
      * @param request EcommerceUpdateStatusRequest (status)
      * @return EcommerceResponse actualizado
@@ -179,36 +126,30 @@ public class EcommerceService {
                     );
                 });
         
-        // Parsear y validar nuevo status
         EcommerceStatus newStatus;
+
         try {
-            newStatus = EcommerceStatus.valueOf(request.status().toUpperCase());
+            newStatus = EcommerceStatus.valueOf(request.status());
         } catch (IllegalArgumentException e) {
-            log.warn("Status inválido: {}", request.status());
-            throw new BadRequestException(
-                "El status debe ser 'ACTIVE' o 'INACTIVE'."
-            );
+            log.warn("Status inválido para ecommerce: {}", request.status());
+            throw new BadRequestException("Status inválido: " + request.status());
         }
         
         EcommerceStatus oldStatus = entity.getStatus();
         
-        // Si no hay cambio de status, retornar sin hacer nada
         if (oldStatus == newStatus) {
             log.info("Status no cambió: uid={}, status={}", uid, oldStatus);
             return toResponse(entity);
         }
         
-        // Actualizar status
         entity.setStatus(newStatus);
         EcommerceEntity updated = ecommerceRepository.save(entity);
         
-        // Publicar evento para cascada (RabbitMQ Fanout Exchange)
         try {
-            eventPublisher.publishEcommerceStatusChanged(entity.getUid(), newStatus);
+            eventPublisher.publishEcommerceStatusChanged(entity.getId(), newStatus);
             log.info("Evento de cambio de status publicado: uid={}, newStatus={}", uid, newStatus);
         } catch (Exception e) {
             log.error("Error al publicar evento RabbitMQ: uid={}, newStatus={}", uid, newStatus, e);
-            // Reviertir cambio si el publish falla (transacción se revierte automáticamente)
             throw new RuntimeException("No se pudo publicar evento de cambio de status", e);
         }
         
@@ -219,8 +160,6 @@ public class EcommerceService {
     }
     
     /**
-     * Valida que un ecommerce existe (para uso de otros servicios como UserService).
-     * 
      * @param ecommerceId UUID del ecommerce
      * @throws EcommerceNotFoundException si no existe o es null
      */
@@ -240,14 +179,12 @@ public class EcommerceService {
     }
     
     /**
-     * Convierte una entidad EcommerceEntity a DTO EcommerceResponse.
-     * 
      * @param entity entidad JPA
      * @return DTO para respuesta HTTP
      */
     private EcommerceResponse toResponse(EcommerceEntity entity) {
         return new EcommerceResponse(
-                entity.getUid().toString(),
+                entity.getId().toString(),
                 entity.getName(),
                 entity.getSlug(),
                 entity.getStatus().name(),

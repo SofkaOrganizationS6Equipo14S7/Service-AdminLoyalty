@@ -7,7 +7,9 @@ import com.loyalty.service_admin.application.dto.UpdateProfileRequest;
 import com.loyalty.service_admin.application.dto.ChangePasswordRequest;
 import com.loyalty.service_admin.application.dto.LoginResponse;
 import com.loyalty.service_admin.domain.entity.UserEntity;
+import com.loyalty.service_admin.domain.entity.RoleEntity;
 import com.loyalty.service_admin.domain.repository.UserRepository;
+import com.loyalty.service_admin.domain.repository.RoleRepository;
 import com.loyalty.service_admin.infrastructure.exception.AuthorizationException;
 import com.loyalty.service_admin.infrastructure.exception.BadRequestException;
 import com.loyalty.service_admin.infrastructure.exception.ConflictException;
@@ -25,59 +27,20 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-/**
- * Servicio de gestión de usuarios por ecommerce.
- * 
- * Responsabilidades:
- * - CRUD de usuarios con validación de ecommerce
- * - Validación de unicidad global de username (SPEC-002 RN-03)
- * - Filtrado automático por ecommerce_id del usuario actual (multi-tenant)
- * - Conversión entre entidades y DTOs
- * - Propagación de ecommerce_id desde JWT al contexto (via SecurityContextHelper)
- * 
- * Implementa SPEC-002: Gestión de Usuarios por Ecommerce
- * - HU-01: Crear usuario vinculado a ecommerce
- * - HU-02: Validar acceso según ecommerce del usuario
- * - HU-03: Listar usuarios por ecommerce
- * - HU-04: Actualizar usuario (cambio de ecommerce)
- * - HU-05: Eliminar usuario
- */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class UserService {
     
     private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
     private final EcommerceService ecommerceService;
     private final BCryptPasswordEncoder passwordEncoder;
     private final SecurityContextHelper securityContextHelper;
     private final JwtProvider jwtProvider;
     private final AuditService auditService;
     private final PasswordValidator passwordValidator;
-    
-    /**
-     * Crea un nuevo usuario con validaciones de rol y ecommerce_id.
-     * 
-     * SPEC-005 HU-02.1: Crear STORE_ADMIN para ecommerce
-     * SPEC-005 RN-05: Gestión de usuarios por contexto de autorización
-     * SPEC-005 RN-01: SUPER_ADMIN sin vinculación a ecommerce
-     * 
-     * Validaciones:
-     * - SUPER_ADMIN o STORE_ADMIN pueden crear usuarios (CRÍTERION-2.1.3)
-     * - SUPER_ADMIN: puede crear cualquier rol en cualquier ecommerce
-     *   - Si role == SUPER_ADMIN: ecommerce_id DEBE ser NULL (RN-01)
-     *   - Si role != SUPER_ADMIN: ecommerce_id DEBE ser obligatorio
-     * - STORE_ADMIN: puede crear STORE_USER o STORE_ADMIN SOLO en su ecommerce (CRITERIO-2.1.5)
-     * - STORE_USER: NO puede crear usuarios (403 Forbidden) (CRITERIO-2.1.3)
-     * - Username es único globalmente (CRITERIO-2.1.2)
-     * - Email es único globalmente
-     * 
-     * @param request datos del nuevo usuario
-     * @return UserResponse con datos del usuario creado
-     * @throws AuthorizationException si no es SUPER_ADMIN/STORE_ADMIN o intenta crear en otro ecommerce
-     * @throws BadRequestException si validación fallida (role no permitido, ecommerce_id requerido, ecommerce no existe)
-     * @throws ConflictException si username/email duplicado globalmente
-     */
+
     @Transactional
     public UserResponse createUser(UserCreateRequest request) {
         String currentRole = securityContextHelper.getCurrentUserRole();
@@ -104,7 +67,6 @@ public class UserService {
         }
         
         // ============ VALIDACIÓN DE ECOMMERCE_ID SEGÚN ROLE ============
-        // RN-01: SUPER_ADMIN debe tener ecommerce_id = NULL
         if ("SUPER_ADMIN".equals(request.role())) {
             if (request.ecommerceId() != null) {
                 log.warn("Intento de crear SUPER_ADMIN con ecommerce_id: {}", request.ecommerceId());
@@ -113,7 +75,6 @@ public class UserService {
                 );
             }
         } else {
-            // STORE_ADMIN y STORE_USER DEBEN tener ecommerce_id
             if (request.ecommerceId() == null) {
                 log.warn("Intento de crear usuario {} sin ecommerce_id", request.role());
                 throw new BadRequestException(
@@ -121,7 +82,6 @@ public class UserService {
                 );
             }
             
-            // Validar que ecommerce existe
             ecommerceService.validateEcommerceExists(request.ecommerceId());
         }
         
@@ -157,19 +117,24 @@ public class UserService {
             throw new BadRequestException(errorMsg);
         }
         
-        // ============ CREAR Y GUARDAR USUARIO ============
+        RoleEntity roleEntity = roleRepository.findByName(request.role())
+                .orElseThrow(() -> new BadRequestException(
+                    String.format("Rol '%s' no existe en el sistema", request.role())
+                ));
+        
         UserEntity user = UserEntity.builder()
                 .username(request.username())
                 .email(request.email())
-                .password(passwordEncoder.encode(request.password()))
-                .role(request.role())
+                .passwordHash(passwordEncoder.encode(request.password()))
+                .roleId(roleEntity.getId())
+                .role(roleEntity)
                 .ecommerceId(request.ecommerceId())
-                .active(true)
+                .isActive(true)
                 .build();
         
         UserEntity saved = userRepository.save(user);
         log.info("Usuario creado exitosamente: uid={}, username={}, role={}, ecommerce={}", 
-                saved.getUid(), saved.getUsername(), saved.getRole(), saved.getEcommerceId());
+                saved.getId(), saved.getUsername(), saved.getRoleId(), saved.getEcommerceId());
         
         return toResponse(saved);
     }
@@ -229,7 +194,7 @@ public class UserService {
      */
     @Transactional(readOnly = true)
     public UserResponse getUserByUid(UUID uid) {
-        UserEntity user = userRepository.findByUid(uid)
+        UserEntity user = userRepository.findById(uid)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
         
         // Validar permiso (SUPER_ADMIN ve todos, USER solo su ecommerce)
@@ -278,7 +243,7 @@ public class UserService {
         UUID currentUserUid = securityContextHelper.getCurrentUserUid();
         UUID currentUserEcommerceId = securityContextHelper.getCurrentUserEcommerceId();
         
-        UserEntity user = userRepository.findByUid(uid)
+        UserEntity user = userRepository.findById(uid)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
         
         // ============ AUTORIZACIÓN MULTI-CONTEXTO ============
@@ -335,7 +300,7 @@ public class UserService {
         
         // Password (opcional)
         if (request.password() != null && !request.password().isEmpty()) {
-            user.setPassword(passwordEncoder.encode(request.password()));
+            user.setPasswordHash(passwordEncoder.encode(request.password()));
         }
         
         // Ecommerce ID (ONLY SUPER_ADMIN) (opcional)
@@ -351,12 +316,12 @@ public class UserService {
         
         // Active flag (ONLY SUPER_ADMIN) (opcional)
         if (request.active() != null && currentRole.equals("SUPER_ADMIN")) {
-            user.setActive(request.active());
+            user.setIsActive(request.active());
         }
         
         UserEntity updated = userRepository.save(user);
         log.info("Usuario actualizado: uid={}, username={}, ecommerce={}, active={}", 
-                updated.getUid(), updated.getUsername(), updated.getEcommerceId(), updated.getActive());
+                updated.getId(), updated.getUsername(), updated.getEcommerceId(), updated.getIsActive());
         
         return toResponse(updated);
     }
@@ -384,7 +349,7 @@ public class UserService {
         String currentRole = securityContextHelper.getCurrentUserRole();
         UUID currentUserUid = securityContextHelper.getCurrentUserUid();
         
-        UserEntity user = userRepository.findByUid(uid)
+        UserEntity user = userRepository.findById(uid)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
         
         // ============ VALIDACIÓN DE AUTO-ELIMINACIÓN ============
@@ -407,7 +372,7 @@ public class UserService {
         
         userRepository.delete(user);
         log.info("Usuario eliminado: uid={}, username={}, ecommerce={}, actor={}", 
-                user.getUid(), user.getUsername(), user.getEcommerceId(), currentUserUid);
+                user.getId(), user.getUsername(), user.getEcommerceId(), currentUserUid);
     }
     
     /**
@@ -438,7 +403,7 @@ public class UserService {
         UUID currentUserUid = securityContextHelper.getCurrentUserUid();
         
         // Obtener usuario actual desde contexto
-        UserEntity user = userRepository.findByUid(currentUserUid)
+        UserEntity user = userRepository.findById(currentUserUid)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
         
         // ============ ACTUALIZAR NOMBRE ============
@@ -461,10 +426,10 @@ public class UserService {
         
         UserEntity updated = userRepository.save(user);
         log.info("Perfil actualizado para usuario: uid={}, email={}, changed_by={}", 
-                updated.getUid(), updated.getEmail(), currentUserUid);
+                updated.getId(), updated.getEmail(), currentUserUid);
         
         // Registrar en tabla de auditoría (SPEC-004 RN-08)
-        auditService.auditProfileUpdate(updated.getUid(), 
+        auditService.auditProfileUpdate(updated.getId(), 
                 String.format("Perfil actualizado: nombre=%s, email=%s", request.name(), request.email()));
         
         return toResponse(updated);
@@ -501,11 +466,11 @@ public class UserService {
         UUID currentUserUid = securityContextHelper.getCurrentUserUid();
         
         // Obtener usuario actual desde contexto
-        UserEntity user = userRepository.findByUid(currentUserUid)
+        UserEntity user = userRepository.findById(currentUserUid)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
         
         // ============ VALIDAR CONTRASEÑA ACTUAL (CRITERIO-3.4) ============
-        if (!passwordEncoder.matches(request.currentPassword(), user.getPassword())) {
+        if (!passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
             log.warn("Intento de cambio de contraseña fallido: contraseña actual incorrecta. Usuario: {}", currentUserUid);
             throw new UnauthorizedException("Contraseña actual incorrecta"); // CRITERIO-3.4
         }
@@ -524,28 +489,28 @@ public class UserService {
         }
         
         // ============ VALIDAR QUE NO SEA LA MISMA CONTRASEÑA ============
-        if (passwordEncoder.matches(request.newPassword(), user.getPassword())) {
+        if (passwordEncoder.matches(request.newPassword(), user.getPasswordHash())) {
             log.warn("Intento de reutilizar misma contraseña. Usuario: {}", currentUserUid);
             throw new ConflictException("La nueva contraseña no puede ser igual a la actual");
         }
         
         // ============ ACTUALIZAR CONTRASEÑA ============
-        user.setPassword(passwordEncoder.encode(request.newPassword()));
+        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
         UserEntity updated = userRepository.save(user);
         
         log.info("Contraseña cambiada exitosamente para usuario: uid={}, changed_by={}", 
-                updated.getUid(), currentUserUid);
+                updated.getId(), currentUserUid);
         
         // Registrar en tabla de auditoría (SPEC-004 RN-08)
-        auditService.auditPasswordChange(updated.getUid(), null);
+        auditService.auditPasswordChange(updated.getId(), null);
         
         // ============ GENERAR NUEVO JWT ============
         // Generar un nuevo token JWT automáticamente después del cambio (CRITERIO-3.2)
         String newToken = jwtProvider.generateTokenFull(
-                updated.getUid(),
+                updated.getId(),
                 updated.getUsername(),
                 updated.getId(),
-                updated.getRole(),
+                updated.getRole().getName(),
                 updated.getEcommerceId()
         );
         
@@ -553,7 +518,7 @@ public class UserService {
                 newToken,
                 "Bearer",
                 updated.getUsername(),
-                updated.getRole()
+                updated.getRole().getName()
         );
         
         return response;
@@ -566,12 +531,12 @@ public class UserService {
      */
     private UserResponse toResponse(UserEntity user) {
         return new UserResponse(
-                user.getUid(),
+                user.getId(),
                 user.getUsername(),
-                user.getRole(),
+                user.getRole().getName(),
                 user.getEmail(),
                 user.getEcommerceId(),
-                user.getActive(),
+                user.getIsActive(),
                 user.getCreatedAt(),
                 user.getUpdatedAt()
         );

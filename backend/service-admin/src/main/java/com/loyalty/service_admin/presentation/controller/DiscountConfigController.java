@@ -66,7 +66,7 @@ public class DiscountConfigController {
     public ResponseEntity<DiscountLimitPriorityResponse> savePriorities(
             @RequestBody DiscountLimitPriorityRequest request
     ) {
-        log.info("Saving priorities for config: {}", request.discountConfigId());
+        log.info("Saving priorities for config: {}", request.discountSettingsId());
         DiscountLimitPriorityResponse response = priorityService.savePriorities(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }

@@ -2,7 +2,7 @@ package com.loyalty.service_admin.application.validation;
 
 import com.loyalty.service_admin.application.dto.configuration.ConfigurationCreateRequest;
 import com.loyalty.service_admin.application.dto.configuration.ConfigurationPatchRequest;
-import com.loyalty.service_admin.domain.entity.DiscountConfigurationEntity;
+import com.loyalty.service_admin.domain.entity.DiscountSettingsEntity;
 import com.loyalty.service_admin.infrastructure.exception.BadRequestException;
 import org.springframework.stereotype.Component;
 
@@ -36,17 +36,17 @@ public class ConfigurationBusinessValidator {
         }
     }
 
-    public void validateEntityState(DiscountConfigurationEntity entity) {
-        if (entity.getCurrency() == null) {
+    public void validateEntityState(DiscountSettingsEntity entity) {
+        if (entity.getCurrencyCode() == null) {
             throw new BadRequestException("VALIDATION_ERROR: currency is required");
         }
-        validateCurrency(entity.getCurrency());
+        validateCurrency(entity.getCurrencyCode());
         if (entity.getCapValue() == null) {
             throw new BadRequestException("VALIDATION_ERROR: cap.value is required");
         }
         validateCapValue(entity.getCapValue().doubleValue());
         validatePriorityPairs(entity.getPriorities().stream()
-                .map(item -> new PriorityPair(item.getDiscountType(), item.getOrder()))
+                .map(item -> new PriorityPair(item.getDiscountTypeId().toString(), item.getPriorityLevel()))
                 .toList());
     }
 

@@ -8,7 +8,7 @@ import com.loyalty.service_admin.application.port.out.ConfigurationPersistencePo
 import com.loyalty.service_admin.application.port.out.CurrentUserPort;
 import com.loyalty.service_admin.application.service.ConfigurationService;
 import com.loyalty.service_admin.application.validation.ConfigurationBusinessValidator;
-import com.loyalty.service_admin.domain.entity.DiscountConfigurationEntity;
+import com.loyalty.service_admin.domain.entity.DiscountSettingsEntity;
 import com.loyalty.service_admin.domain.model.CapAppliesTo;
 import com.loyalty.service_admin.domain.model.CapType;
 import com.loyalty.service_admin.domain.model.RoundingRule;
@@ -81,7 +81,7 @@ class ConfigurationIntegrationTest {
         UUID ecommerceId = UUID.randomUUID();
         when(persistencePort.existsByEcommerceId(ecommerceId)).thenReturn(false);
         when(persistencePort.save(any())).thenAnswer(invocation -> {
-            DiscountConfigurationEntity entity = invocation.getArgument(0);
+            DiscountSettingsEntity entity = invocation.getArgument(0);
             entity.setId(UUID.randomUUID());
             entity.setVersion(1L);
             entity.setUpdatedAt(Instant.now());

@@ -22,9 +22,11 @@ public class RolePermissionEntity {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "role_id", nullable = false)
-    private UUID roleId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "role_id", nullable = false)
+    private RoleEntity role;
 
-    @Column(name = "permission_id", nullable = false)
-    private UUID permissionId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "permission_id", nullable = false)
+    private PermissionEntity permission;
 }

@@ -51,13 +51,13 @@ public class AuthService {
                 });
         
         // Validar que el usuario esté activo
-        if (!user.getActive()) {
+        if (!user.getIsActive()) {
             log.warn("Intento de login fallido: usuario {} está inactivo", request.username());
             throw new UnauthorizedException("Credenciales inválidas");
         }
         
         // Validar password usando BCrypt (evita timing attacks)
-        if (!BCrypt.checkpw(request.password(), user.getPassword())) {
+        if (!BCrypt.checkpw(request.password(), user.getPasswordHash())) {
             log.warn("Intento de login fallido: password incorrecto para usuario {}", request.username());
             throw new UnauthorizedException("Credenciales inválidas");
         }
@@ -66,13 +66,14 @@ public class AuthService {
         String token = jwtProvider.generateToken(
             user.getUsername(), 
             user.getId(), 
-            user.getRole(),
+            user.getRole().getName(),
             user.getEcommerceId()  // null si SUPER_ADMIN
         );
         
-        log.info("Login exitoso para usuario: {} con ecommerce_id: {}", user.getUsername(), user.getEcommerceId());
+        log.info("Login exitoso para usuario: {} con role: {} y ecommerce_id: {}", 
+                user.getUsername(), user.getRole().getName(), user.getEcommerceId());
         
-        return new LoginResponse(token, "Bearer", user.getUsername(), user.getRole());
+        return new LoginResponse(token, "Bearer", user.getUsername(), user.getRole().getName());
     }
     
     /**
@@ -104,7 +105,7 @@ public class AuthService {
                     });
             
             // Validar que usuario siga activo
-            if (!user.getActive()) {
+            if (!user.getIsActive()) {
                 log.warn("Usuario {} fue desactivado después de emitir token", username);
                 throw new UnauthorizedException("Usuario desactivado");
             }
@@ -117,10 +118,10 @@ public class AuthService {
             return new UserResponse(
                     uid,
                     user.getUsername(),
-                    user.getRole(),
+                    user.getRole().getName(),
                     null, // email no está disponible aquí
                     user.getEcommerceId(),
-                    user.getActive(),
+                    user.getIsActive(),
                     user.getCreatedAt(),
                     user.getUpdatedAt()
             );

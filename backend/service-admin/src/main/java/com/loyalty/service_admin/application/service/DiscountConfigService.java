@@ -2,7 +2,7 @@ package com.loyalty.service_admin.application.service;
 
 import com.loyalty.service_admin.application.dto.DiscountConfigCreateRequest;
 import com.loyalty.service_admin.application.dto.DiscountConfigResponse;
-import com.loyalty.service_admin.domain.entity.DiscountConfigEntity;
+import com.loyalty.service_admin.domain.entity.DiscountSettingsEntity;
 import com.loyalty.service_admin.domain.repository.DiscountConfigRepository;
 import com.loyalty.service_admin.domain.repository.DiscountLimitPriorityRepository;
 import com.loyalty.service_admin.infrastructure.exception.BadRequestException;
@@ -61,13 +61,13 @@ public class DiscountConfigService {
             });
 
         // Crear nueva config
-        DiscountConfigEntity newConfig = new DiscountConfigEntity();
+        DiscountSettingsEntity newConfig = new DiscountSettingsEntity();
         newConfig.setEcommerceId(ecommerceId);
-        newConfig.setMaxDiscountLimit(maxLimit);
+        newConfig.setMaxDiscountCap(maxLimit);
         newConfig.setCurrencyCode(request.currencyCode().toUpperCase());
         newConfig.setIsActive(true);
 
-        DiscountConfigEntity saved = discountConfigRepository.save(newConfig);
+        DiscountSettingsEntity saved = discountConfigRepository.save(newConfig);
         log.info("Discount config created for ecommerce: {}", ecommerceId);
 
         // Publicar evento
@@ -83,7 +83,7 @@ public class DiscountConfigService {
     public DiscountConfigResponse getActiveConfig(String ecommerceId) {
         UUID ecommerceUuid = UUID.fromString(ecommerceId);
         
-        DiscountConfigEntity config = discountConfigRepository.findActiveByEcommerceId(ecommerceUuid)
+        DiscountSettingsEntity config = discountConfigRepository.findActiveByEcommerceId(ecommerceUuid)
             .orElseThrow(() -> new ResourceNotFoundException(
                 "No existe configuración activa de descuentos para el ecommerce: " + ecommerceId
             ));
@@ -95,7 +95,7 @@ public class DiscountConfigService {
      * Obtiene la entidad de configuración activa (para uso interno).
      */
     @Transactional(readOnly = true)
-    public DiscountConfigEntity getActiveConfigEntity(UUID ecommerceId) {
+    public DiscountSettingsEntity getActiveConfigEntity(UUID ecommerceId) {
         return discountConfigRepository.findActiveByEcommerceId(ecommerceId)
             .orElseThrow(() -> new ResourceNotFoundException(
                 "No existe configuración activa de descuentos para el ecommerce: " + ecommerceId
@@ -129,15 +129,15 @@ public class DiscountConfigService {
     /**
      * Convierte una entidad a DTO response.
      */
-    private DiscountConfigResponse toResponse(DiscountConfigEntity entity) {
+    private DiscountConfigResponse toResponse(DiscountSettingsEntity entity) {
         return new DiscountConfigResponse(
-            entity.getUid().toString(),
+            entity.getId().toString(),
             entity.getEcommerceId().toString(),
-            entity.getMaxDiscountLimit().toPlainString(),
+            entity.getMaxDiscountCap().toPlainString(),
             entity.getCurrencyCode(),
             entity.getIsActive(),
-            entity.getCreatedAt(),
-            entity.getUpdatedAt()
+            entity.getCreatedAt().atOffset(java.time.ZoneOffset.UTC),
+            entity.getUpdatedAt().atOffset(java.time.ZoneOffset.UTC)
         );
     }
 }

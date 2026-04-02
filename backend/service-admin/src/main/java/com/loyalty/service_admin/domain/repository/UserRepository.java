@@ -9,17 +9,17 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface UserRepository extends JpaRepository<UserEntity, Long> {
+public interface UserRepository extends JpaRepository<UserEntity, UUID> {
     
     /**
-     * Busca un usuario por su UID (identificador único generado por el sistema).
+     * Busca un usuario por su ID (identificador único generado por el sistema).
      * Utilizado en endpoints GET/PUT/DELETE /api/v1/users/{uid}.
-     * UID es único en toda la plataforma (SPEC-002 CRITERIO-3.1).
+     * ID es único en toda la plataforma (SPEC-002 CRITERIO-3.1).
      *
-     * @param uid UUID único del usuario
+     * @param id UUID único del usuario
      * @return Optional con el usuario si existe
      */
-    Optional<UserEntity> findByUid(UUID uid);
+    Optional<UserEntity> findById(UUID id);
     
     /**
      * Busca un usuario por su username (búsqueda global, no por ecommerce).
@@ -41,16 +41,14 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
     List<UserEntity> findByEcommerceId(UUID ecommerceId);
     
     /**
-     * Busca usuarios por rol y ecommerce específicos.
+     * Busca usuarios por roleId y ecommerce específicos.
      * Utilizado para análisis de usuarios de un rol dentro de un ecommerce.
      * 
-     * EXAMPLE: findByRoleAndEcommerceId("USER", uuid) → List<UserEntity>
-     *
-     * @param role nombre del rol (e.g., "STORE_USER", "SUPER_ADMIN")
-     * @param ecommerceId UUID del ecommerce (null para SUPER_ADMIN)
+     * @param roleId UUID del rol
+     * @param ecommerceId UUID del ecommerce
      * @return Lista de usuarios con ese rol en ese ecommerce
      */
-    List<UserEntity> findByRoleAndEcommerceId(String role, UUID ecommerceId);
+    List<UserEntity> findByRoleIdAndEcommerceId(UUID roleId, UUID ecommerceId);
     
     /**
      * Busca un usuario por su email (búsqueda global, no por ecommerce).

@@ -5,7 +5,7 @@ import com.loyalty.service_admin.application.dto.configuration.ConfigurationCrea
 import com.loyalty.service_admin.application.dto.configuration.ConfigurationPatchRequest;
 import com.loyalty.service_admin.application.dto.configuration.DiscountPriorityRequest;
 import com.loyalty.service_admin.application.mapper.ConfigurationMapper;
-import com.loyalty.service_admin.domain.entity.DiscountConfigurationEntity;
+import com.loyalty.service_admin.domain.entity.DiscountSettingsEntity;
 import com.loyalty.service_admin.domain.entity.DiscountPriorityEntity;
 import com.loyalty.service_admin.domain.model.CapAppliesTo;
 import com.loyalty.service_admin.domain.model.CapType;
@@ -38,20 +38,20 @@ class ConfigurationMapperTest {
                 )
         );
 
-        DiscountConfigurationEntity entity = mapper.toEntity(request);
+        DiscountSettingsEntity entity = mapper.toEntity(request);
 
         assertThat(entity.getEcommerceId()).isEqualTo(ecommerceId);
-        assertThat(entity.getCurrency()).isEqualTo("COP");
+        assertThat(entity.getCurrencyCode()).isEqualTo("COP");
         assertThat(entity.getPriorities()).hasSize(2);
     }
 
     @Test
     void shouldApplyPatchAndMapUpdatedEvent() {
-        DiscountConfigurationEntity entity = new DiscountConfigurationEntity();
+        DiscountSettingsEntity entity = new DiscountSettingsEntity();
         entity.setId(UUID.randomUUID());
         entity.setEcommerceId(UUID.randomUUID());
-        entity.setCurrency("COP");
-        entity.setRoundingRule(RoundingRule.HALF_UP);
+        entity.setCurrencyCode("COP");
+        entity.setRoundingRule("HALF_UP");
         entity.setCapType(CapType.PERCENTAGE);
         entity.setCapValue(new BigDecimal("10"));
         entity.setCapAppliesTo(CapAppliesTo.SUBTOTAL);
@@ -60,15 +60,15 @@ class ConfigurationMapperTest {
 
         DiscountPriorityEntity p1 = new DiscountPriorityEntity();
         p1.setId(UUID.fromString("00000000-0000-0000-0000-000000000002"));
-        p1.setOrder(1);
-        p1.setDiscountType("SEASONAL");
-        p1.setConfiguration(entity);
+        p1.setPriorityLevel(1);
+        p1.setDiscountTypeId(UUID.randomUUID());
+        p1.setDiscountSettingId(entity.getId());
 
         DiscountPriorityEntity p2 = new DiscountPriorityEntity();
         p2.setId(UUID.fromString("00000000-0000-0000-0000-000000000001"));
-        p2.setOrder(1);
-        p2.setDiscountType("LOYALTY");
-        p2.setConfiguration(entity);
+        p2.setPriorityLevel(1);
+        p2.setDiscountTypeId(UUID.randomUUID());
+        p2.setDiscountSettingId(entity.getId());
         entity.setPriorities(new ArrayList<>(List.of(p1, p2)));
 
         ConfigurationPatchRequest patch = new ConfigurationPatchRequest(
@@ -79,7 +79,7 @@ class ConfigurationMapperTest {
         );
 
         mapper.applyPatch(entity, patch);
-        assertThat(entity.getCurrency()).isEqualTo("USD");
+        assertThat(entity.getCurrencyCode()).isEqualTo("USD");
         assertThat(entity.getRoundingRule()).isEqualTo(RoundingRule.DOWN);
         assertThat(entity.getPriorities()).hasSize(1);
 

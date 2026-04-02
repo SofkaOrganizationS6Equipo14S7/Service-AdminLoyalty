@@ -4,19 +4,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.Pattern;
 
-/**
- * DTO para crear un nuevo ecommerce.
- * 
- * SPEC-001: Registro y Gestión de Ecommerces
- * HU-13.1: Registro exitoso de un nuevo ecommerce
- * 
- * Validaciones:
- * - name: obligatorio, 3-100 caracteres
- * - slug: obligatorio, único, solo minúsculas/números/guiones
- * 
- * CRITERIO-1.1: Registro exitoso con datos válidos
- * CRITERIO-1.3: Rechazo por datos incompletos
- */
 public record EcommerceCreateRequest(
     @NotBlank(message = "El campo 'name' es obligatorio")
     @Size(min = 3, max = 100, message = "El nombre debe tener entre 3 y 100 caracteres")

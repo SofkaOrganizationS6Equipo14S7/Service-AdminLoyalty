@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import com.loyalty.service_admin.domain.model.ecommerce.EcommerceStatus;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -17,6 +18,7 @@ import java.util.UUID;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class EcommerceEntity {
 
     @Id
@@ -29,8 +31,10 @@ public class EcommerceEntity {
     @Column(nullable = false, length = 255, unique = true)
     private String slug;
 
+    @Builder.Default
     @Column(nullable = false, length = 20)
-    private String status = "ACTIVE";
+    @Enumerated(EnumType.STRING)
+    private EcommerceStatus status = EcommerceStatus.ACTIVE;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -40,6 +44,9 @@ public class EcommerceEntity {
 
     @PrePersist
     protected void onCreate() {
+        if (status == null) {
+            status = EcommerceStatus.ACTIVE;
+        }
         createdAt = Instant.now();
         updatedAt = Instant.now();
     }

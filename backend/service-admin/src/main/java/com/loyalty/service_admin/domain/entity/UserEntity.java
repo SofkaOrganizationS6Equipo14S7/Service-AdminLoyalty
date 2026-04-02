@@ -18,6 +18,7 @@ import java.util.UUID;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class UserEntity {
 
     @Id
@@ -27,8 +28,12 @@ public class UserEntity {
     @Column(name = "ecommerce_id")
     private UUID ecommerceId;
 
-    @Column(name = "role_id", nullable = false)
+    @Column(name = "role_id", nullable = false, insertable = false, updatable = false)
     private UUID roleId;
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "role_id", nullable = false)
+    private RoleEntity role;
 
     @Column(nullable = false, unique = true, length = 100)
     private String username;

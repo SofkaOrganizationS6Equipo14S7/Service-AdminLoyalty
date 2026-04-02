@@ -15,7 +15,7 @@ public interface ProductRuleRepository extends JpaRepository<ProductRuleEntity, 
     Optional<ProductRuleEntity> findByEcommerceIdAndProductTypeAndIsActive(
             UUID ecommerceId, String productType, Boolean isActive);
     
-    Optional<ProductRuleEntity> findByUidAndEcommerceId(UUID uid, UUID ecommerceId);
+    Optional<ProductRuleEntity> findByIdAndEcommerceId(UUID id, UUID ecommerceId);
     
     Page<ProductRuleEntity> findByEcommerceIdAndIsActive(UUID ecommerceId, Boolean isActive, Pageable pageable);
     

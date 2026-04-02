@@ -56,28 +56,28 @@ public class SeasonalRuleEventPublisher {
     public void publishSeasonalRuleCreated(SeasonalRuleEntity entity) {
         SeasonalRuleCreatedEvent event = new SeasonalRuleCreatedEvent(
             "SEASONAL_RULE_CREATED",
-            entity.getUid(),
+            entity.getId(),
             entity.getEcommerceId(),
             entity.getName(),
             entity.getDescription(),
             entity.getDiscountPercentage(),
-            entity.getDiscountType(),
+            entity.getDiscountTypeId().toString(),
             entity.getStartDate(),
             entity.getEndDate(),
             Instant.now()
         );
         
-        String eventId = entity.getUid() + ":" + System.currentTimeMillis();
+        String eventId = entity.getId() + ":" + System.currentTimeMillis();
         
         try {
             rabbitTemplate.convertAndSend(exchange, routingKeyCreated, event,
                 message -> withStandardHeaders(message, event, eventId));
             
             log.info("event=seasonal_rule_created_published eventId={} ruleUid={} ecommerceId={} exchange={} routingKey={}",
-                eventId, entity.getUid(), entity.getEcommerceId(), exchange, routingKeyCreated);
+                eventId, entity.getId(), entity.getEcommerceId(), exchange, routingKeyCreated);
         } catch (Exception ex) {
             log.error("event=seasonal_rule_created_publish_failed eventId={} ruleUid={} ecommerceId={}",
-                eventId, entity.getUid(), entity.getEcommerceId(), ex);
+                eventId, entity.getId(), entity.getEcommerceId(), ex);
             publishToDeadLetter(event, eventId);
         }
     }
@@ -88,28 +88,28 @@ public class SeasonalRuleEventPublisher {
     public void publishSeasonalRuleUpdated(SeasonalRuleEntity entity) {
         SeasonalRuleUpdatedEvent event = new SeasonalRuleUpdatedEvent(
             "SEASONAL_RULE_UPDATED",
-            entity.getUid(),
+            entity.getId(),
             entity.getEcommerceId(),
             entity.getName(),
             entity.getDescription(),
             entity.getDiscountPercentage(),
-            entity.getDiscountType(),
+            entity.getDiscountTypeId().toString(),
             entity.getStartDate(),
             entity.getEndDate(),
             Instant.now()
         );
         
-        String eventId = entity.getUid() + ":" + System.currentTimeMillis();
+        String eventId = entity.getId() + ":" + System.currentTimeMillis();
         
         try {
             rabbitTemplate.convertAndSend(exchange, routingKeyUpdated, event,
                 message -> withStandardHeaders(message, event, eventId));
             
             log.info("event=seasonal_rule_updated_published eventId={} ruleUid={} ecommerceId={} exchange={} routingKey={}",
-                eventId, entity.getUid(), entity.getEcommerceId(), exchange, routingKeyUpdated);
+                eventId, entity.getId(), entity.getEcommerceId(), exchange, routingKeyUpdated);
         } catch (Exception ex) {
             log.error("event=seasonal_rule_updated_publish_failed eventId={} ruleUid={} ecommerceId={}",
-                eventId, entity.getUid(), entity.getEcommerceId(), ex);
+                eventId, entity.getId(), entity.getEcommerceId(), ex);
             publishToDeadLetter(event, eventId);
         }
     }
@@ -120,22 +120,22 @@ public class SeasonalRuleEventPublisher {
     public void publishSeasonalRuleDeleted(SeasonalRuleEntity entity) {
         SeasonalRuleDeletedEvent event = new SeasonalRuleDeletedEvent(
             "SEASONAL_RULE_DELETED",
-            entity.getUid(),
+            entity.getId(),
             entity.getEcommerceId(),
             Instant.now()
         );
         
-        String eventId = entity.getUid() + ":" + System.currentTimeMillis();
+        String eventId = entity.getId() + ":" + System.currentTimeMillis();
         
         try {
             rabbitTemplate.convertAndSend(exchange, routingKeyDeleted, event,
                 message -> withStandardHeaders(message, event, eventId));
             
             log.info("event=seasonal_rule_deleted_published eventId={} ruleUid={} ecommerceId={} exchange={} routingKey={}",
-                eventId, entity.getUid(), entity.getEcommerceId(), exchange, routingKeyDeleted);
+                eventId, entity.getId(), entity.getEcommerceId(), exchange, routingKeyDeleted);
         } catch (Exception ex) {
             log.error("event=seasonal_rule_deleted_publish_failed eventId={} ruleUid={} ecommerceId={}",
-                eventId, entity.getUid(), entity.getEcommerceId(), ex);
+                eventId, entity.getId(), entity.getEcommerceId(), ex);
             publishToDeadLetter(event, eventId);
         }
     }

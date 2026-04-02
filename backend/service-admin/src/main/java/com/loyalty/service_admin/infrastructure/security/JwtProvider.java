@@ -54,7 +54,7 @@ public class JwtProvider {
      * @param ecommerceId UUID del ecommerce (null si super admin)
      * @return JWT firmado y codificado
      */
-    public String generateToken(String username, Long userId, String role, java.util.UUID ecommerceId) {
+    public String generateToken(String username, java.util.UUID userId, String role, java.util.UUID ecommerceId) {
         return generateTokenFull(null, username, userId, role, ecommerceId);
     }
     
@@ -69,7 +69,7 @@ public class JwtProvider {
      * @param ecommerceId UUID del ecommerce (null si super admin)
      * @return JWT firmado con uid claim
      */
-    public String generateTokenFull(java.util.UUID uid, String username, Long userId, String role, java.util.UUID ecommerceId) {
+    public String generateTokenFull(java.util.UUID uid, String username, java.util.UUID userId, String role, java.util.UUID ecommerceId) {
         long nowMs = System.currentTimeMillis();
         long expiryMs = nowMs + expirationMs;
         
@@ -78,7 +78,7 @@ public class JwtProvider {
                 // Header: alg=HS256, typ=JWT (automático)
                 // Payload: claims
                 .setSubject(username)                       // "sub" claim
-                .claim("userId", userId)                    // custom claim
+                .claim("userId", userId.toString())         // custom claim (convert UUID to String)
                 .claim("role", role)                        // custom claim
                 .setIssuedAt(new Date(nowMs))               // "iat" claim
                 .setExpiration(new Date(expiryMs));         // "exp" claim
@@ -163,9 +163,9 @@ public class JwtProvider {
      * Extrae el userId (custom claim) del token.
      * 
      * @param token JWT
-     * @return userId
+     * @return userId como UUID
      */
-    public Long getUserIdFromToken(String token) {
+    public java.util.UUID getUserIdFromToken(String token) {
         try {
             String cleanToken = token.startsWith("Bearer ") ? token.substring(7) : token;
             Claims claims = Jwts.parserBuilder()
@@ -174,7 +174,8 @@ public class JwtProvider {
                 .parseClaimsJws(cleanToken)
                 .getBody();
             
-            return claims.get("userId", Long.class);
+            String userIdStr = claims.get("userId", String.class);
+            return java.util.UUID.fromString(userIdStr);
         } catch (Exception e) {
             log.warn("Error extrayendo userId del token: {}", e.getMessage());
             throw new io.jsonwebtoken.JwtException("Error extrayendo userId del token", e);
@@ -182,11 +183,8 @@ public class JwtProvider {
     }
     
     /**
-     * Extrae el uid (custom claim) del token.
-     * Implementa SPEC-002 CRITERIO-3.1: uid como identificador público.
-     * 
      * @param token JWT
-     * @return UUID del usuario, o null si no está presente (tokens generados antes de esta feature)
+     * @return UUID del usuario
      */
     public java.util.UUID getUidFromToken(String token) {
         try {
@@ -197,12 +195,8 @@ public class JwtProvider {
                 .parseClaimsJws(cleanToken)
                 .getBody();
             
-            String uidStr = claims.get("uid", String.class);
-            if (uidStr == null) {
-                log.debug("uid no presente en token (probablemente generado antes de SPEC-002)");
-                return null;
-            }
-            
+            String uidStr = claims.get("userId", String.class);
+
             return java.util.UUID.fromString(uidStr);
         } catch (Exception e) {
             log.debug("Error extrayendo uid del token: {}", e.getMessage());
@@ -259,7 +253,7 @@ public class JwtProvider {
             return java.util.UUID.fromString(ecommerceIdStr);
         } catch (Exception e) {
             log.debug("ecommerce_id no encontrado en token o formato inválido: {}", e.getMessage());
-            return null; // No es error crítico, usuarios super admin no tienen este claim
+            return null;
         }
     }
 }

@@ -96,7 +96,12 @@ CREATE TABLE IF NOT EXISTS discount_settings (
     currency_code VARCHAR(3) NOT NULL DEFAULT 'USD',
     allow_stacking BOOLEAN DEFAULT TRUE,
     rounding_rule VARCHAR(20) NOT NULL DEFAULT 'ROUND_HALF_UP',
+    -- todo revisar si elimina los siguientes tres campos
+    cap_type VARCHAR(20),
+    cap_value DECIMAL(12,4),
+    cap_applies_to VARCHAR(20),
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    version BIGINT NOT NULL DEFAULT 1,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

@@ -6,7 +6,7 @@ import java.util.List;
  * DTO para guardar prioridades de descuentos para una configuración.
  */
 public record DiscountLimitPriorityRequest(
-    String discountConfigId,
+    String discountSettingsId,
     List<PriorityEntry> priorities
 ) {
     /**

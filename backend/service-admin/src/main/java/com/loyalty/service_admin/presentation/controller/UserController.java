@@ -17,44 +17,6 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Controller para gestión de usuarios con control de acceso multi-contexto.
- * 
- * Endpoints:
- * - POST   /api/v1/users           — Crear usuario (SUPER_ADMIN y STORE_ADMIN)
- * - GET    /api/v1/users           — Listar usuarios (solo SUPER_ADMIN y STORE_ADMIN; STORE_USER rechazado)
- * - GET    /api/v1/users/{uid}     — Obtener un usuario (SUPER_ADMIN global, STORE_ADMIN su ecommerce, STORE_USER self-access)
- * - PUT    /api/v1/users/{uid}     — Actualizar usuario (roles específicos y field-level restrictions)
- * - DELETE /api/v1/users/{uid}     — Eliminar usuario (SUPER_ADMIN y STORE_ADMIN contexto-aware)
- * 
- * Implementa:
- * - SPEC-005: SUPERADMIN - Acceso Total a la Plataforma
- *   - HU-02.1: Crear STORE_ADMIN para ecommerce (SUPER_ADMIN)
- *   - RN-05: Gestión de usuarios por contexto de autorización (3 tiers)
- *   - RN-01: SUPER_ADMIN sin vinculación a ecommerce
- * - SPEC-003: Administración de Ecommerce por STORE_ADMIN (herencia)
- * 
- * Autorización por Rol (SPEC-005 RN-05):
- * - SUPER_ADMIN (Global):
- *   - Crear cualquier rol (SUPER_ADMIN, STORE_ADMIN, STORE_USER) en cualquier ecommerce
- *   - Listar todos los usuarios
- *   - Leer/Actualizar/Eliminar cualquier usuario
- * - STORE_ADMIN (Tenant):
- *   - Crear STORE_ADMIN o STORE_USER solo en su ecommerce
- *   - Listar usuarios solo de su ecommerce
- *   - Leer/Actualizar/Eliminar usuarios solo de su ecommerce
- * - STORE_USER (Self):
- *   - NO puede listar usuarios (403 Forbidden)
- *   - NO puede crear usuarios (403 Forbidden)
- *   - Puede leer/actualizar solo su propio perfil (no cambiar ecommerce_id ni active)
- *   - NO puede eliminar usuarios (403 Forbidden)
- * 
- * Notas de Implementación:
- * - AuthenticationFilter DEBE estar registrado como @Bean (no @Component)
- * - UserPrincipal almacena ecommerce_id para aislamiento automático
- * - TenantInterceptor valida autorización general en TODAS las operaciones (GET, POST, PUT, DELETE)
- * - SecurityContextHelper + UserService validan field-level restrictions (ecommerce_id, active, role)
- */
 @RestController
 @RequestMapping("/api/v1/users")
 @RequiredArgsConstructor
@@ -65,18 +27,6 @@ public class UserController {
     
     /**
      * POST /api/v1/users
-     * Crea un nuevo usuario con validaciones de rol y contexto.
-     * 
-     * SPEC-005 HU-02.1: Crear STORE_ADMIN para ecommerce
-     * SPEC-005 RN-05: Gestión de usuarios por contexto de autorización
-     * 
-     * Autorización:
-     * - SUPER_ADMIN: puede crear SUPER_ADMIN, STORE_ADMIN o STORE_USER
-     *   - Si role == SUPER_ADMIN: ecommerce_id DEBE ser NULL (RN-01)
-     *   - Si role != SUPER_ADMIN: ecommerce_id DEBE ser obligatorio
-     * - STORE_ADMIN: puede crear STORE_ADMIN o STORE_USER SOLO en su ecommerce
-     * - STORE_USER: 403 Forbidden (CRITERIO-2.1.3)
-     * 
      * @param request datos del nuevo usuario (role, username, email, password, ecommerceId)
      * @return 201 Created con UserResponse{uid, username, email, role, ecommerceId, active, createdAt, updatedAt}
      * @throws AuthorizationException si no es SUPER_ADMIN/STORE_ADMIN o intenta crear fuera de su ecommerce

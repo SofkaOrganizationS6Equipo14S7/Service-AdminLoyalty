@@ -86,7 +86,7 @@ public class ClassificationRuleService {
     }
 
     public List<ClassificationRuleResponse> listByTier(UUID tierUid) {
-        return repository.findByCustomerTierUidOrderByPriorityAsc(tierUid).stream()
+        return repository.findByCustomerTierIdOrderByPriorityAsc(tierUid).stream()
             .map(this::mapToResponse)
             .toList();
     }
@@ -115,8 +115,8 @@ public class ClassificationRuleService {
         eventPublisher.publishRuleUpdated(
             new ClassificationRuleUpdatedEvent(
                 "CLASSIFICATION_RULE_UPDATED",
-                saved.getUid(),
-                saved.getCustomerTierUid(),
+                saved.getId(),
+                saved.getCustomerTierId(),
                 saved.getMetricType(),
                 saved.getMinValue(),
                 saved.getMaxValue(),
@@ -141,8 +141,8 @@ public class ClassificationRuleService {
         eventPublisher.publishRuleDeleted(
             new ClassificationRuleDeletedEvent(
                 "CLASSIFICATION_RULE_DELETED",
-                entity.getUid(),
-                entity.getCustomerTierUid(),
+                entity.getId(),
+                entity.getCustomerTierId(),
                 Instant.now()
             )
         );
@@ -150,8 +150,8 @@ public class ClassificationRuleService {
 
     private ClassificationRuleResponse mapToResponse(ClassificationRuleEntity entity) {
         return new ClassificationRuleResponse(
-            entity.getUid(),
-            entity.getCustomerTierUid(),
+            entity.getId(),
+            entity.getCustomerTierId(),
             entity.getMetricType(),
             entity.getMinValue(),
             entity.getMaxValue(),

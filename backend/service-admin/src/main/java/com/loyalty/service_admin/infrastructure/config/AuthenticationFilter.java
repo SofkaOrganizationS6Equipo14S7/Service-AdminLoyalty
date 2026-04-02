@@ -91,15 +91,15 @@ public class AuthenticationFilter implements Filter {
             
             // Extraer claims del JWT
             String username = jwtProvider.getUsernameFromToken(token);
-            Long userId = jwtProvider.getUserIdFromToken(token);
+            UUID userId = jwtProvider.getUserIdFromToken(token);
             String role = jwtProvider.getRoleFromToken(token);
             UUID ecommerceId = jwtProvider.getEcommerceIdFromToken(token); // null si super admin
             
-            // Extraer uid del JWT, fallback a derivado si no existe
+            // Extraer uid del JWT, fallback a userId si no existe
             UUID uid = jwtProvider.getUidFromToken(token);
             if (uid == null) {
-                // Fallback para tokens antiguos: derivar uid desde userId
-                uid = UUID.nameUUIDFromBytes(("user-" + userId).getBytes());
+                // Fallback para tokens antiguos: usar userId como uid
+                uid = userId;
             }
             
             // Crear UserPrincipal con datos extraídos del JWT

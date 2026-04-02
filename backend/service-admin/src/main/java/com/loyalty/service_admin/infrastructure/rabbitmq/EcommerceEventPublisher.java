@@ -11,27 +11,6 @@ import org.springframework.stereotype.Component;
 import java.time.Instant;
 import java.util.UUID;
 
-/**
- * Publicador de eventos de ecommerce a RabbitMQ.
- * 
- * SPEC-001: Registro y Gestión de Ecommerces
- * 
- * Responsabilidad:
- * - Publicar eventos de cambio de status de ecommerce
- * - Usar Fanout Exchange para multi-consumidor
- * - Garantizar entrega (confirmación de publisher)
- * 
- * Routing Details (Fanout Exchange):
- * - Exchange: loyalty.events (tipo Fanout)
- * - Queue Admin: loyalty.admin.ecommerce.events → escucha cambios para invalidar JWT
- * - Queue Engine: loyalty.engine.ecommerce.events → escucha cambios para invalidar cache
- * - Durability: true (ambas queues persistentes)
- * 
- * Atomic Behavior:
- * - Operación de updateStatus + publish ocurren en transacción única
- * - Si publish falla (<5s timeout), la transacción se revierte
- * - No se cambia estado sin confirmación de entrega de evento
- */
 @Component
 @Slf4j
 public class EcommerceEventPublisher {
@@ -47,14 +26,7 @@ public class EcommerceEventPublisher {
         this.objectMapper = objectMapper;
     }
     
-    /**
-     * Publica evento de cambio de status de ecommerce.
-     * 
-     * El evento se envía al Fanout Exchange loyalty.events.
-     * Múltiples consumidores pueden reaccionar:
-     * - Admin Service: invalida JWT de usuarios
-     * - Engine Service: invalida API Keys en caché
-     * 
+     /**
      * @param ecommerceId    UUID del ecommerce
      * @param newStatus      nuevo estado (ACTIVE/INACTIVE)
      * @throws RuntimeException si falla la publicación (revierte transacción)
@@ -63,12 +35,11 @@ public class EcommerceEventPublisher {
         log.info("Publicando evento de cambio de status: ecommerceId={}, newStatus={}", 
                 ecommerceId, newStatus);
         
-        // Construir payload del evento
         EcommerceStatusChangedEvent event = new EcommerceStatusChangedEvent(
                 "ECOMMERCE_STATUS_CHANGED",
                 ecommerceId.toString(),
                 newStatus.name(),
-                null, // oldStatus no incluido en este moment, se podría agregar si se necesita
+                null,
                 Instant.now()
         );
         
@@ -78,18 +49,12 @@ public class EcommerceEventPublisher {
     }
     
     /**
-     * Publica un evento en el Fanout Exchange de eventos.
-     * 
-     * Usa Jackson para serializar a JSON y Spring AMQP para enviar.
-     * Routing key vacío (Fanout no usa routing keys, distribuye a todas las bindings).
-     * 
      * @param event payload del evento
      * @throws RuntimeException si falla la serialización o el envío
      */
     private void publishEvent(EcommerceStatusChangedEvent event) {
         try {
             String payload = objectMapper.writeValueAsString(event);
-            // Fanout Exchange: routing key vacío, se envía a todas las queues bindeadas
             rabbitTemplate.convertAndSend(exchangeName, "", payload);
             log.debug("Evento serializado y enviado: payload={}", payload);
         } catch (Exception e) {

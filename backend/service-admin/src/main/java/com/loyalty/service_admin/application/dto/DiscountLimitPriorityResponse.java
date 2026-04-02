@@ -8,7 +8,7 @@ import java.util.List;
  */
 public record DiscountLimitPriorityResponse(
     String uid,
-    String discountConfigId,
+    String discountSettingsId,
     List<PriorityEntry> priorities,
     OffsetDateTime createdAt
 ) {
