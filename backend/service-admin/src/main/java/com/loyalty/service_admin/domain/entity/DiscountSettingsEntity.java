@@ -11,41 +11,32 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(
-    name = "classification_rule",
-    indexes = {
-        @Index(
-            name = "idx_classification_rule_tier",
-            columnList = "customer_tier_id"
-        ),
-        @Index(
-            name = "idx_classification_rule_active",
-            columnList = "customer_tier_id, priority"
-        )
+@Table(name = "discount_settings", indexes = {
+    @Index(name = "idx_discount_settings_ecommerce", columnList = "ecommerce_id")
 })
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class ClassificationRuleEntity {
+public class DiscountSettingsEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "customer_tier_id", nullable = false)
-    private UUID customerTierId;
+    @Column(name = "ecommerce_id", nullable = false)
+    private UUID ecommerceId;
 
-    @Column(name = "metric_type", nullable = false, length = 50)
-    private String metricType;
+    @Column(name = "max_discount_cap", nullable = false, precision = 12, scale = 4)
+    private BigDecimal maxDiscountCap;
 
-    @Column(name = "min_value", nullable = false)
-    private BigDecimal minValue;
+    @Column(name = "currency_code", nullable = false, length = 3)
+    private String currencyCode = "USD";
 
-    @Column(name = "max_value")
-    private BigDecimal maxValue;
+    @Column(name = "allow_stacking")
+    private Boolean allowStacking = true;
 
-    @Column(nullable = false)
-    private Integer priority = 1;
+    @Column(name = "rounding_rule", nullable = false, length = 20)
+    private String roundingRule = "ROUND_HALF_UP";
 
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;

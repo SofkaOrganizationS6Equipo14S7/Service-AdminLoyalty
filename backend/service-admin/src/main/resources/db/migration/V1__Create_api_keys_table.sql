@@ -172,11 +172,29 @@ CREATE TABLE audit_log (
 -- ÍNDICES OPTIMIZADOS
 -- ==========================================
 CREATE INDEX idx_user_ecommerce ON app_user(ecommerce_id);
+CREATE INDEX idx_user_role ON app_user(role_id);
+CREATE INDEX idx_user_active ON app_user(is_active);
 CREATE INDEX idx_api_key_ecommerce ON api_key(ecommerce_id);
 CREATE INDEX idx_seasonal_rules_date ON seasonal_rules(start_date, end_date);
+CREATE INDEX idx_seasonal_rules_ecommerce ON seasonal_rules(ecommerce_id);
+CREATE INDEX idx_seasonal_rules_active ON seasonal_rules(is_active);
+
+CREATE INDEX idx_product_rules_ecommerce ON product_rules(ecommerce_id);
 CREATE INDEX idx_product_rules_type ON product_rules(product_type);
+CREATE INDEX idx_product_rules_active ON product_rules(is_active);
+CREATE INDEX idx_role_name ON roles(name);
+
 CREATE INDEX idx_classification_rule_tier ON classification_rule(customer_tier_id);
+CREATE INDEX idx_discount_type_code ON discount_types(code);
+CREATE INDEX idx_ecommerce_slug ON ecommerce(slug);
+CREATE INDEX idx_ecommerce_status ON ecommerce(status);
+CREATE INDEX idx_permission_code ON ecommerce(code);
+CREATE INDEX idx_permission_module ON ecommerce(module);
+
+CREATE INDEX idx_role_permissions_role ON role_permissions(role_id);
+CREATE INDEX idx_role_permissions_permission ON role_permissions(permission_id);
+
+CREATE UNIQUE INDEX idx_classification_rule_active ON classification_rule(customer_tier_id, priority) WHERE is_active = TRUE;
 CREATE INDEX idx_discount_log_ecommerce ON discount_application_log(ecommerce_id);
 CREATE INDEX idx_audit_log_ecommerce ON audit_log(ecommerce_id);
-CREATE UNIQUE INDEX idx_classification_rule_active ON classification_rule(customer_tier_id, priority) WHERE is_active = TRUE;
 CREATE UNIQUE INDEX idx_discount_settings_active ON discount_settings(ecommerce_id) WHERE is_active = TRUE;

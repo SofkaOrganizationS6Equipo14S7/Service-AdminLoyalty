@@ -38,9 +38,9 @@ public class DataInitializer {
                 UserEntity adminUser = UserEntity.builder()
                         .username("admin")
                         .email("admin@system.local")
-                        .password(hashedPassword)
-                        .role("SUPER_ADMIN")
-                        .active(true)
+                        .passwordHash(hashedPassword)
+                        .roleId(null)
+                        .isActive(true)
                         .build();
                 
                 userRepository.save(adminUser);

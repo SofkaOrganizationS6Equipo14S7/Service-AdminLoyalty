@@ -29,7 +29,7 @@ public class ApiKeyEntity {
     @Column(name = "hashed_key", unique = true, nullable = false, length = 255)
     private String hashedKey;
     
-    @Column(name = "expires_at" nullable = false)
+    @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
     
     @Column(name = "is_active", nullable = false)

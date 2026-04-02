@@ -15,7 +15,6 @@ import java.util.UUID;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
 public class CustomerTierEntity {
 
     @Id
