@@ -143,8 +143,9 @@ Entonces:    La aplicación fallback a lectura directa de BD (sin caché)
 | `ecommerce_id` | UUID | sí | FK → ecommerce.id | ID del ecommerce (multi-tenancy) |
 | `max_discount_cap` | DECIMAL(12,4) | sí | > 0 | Tope máximo de descuento acumulado |
 | `currency_code` | VARCHAR(3) | sí | ISO 4217 (ej: COP, USD) | Código de moneda |
+| `allow_stacking` | BOOLEAN | sí | default TRUE | Permite apilar descuentos |
 | `rounding_rule` | VARCHAR(20) | sí | default 'ROUND_HALF_UP' | Regla de redondeo |
-| `is_active` | BOOLEAN | sí | default true | Flag de activación (solo 1 por ecommerce) |
+| `is_active` | BOOLEAN | sí | default TRUE | Flag de activación (solo 1 por ecommerce) |
 | `created_at` | TIMESTAMP WITH TIME ZONE | sí | auto-generado | Timestamp creación |
 | `updated_at` | TIMESTAMP WITH TIME ZONE | sí | auto-generado | Timestamp última actualización |
 
@@ -153,28 +154,29 @@ Entonces:    La aplicación fallback a lectura directa de BD (sin caché)
 | Campo | Tipo | Obligatorio | Validación | Descripción |
 |-------|------|-------------|------------|-------------|
 | `id` | UUID | sí | auto-generado (gen_random_uuid()) | Identificador único |
-| `discount_setting_id` | UUID | sí | FK → discount_setting.id | Referencia a la configuración |
-| `discount_type` | VARCHAR(50) | sí | Enum: FIDELITY, SEASONAL, PROMOTIONAL, PRODUCT, CUSTOMER_TIER | Tipo de descuento |
-| `priority_level` | INTEGER | sí | > 0, secuencial 1..N sin huecos | Orden de aplicación (1 = máxima prioridad) |
+| `discount_setting_id` | UUID | sí | FK → discount_settings.id | Referencia a la configuración |
+| `discount_type_id` | UUID | sí | FK → discount_types.id | Tipo de descuento |
+| `priority_level` | INTEGER | sí | > 0 | Orden de aplicación (1 = máxima prioridad) |
 | `created_at` | TIMESTAMP WITH TIME ZONE | sí | auto-generado | Timestamp creación |
+| `updated_at` | TIMESTAMP WITH TIME ZONE | sí | auto-generado | Timestamp última actualización |
 
 #### Índices / Constraints
 
 **Service-Admin (BD master — loyalty_admin):**
 
-*Tabla `discount_setting`*
+*Tabla `discount_settings`*
 - **PRIMARY KEY**: `id` (UUID)
-- **UNIQUE PARCIAL**: `(ecommerce_id, is_active)` WHERE `is_active = true` → evita múltiples configs activas
+- **UNIQUE PARCIAL**: `(ecommerce_id, is_active)` WHERE `is_active = true`
 - **FK**: `ecommerce_id` → `ecommerce(id)` ON DELETE CASCADE
-- **INDEX**: `idx_discount_setting_ecommerce` (ecommerce_id)
+- **INDEX**: `idx_discount_settings_ecommerce` (ecommerce_id)
 - **CHECK**: `max_discount_cap > 0`
 
-*Tabla `discount_priority`*
+*Tabla `discount_priorities`*
 - **PRIMARY KEY**: `id` (UUID)
-- **FK**: `discount_setting_id` → `discount_setting(id)` ON DELETE CASCADE
-- **UNIQUE**: `(discount_setting_id, discount_type)` → cada tipo una sola vez por config
-- **UNIQUE**: `(discount_setting_id, priority_level)` → prioridades únicas
-- **INDEX**: `idx_discount_priority_setting` (discount_setting_id)
+- **FK**: `discount_setting_id` → `discount_settings(id)` ON DELETE CASCADE
+- **UNIQUE**: `(discount_setting_id, discount_type_id)`
+- **UNIQUE**: `(discount_setting_id, priority_level)`
+- **INDEX**: `idx_discount_priorities_setting` (discount_setting_id)
 - **CHECK**: `priority_level > 0`
 
 **Service-Engine (BD réplica — loyalty_engine):**
