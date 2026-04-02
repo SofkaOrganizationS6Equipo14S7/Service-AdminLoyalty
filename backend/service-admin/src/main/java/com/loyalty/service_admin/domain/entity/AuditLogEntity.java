@@ -9,28 +9,9 @@ import lombok.NoArgsConstructor;
 import java.time.Instant;
 import java.util.UUID;
 
-/**
- * Entidad de Auditoría para LOYALTY system.
- * SPEC-004 RN-08: Auditoría de cambios de perfil
- * 
- * Registra:
- * - user_uid: UID del usuario que fue modificado
- * - action: tipo de acción (PROFILE_UPDATE, PASSWORD_CHANGE, etc)
- * - description: descripción de qué cambió
- * - actor_uid: UID del usuario que realizó el cambio (el mismo usuario si auto-modificación)
- * - created_at: timestamp del cambio
- * 
- * Usado para:
- * - Trazabilidad de cambios
- * - Auditoría de seguridad
- * - Debugging y análisis
- */
 @Entity
-@Table(name = "audit_logs", indexes = {
-    @Index(name = "idx_audit_user_uid", columnList = "user_uid"),
-    @Index(name = "idx_audit_actor_uid", columnList = "actor_uid"),
-    @Index(name = "idx_audit_action", columnList = "action"),
-    @Index(name = "idx_audit_created_at", columnList = "created_at")
+@Table(name = "audit_log", indexes = {
+    @Index(name = "idx_audit_log_ecommerce", columnList = "ecommerce_id"),
 })
 @Data
 @NoArgsConstructor
@@ -39,20 +20,29 @@ import java.util.UUID;
 public class AuditLogEntity {
     
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
     
-    @Column(name = "user_uid", nullable = false)
-    private UUID userUid;
+    @Column(name = "user_id")
+    private UUID userId;
+    
+    @Column(name = "ecommerce_id")
+    private UUID ecommerceId;
     
     @Column(name = "action", nullable = false, length = 50)
     private String action;
     
-    @Column(name = "description", length = 500)
-    private String description;
+    @Column(name = "entity_name", nullable = false, length = 100)
+    private String entityName;
     
-    @Column(name = "actor_uid", nullable = false)
-    private UUID actorUid;
+    @Column(name = "entity_id")
+    private UUID entityId;
+    
+    @Column(name = "old_value", columnDefinition = "jsonb")
+    private String oldValue;
+    
+    @Column(name = "new_value", columnDefinition = "jsonb")
+    private String newValue;
     
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
