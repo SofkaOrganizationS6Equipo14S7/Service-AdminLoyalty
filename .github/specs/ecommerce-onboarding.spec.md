@@ -223,27 +223,22 @@ CRITERIO-3.4: No se pueden actualizar otros campos
 
 | Entidad | Almacén | Cambios | Descripción |
 |---------|---------|---------|-------------|
-| `EcommerceEntity` | tabla `ecommerces` | **nueva** | Registro de ecommerce con uid, name, slug, status |
-| `UserEntity` | tabla `users` | **ya existe** `ecommerce_id` | Se valida FK a `ecommerces.uid` |
-| `ApiKeyEntity` | tabla `api_keys` | **ya existe** `ecommerce_id` | Se valida FK a `ecommerces.uid` |
+| `EcommerceEntity` | tabla `ecommerce` | **nueva** | Registro de ecommerce con id, name, slug, status |
+| `UserEntity` | tabla `app_user` | **ya existe** `ecommerce_id` | Se valida FK a `ecommerce.id` |
+| `ApiKeyEntity` | tabla `api_key` | **ya existe** `ecommerce_id` | Se valida FK a `ecommerce.id` |
 
-#### Tabla `ecommerces`
+#### Foreign Keys con tablas existentes
 
 ```sql
-CREATE TABLE ecommerces (
-  uid UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name VARCHAR(255) NOT NULL,
-  slug VARCHAR(255) UNIQUE NOT NULL,
-  status VARCHAR(10) NOT NULL CHECK (status IN ('ACTIVE', 'INACTIVE')) DEFAULT 'ACTIVE',
-  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT slug_format CHECK (slug ~ '^[a-z0-9]([a-z0-9-]{0,252}[a-z0-9])?$')
-);
+-- En tabla app_user (ya existe, asegurar constraints)
+ALTER TABLE app_user 
+  ADD CONSTRAINT fk_app_user_ecommerce_id 
+  FOREIGN KEY (ecommerce_id) REFERENCES ecommerce(id) ON DELETE RESTRICT;
 
--- Índices
-CREATE INDEX idx_ecommerces_slug ON ecommerces(slug);
-CREATE INDEX idx_ecommerces_status ON ecommerces(status);
-CREATE INDEX idx_ecommerces_created_at ON ecommerces(created_at);
+-- En tabla api_key (ya existe, asegurar constraints)
+ALTER TABLE api_key
+  ADD CONSTRAINT fk_api_key_ecommerce_id
+  FOREIGN KEY (ecommerce_id) REFERENCES ecommerce(id) ON DELETE CASCADE;
 ```
 
 #### Foreign Keys con tablas existentes
