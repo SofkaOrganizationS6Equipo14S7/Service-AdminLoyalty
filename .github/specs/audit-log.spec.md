@@ -49,12 +49,11 @@ CRITERIO-13.1.1: Registrar CREATE de regla de descuento
   Cuando:    La regla se guarda exitosamente en BD
   Entonces:  El sistema genera automáticamente un AuditLog con:
              - action: "CREATE"
-             - rule_type: "DISCOUNT"
+             - entity_name: "product_rules" (o seasonal_rules, customer_tiers, etc.)
              - old_value: null
              - new_value: <valores completos de la regla>
              - timestamp: fecha/hora actual UTC
              - user_id: identificador del administrador autenticado
-             - ip_address: IP del cliente
              Y el log se persiste de forma síncrona en tabla audit_log
 ```
 
@@ -64,10 +63,10 @@ CRITERIO-13.1.2: Registrar UPDATE de regla de producto
   Cuando:    La regla se actualiza exitosamente en BD
   Entonces:  El sistema genera un AuditLog con:
              - action: "UPDATE"
-             - rule_type: "PRODUCT"
+             - entity_name: "product_rules"
              - old_value: <estado anterior completo>
              - new_value: <estado nuevo completo>
-             - rule_id: identificador de la regla modificada
+             - entity_id: identificador de la regla modificada
              Y el log se persiste de forma síncrona
 ```
 
@@ -77,7 +76,7 @@ CRITERIO-13.1.3: Registrar DELETE de regla de fidelidad
   Cuando:    La regla se elimina exitosamente de BD
   Entonces:  El sistema genera un AuditLog con:
              - action: "DELETE"
-             - rule_type: "FIDELITY"
+             - entity_name: "customer_tiers"
              - old_value: <estado completo antes de eliminar>
              - new_value: null
              Y el log se persiste de forma síncrona
@@ -109,16 +108,16 @@ CRITERIO-13.2.1: Listar historial de auditoría sin filtros
   Y:         Envío header Authorization: Bearer <JWT con rol SUPER_ADMIN>
   Entonces:  El sistema retorna 200 OK con:
              - Array de AuditLog (máximo 100 por página, ordenados DESC por timestamp)
-             - Cada item incluye: id, timestamp, user_id, ecommerce_id, rule_type, 
-               rule_id, action, old_value, new_value, ip_address, user_email (si existe)
+             - Cada item incluye: id, timestamp, user_id, ecommerce_id, entity_name, 
+               entity_id, action, old_value, new_value
              - Paginación: page, size, totalElements, totalPages
 ```
 
 ```gherkin
-CRITERIO-13.2.2: Filtrar por tipo de regla
-  Dado que:  Existen AuditLogs de múltiples tipos (DISCOUNT, PRODUCT, FIDELITY)
-  Cuando:    Realizo GET /api/v1/audit-logs?ruleType=DISCOUNT
-  Entonces:  El sistema retorna 200 OK solo con AuditLogs cuyo rule_type sea DISCOUNT
+CRITERIO-13.2.2: Filtrar por entidad
+  Dado que:  Existen AuditLogs de múltiples entidades (product_rules, seasonal_rules, customer_tiers)
+  Cuando:    Realizo GET /api/v1/audit-logs?entityName=product_rules
+  Entonces:  El sistema retorna 200 OK solo con AuditLogs cuyo entity_name sea product_rules
 ```
 
 ```gherkin
@@ -162,10 +161,10 @@ CRITERIO-13.2.7: Acceso sin rol SUPER_ADMIN
 
 ```gherkin
 CRITERIO-13.2.8: Filtro con valor inválido
-  Dado que:  Envío un ruleType no soportado ( ej. "INVALID")
-  Cuando:    Realizo GET /api/v1/audit-logs?ruleType=INVALID
+  Dado que:  Envío un entityName no soportado (ej. "INVALID_ENTITY")
+  Cuando:    Realizo GET /api/v1/audit-logs?entityName=INVALID_ENTITY
   Entonces:  El sistema retorna 400 BAD REQUEST con mensaje:
-             { "error": "ruleType must be one of: DISCOUNT, PRODUCT, FIDELITY" }
+             { "error": "entityName must be one of: product_rules, seasonal_rules, customer_tiers, discount_settings, etc." }
 ```
 
 ```gherkin
@@ -201,19 +200,18 @@ CRITERIO-13.3.1: Renderizar tabla de auditoría con datos
              - Timestamp (formato: DD/MM/YYYY HH:mm:ss UTC)
              - Usuario (email o nombre)
              - Ecommerce
-             - Tipo de Regla (DISCOUNT, PRODUCT, FIDELITY)
+             - Entidad (product_rules, seasonal_rules, customer_tiers, etc.)
              - Acción (CREATE, UPDATE, DELETE)
              - Detalles (enlace o modal para expandir old_value/new_value)
-             - IP Address
              Y se muestran máximo 25 filas por página con paginación
 ```
 
 ```gherkin
-CRITERIO-13.3.2: Aplicar filtro por tipo de regla en UI
+CRITERIO-13.3.2: Aplicar filtro por entidad en UI
   Dado que:  Veo la tabla de auditoría renderizada
-  Cuando:    Selecciono un tipo de regla en el dropdown (ej. DISCOUNT)
+  Cuando:    Selecciono una entidad en el dropdown (ej. product_rules)
   Entonces:  La tabla se filtra de inmediato (con loading spinner) 
-             y muestra solo AuditLogs de ese tipo
+             y muestra solo AuditLogs de esa entidad
 ```
 
 ```gherkin
@@ -235,7 +233,7 @@ CRITERIO-13.3.5: Exportar como CSV
   Dado que:  Veo tabla renderizada con datos filtrados
   Cuando:    Hago click en botón "Exportar a CSV"
   Entonces:  Se descarga un archivo audit_logs_<timestamp>.csv con:
-             - Headers: Timestamp, Usuario, Ecommerce, Tipo Regla, Acción, Valor Anterior, Valor Nuevo, IP
+             - Headers: Timestamp, Usuario, Ecommerce, Entidad, Acción, Valor Anterior, Valor Nuevo
              - Todas las filas que cumplen los filtros actuales
              - Valores JSON complejos se formatean como strings legibles
 ```
@@ -254,8 +252,7 @@ CRITERIO-13.3.6: Error al cargar datos del backend
 2. **Solo SUPER_ADMIN:** Solo usuarios con rol SUPER_ADMIN pueden consultar auditoría.
 3. **Retención indefinida:** Los AuditLogs se mantienen indefinidamente (sin purga automática).
 4. **Timestamp UTC:** Todos los timestamps se almacenan y retornan en UTC ISO 8601.
-5. **IP dinámima:** Se captura la IP del cliente de cada request (header `X-Forwarded-For` o `RemoteAddr`).
-6. **Validación de filtros:** startDate debe ser < endDate, y ruleType debe estar en [DISCOUNT, PRODUCT, FIDELITY].
+5. **Validación de filtros:** startDate debe ser < endDate, y entity_name debe ser válida (product_rules, seasonal_rules, customer_tiers, etc.).
 
 ---
 

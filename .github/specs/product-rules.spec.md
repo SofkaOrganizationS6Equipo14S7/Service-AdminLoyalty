@@ -46,7 +46,7 @@ Capa:        Backend + Frontend
 CRITERIO-7.1.1: Creación exitosa de regla para un nuevo tipo de producto
   Dado que:  estoy autenticado como Administrador
   Cuando:    creo una productRule con nombre="Premium", productType="ELECTRONICS", 
-             discountPercentage=15, benefit="Free Shipping"
+             discountPercentage=15
   Entonces:  la regla se registra con uid único, status 201 Created, 
              y se publica evento PRODUCT_RULE_CREATED en RabbitMQ
 ```
@@ -64,7 +64,7 @@ CRITERIO-7.1.3: Rechazo por campos incompletos
   Entonces:  recibo 400 Bad Request con detalle del campo faltante
 
 CRITERIO-7.1.4: Rechazo por descuento fuera de rango
-  Dado que:  existe configuración global con min_discount=0 y max_discount=50
+  Dado que:  existe configuración global con max_discount_cap=50
   Cuando:    intento crear regla con discountPercentage=75
   Entonces:  recibo 400 Bad Request con mensaje "Discount exceeds maximum allowed"
 
@@ -99,7 +99,7 @@ CRITERIO-7.2.1: Listado exitoso de reglas para ecommerce
 CRITERIO-7.2.2: Obtención exitosa de una regla por uid
   Dado que:  existe regla con uid="550e8400-e29b-41d4-a716-446655440000"
   Cuando:    GET /api/v1/product-rules/550e8400-e29b-41d4-a716-446655440000
-  Entonces:  recibo 200 OK con la regla completa (uid, name, productType, discountPercentage, benefit, active, timestamps)
+  Entonces:  recibo 200 OK con la regla completa (uid, name, productType, discountPercentage, active, timestamps)
 ```
 
 **Error Path**
@@ -192,11 +192,11 @@ CRITERIO-7.4.3: Rechazo por falta de autenticación
 ### Reglas de Negocio
 1. **Unicidad por tipo de producto:** Solo puede existir UNA regla activa por `product_type`. El código debe validar ANTES de insertar y lanzar `409 Conflict` si la regla ya existe.
 2. **No eliminación física:** Las reglas eliminadas se marcan con `active=false`, no se borran de la BD. Esto mantiene auditoría.
-3. **Validación de descuento:** Todo `discount_percentage` debe estar entre 0 y 100. Además, si existe `discount_configuration` para el ecommerce, respetar sus límites (min_discount, max_discount).
-4. **Sincronización RabbitMQ:** Cada operación (CREATE, UPDATE, DELETE) publica un evento JSON a la cola del Engine Service. El payload incluye: `{ "eventType": "PRODUCT_RULE_CREATED|UPDATED|DELETED", "uid": "...", "productType": "...", "discountPercentage": "...", "benefit": "...", "active": true/false, "timestamp": "iso8601" }`.
+3. **Validación de descuento:** Todo `discount_percentage` debe estar entre 0 y 100. Además, si existe `discount_settings` para el ecommerce, respetar su límite máximo (`max_discount_cap`).
+4. **Sincronización RabbitMQ:** Cada operación (CREATE, UPDATE, DELETE) publica un evento JSON a la cola del Engine Service. El payload incluye: `{ "eventType": "PRODUCT_RULE_CREATED|UPDATED|DELETED", "uid": "...", "productType": "...", "discountPercentage": "...", "active": true/false, "timestamp": "iso8601" }`.
 5. **Autenticación obligatoria:** Todos los endpoints requieren JWT válido en header `Authorization: Bearer <token>`.
 6. **Alcance por ecommerce:** Las reglas están asociadas a un ecommerce (extraído del JWT). Un administrador solo ve/edita reglas de su ecommerce.
-7. **Campos requeridos:** name, product_type, discount_percentage, benefit. Todos los demás (description, etc.) son opcionales.
+7. **Campos requeridos:** name, product_type, discount_percentage. Todos los demás son opcionales.
 
 ---
 
@@ -266,8 +266,7 @@ CREATE INDEX idx_product_rules_active ON product_rules(is_active);
   {
     "name": "string (required, max 255)",
     "productType": "string (required, max 100)",
-    "discountPercentage": "number (required, 0-100)",
-    "benefit": "string (optional, max 255)"
+    "discountPercentage": "number (required, 0-100)"
   }
   ```
 - **Response 201 Created**:
@@ -278,7 +277,6 @@ CREATE INDEX idx_product_rules_active ON product_rules(is_active);
     "name": "Premium",
     "productType": "ELECTRONICS",
     "discountPercentage": 15.50,
-    "benefit": "Free Shipping",
     "isActive": true,
     "createdAt": "2026-03-30T10:30:00Z",
     "updatedAt": "2026-03-30T10:30:00Z"
@@ -320,7 +318,6 @@ CREATE INDEX idx_product_rules_active ON product_rules(is_active);
         "name": "Premium",
         "productType": "ELECTRONICS",
         "discountPercentage": 15.50,
-        "benefit": "Free Shipping",
         "isActive": true,
         "createdAt": "2026-03-30T10:30:00Z",
         "updatedAt": "2026-03-30T10:30:00Z"
@@ -361,8 +358,7 @@ CREATE INDEX idx_product_rules_active ON product_rules(is_active);
   ```json
   {
     "name": "string (optional)",
-    "discountPercentage": "number (optional, 0-100)",
-    "benefit": "string (optional)"
+    "discountPercentage": "number (optional, 0-100)"
   }
   ```
   Nota: `product_type` NO se puede editar (se considera identificador lógico junto con ecommerce_id)
