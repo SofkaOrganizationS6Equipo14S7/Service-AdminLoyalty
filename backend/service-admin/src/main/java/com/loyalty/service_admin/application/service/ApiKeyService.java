@@ -63,8 +63,10 @@ public class ApiKeyService {
         
         // 3. Crear entity con hash persistido
         ApiKeyEntity entity = new ApiKeyEntity();
+        entity.setKeyPrefix(plainKeyValue.substring(0, 8));
         entity.setHashedKey(hashedKeyValue);
         entity.setEcommerceId(ecommerceId);
+        entity.setIsActive(true);
         
         // 4. Persistir en BD (solo el hash)
         ApiKeyEntity saved = apiKeyRepository.save(entity);

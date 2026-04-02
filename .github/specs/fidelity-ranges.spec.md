@@ -165,42 +165,42 @@ Y           evento 'FidelityRangeDeleted' se publica a RabbitMQ
 
 | Entidad | Almacén | Cambios | Descripción |
 |---------|---------|---------|-------------|
-| `FidelityRangeEntity` | **Admin**: tabla `fidelity_ranges` (source of truth) | **nueva** | Rangos de clasificación de fidelidad (Admin Service) |
-| `FidelityRangeEntity` | **Engine**: tabla `fidelity_ranges` (réplica para Cold Start) | **nueva** | Replica para autonomía del Engine; se sincroniza vía RabbitMQ |
-| `PermissionEntity` | tabla `permissions` | **modificada** | Agregar permisos `fidelity:read`, `fidelity:write` |
+| `FidelityRangeEntity` | **Admin**: tabla `fidelity_range` (source of truth) | **nueva** | Rangos de clasificación de fidelidad (Admin Service) |
+| `FidelityRangeEntity` | **Engine**: tabla `fidelity_range` (réplica para Cold Start) | **nueva** | Replica para autonomía del Engine; se sincroniza vía RabbitMQ |
+| `PermissionEntity` | tabla `permission` | **modificada** | Agregar permisos `fidelity:read`, `fidelity:write` |
 
-#### Campos del modelo — `fidelity_ranges`
+#### Campos del modelo — `fidelity_range` (normalizado)
 
 | Campo | Tipo SQL | Obligatorio | Validación | Descripción |
 |-------|----------|-------------|------------|-------------|
-| `uid` | UUID | sí | auto-generado | Identificador único (PK) |
-| `ecommerce_id` | UUID | sí | FK → ecommerces.uid | Tenant (aislamiento) |
+| `id` | UUID | sí | auto-generado (gen_random_uuid()) | Identificador único (PK) |
+| `ecommerce_id` | UUID | sí | FK → ecommerce.id | Tenant (aislamiento) |
 | `name` | VARCHAR(255) | sí | @NotBlank, @Size(max=255) | Nombre del nivel (ej: "Bronce", "Plata") |
 | `min_points` | INTEGER | sí | @NotNull, @PositiveOrZero | Mínimo de puntos incluidos (ej: 0) |
 | `max_points` | INTEGER | sí | @NotNull, @Positive | Máximo de puntos incluidos (ej: 999) |
 | `discount_percentage` | NUMERIC(5,2) | sí | @NotNull, @DecimalMin/Max | Descuento aplicable [0, 100] |
 | `is_active` | BOOLEAN | sí | default true | Soft delete flag |
-| `created_at` | TIMESTAMP WITH TIME ZONE | sí | auto-generado (CURRENT_TIMESTAMP) | Timestamp UTC de creación |
+| `created_at` | TIMESTAMP WITH TIME ZONE | sí | auto-generado | Timestamp UTC de creación |
 | `updated_at` | TIMESTAMP WITH TIME ZONE | sí | auto-actualizado | Timestamp UTC de última modificación |
 
 #### Índices y Constraints
 
 ```sql
 -- Índices para búsquedas frecuentes
-CREATE INDEX idx_fidelity_ranges_ecommerce_id ON fidelity_ranges(ecommerce_id);
-CREATE INDEX idx_fidelity_ranges_active ON fidelity_ranges(is_active);
-CREATE INDEX idx_fidelity_ranges_ecommerce_active ON fidelity_ranges(ecommerce_id, is_active);
-CREATE INDEX idx_fidelity_ranges_min_points ON fidelity_ranges(min_points);
+CREATE INDEX idx_fidelity_range_ecommerce ON fidelity_range(ecommerce_id);
+CREATE INDEX idx_fidelity_range_active ON fidelity_range(is_active);
+CREATE INDEX idx_fidelity_range_ecommerce_active ON fidelity_range(ecommerce_id, is_active);
+CREATE INDEX idx_fidelity_range_min_points ON fidelity_range(min_points);
 
 -- Índice Único Parcial: Solo un nombre ACTIVO por ecommerce
 -- Permite histórico de nombres eliminados (soft-delete)
 CREATE UNIQUE INDEX uq_active_fidelity_name 
-  ON fidelity_ranges (ecommerce_id, name) 
+  ON fidelity_range (ecommerce_id, name) 
   WHERE (is_active IS TRUE);
 
 -- Constraints
-CONSTRAINT pk_fidelity_ranges PRIMARY KEY (uid)
-CONSTRAINT fk_fidelity_ranges_ecommerce FOREIGN KEY (ecommerce_id) REFERENCES ecommerces(uid) ON DELETE CASCADE
+CONSTRAINT pk_fidelity_range PRIMARY KEY (id)
+CONSTRAINT fk_fidelity_range_ecommerce FOREIGN KEY (ecommerce_id) REFERENCES ecommerce(id) ON DELETE CASCADE
 CONSTRAINT ck_min_max_points CHECK (min_points >= 0 AND max_points > min_points)
 CONSTRAINT ck_discount_range CHECK (discount_percentage BETWEEN 0 AND 100)
 ```

@@ -266,52 +266,55 @@ CRITERIO-13.3.6: Error al cargar datos del backend
 #### Entidades afectadas
 | Entidad | Almacén | Cambios | Descripción |
 |---------|---------|---------|-------------|
-| `AuditLog` | tabla `config_audit_logs` (nueva) | nueva | Log de cambios de reglas (Management) |
+| `AuditLogEntity` | tabla `audit_log` (nueva) | nueva | Log de cambios de reglas (Management) |
 
-#### Campos del modelo `AuditLog`
+#### Campos del modelo `AuditLogEntity` (normalizado)
 | Campo | Tipo | Obligatorio | Validación | Descripción |
 |-------|------|-------------|------------|-------------|
-| `id` | UUID | sí | auto-generado | Identificador único del log |
-| `timestamp` | TIMESTAMPTZ | sí | auto-generado | Momento del cambio en UTC (con zona horaria) |
-| `user_id` | UUID | sí | FK a users.uid | Usuario que realizó el cambio |
-| `ecommerce_id` | UUID | sí | FK a ecommerces.uid | Ecommerce afectado |
-| `rule_type` | ENUM | sí | DISCOUNT, PRODUCT, FIDELITY | Tipo de regla modificada |
-| `rule_id` | UUID | sí | – | ID de la regla modificada |
-| `action` | ENUM | sí | CREATE, UPDATE, DELETE | Tipo de acción realizada |
-| `old_value` | JSONB | no | – | Estado anterior (null en CREATE). Almacenado como JSONB para búsquedas eficientes |
-| `new_value` | JSONB | no | – | Estado nuevo (null en DELETE). Almacenado como JSONB para búsquedas eficientes |
-| `ip_address` | VARCHAR(45) | sí | IPv4 o IPv6 | IP del cliente que realizó cambio |
-| `created_at` | TIMESTAMPTZ | sí | auto-generado | Timestamp creación del log en UTC |
+| `id` | UUID | sí | auto-generado (gen_random_uuid()) | Identificador único del log |
+| `user_id` | UUID | no | FK a user.id (SET NULL) | Usuario que realizó el cambio |
+| `action` | VARCHAR(20) | sí | CREATE, UPDATE, DELETE | Tipo de acción realizada |
+| `target_entity` | VARCHAR(50) | sí | RULE, CONFIG, USER, PRODUCT, FIDELITY | Entidad afectada |
+| `change_data` | JSONB | no | – | Datos del cambio: {"old": {...}, "new": {...}} |
+| `created_at` | TIMESTAMP WITH TIME ZONE | sí | auto-generado | Timestamp creación del log en UTC |
 
 #### Índices / Constraints
 ```sql
--- Para búsquedas rápidas por ecommerce
-CREATE INDEX idx_config_audit_logs_ecommerce_id ON config_audit_logs(ecommerce_id);
+-- PRIMARY KEY
+PRIMARY KEY (id)
 
--- Para búsquedas por rango de fechas (muy frecuente)
-CREATE INDEX idx_config_audit_logs_timestamp ON config_audit_logs(timestamp DESC);
+-- FK (nullable, SET NULL on delete)
+FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE SET NULL
 
--- Búsqueda combinada: ecommerce + tipo de regla
-CREATE INDEX idx_config_audit_logs_ecommerce_type ON config_audit_logs(ecommerce_id, rule_type);
+-- Índices para búsquedas frecuentes
+CREATE INDEX idx_audit_log_user ON audit_log(user_id);
+CREATE INDEX idx_audit_log_action ON audit_log(action);
+CREATE INDEX idx_audit_log_target ON audit_log(target_entity);
+CREATE INDEX idx_audit_log_created ON audit_log(created_at DESC);
 
--- Búsqueda combinada: tipo de regla + timestamp (filtro común)
-CREATE INDEX idx_config_audit_logs_type_timestamp ON config_audit_logs(rule_type, timestamp DESC);
+-- CHECK constraints
+CHECK (action IN ('CREATE', 'UPDATE', 'DELETE'))
+CHECK (target_entity IN ('RULE', 'CONFIG', 'USER', 'PRODUCT', 'FIDELITY', 'ECOMMERCE'))
 
--- Índice JSONB para búsquedas eficientes dentro de old_value/new_value (si fuera necesario)
-CREATE INDEX idx_config_audit_logs_jsonb_new_value ON config_audit_logs USING GIN (new_value);
+-- Índice GIN para búsquedas en JSONB (opcional)
+CREATE INDEX idx_audit_log_change_data_gin ON audit_log USING GIN (change_data);
 ```
 
 #### Migration (Flyway)
 ```sql
--- V13__Create_config_audit_logs_table.sql
+-- V1__Create_audit_log_table.sql
 -- Auditoría de cambios de configuración de reglas (Management)
--- Diferenciado de transaction_audit_logs (SPEC-012) que viene del Engine vía RabbitMQ
-CREATE TABLE IF NOT EXISTS config_audit_logs (
-    id UUID PRIMARY KEY NOT NULL,
-    timestamp TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    user_id UUID NOT NULL REFERENCES users(uid) ON DELETE CASCADE,
-    ecommerce_id UUID NOT NULL REFERENCES ecommerces(uid) ON DELETE CASCADE,
-    rule_type VARCHAR(20) NOT NULL CHECK (rule_type IN ('DISCOUNT', 'PRODUCT', 'FIDELITY')),
+CREATE TABLE IF NOT EXISTS audit_log (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES user(id) ON DELETE SET NULL,
+    action VARCHAR(20) NOT NULL CHECK (action IN ('CREATE', 'UPDATE', 'DELETE')),
+    target_entity VARCHAR(50) NOT NULL,
+    change_data JSONB,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT ck_audit_action CHECK (action IN ('CREATE', 'UPDATE', 'DELETE')),
+    CONSTRAINT ck_audit_target CHECK (target_entity IN ('RULE', 'CONFIG', 'USER', 'PRODUCT', 'FIDELITY', 'ECOMMERCE'))
+);
     rule_id UUID NOT NULL,
     action VARCHAR(10) NOT NULL CHECK (action IN ('CREATE', 'UPDATE', 'DELETE')),
     old_value JSONB,

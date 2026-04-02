@@ -212,31 +212,35 @@ CREATE TABLE seasonal_rules (
 );
 
 CREATE INDEX idx_seasonal_rules_ecommerce_id ON seasonal_rules(ecommerce_id);
-CREATE INDEX idx_seasonal_rules_date_range ON seasonal_rules(start_date, end_date);
-CREATE INDEX idx_seasonal_rules_active ON seasonal_rules(is_active);
+CREATE INDEX idx_seasonal_rule_date_range ON seasonal_rule(start_date, end_date);
+CREATE INDEX idx_seasonal_rule_active ON seasonal_rule(is_active);
 ```
 
-#### Campos del modelo
+#### Campos del modelo (normalizado)
 
 | Campo | Tipo | Obligatorio | Validación | Descripción |
 |-------|------|-------------|------------|-------------|
-| `uid` | UUID | sí | auto-generado | Identificador único |
-| `ecommerce_id` | UUID | sí | FK a ecommerces | Ecommerce asociado |
-| `name` | string | sí | 1-255 chars | Nombre de la temporada (ej: "Black Friday 2026") |
-| `description` | string | no | max 1000 chars | Descripción adicional |
-| `discount_percentage` | BigDecimal | sí | 0-100 | Porcentaje de descuento (6 dígitos totales, 2 decimales) |
-| `discount_type` | enum | sí | PERCENTAGE, FIXED_AMOUNT | Tipo de descuento a aplicar |
-| `start_date` | TIMESTAMP WITH TIME ZONE | sí | < end_date | Inicio de vigencia (ISO 8601, ej: 2026-11-28T00:00:00Z) |
-| `end_date` | TIMESTAMP WITH TIME ZONE | sí | > start_date | Fin de vigencia (ISO 8601, ej: 2026-12-02T23:59:59Z) |
-| `is_active` | boolean | sí | default true | Soft delete flag |
-| `created_at` | datetime (UTC) | sí | auto-generado | Timestamp creación |
-| `updated_at` | datetime (UTC) | sí | auto-generado | Timestamp actualización |
+| `id` | UUID | sí | auto-generado (gen_random_uuid()) | Identificador único |
+| `ecommerce_id` | UUID | sí | FK a ecommerce.id | Ecommerce asociado |
+| `name` | VARCHAR(255) | sí | 1-255 chars | Nombre de la temporada (ej: "Black Friday 2026") |
+| `description` | VARCHAR(1000) | no | max 1000 chars | Descripción adicional |
+| `discount_percentage` | NUMERIC(5,2) | sí | 0-100 | Porcentaje de descuento |
+| `discount_type` | VARCHAR(50) | sí | PERCENTAGE, FIXED_AMOUNT | Tipo de descuento a aplicar |
+| `start_date` | TIMESTAMP WITH TIME ZONE | sí | < end_date | Inicio de vigencia (ISO 8601) |
+| `end_date` | TIMESTAMP WITH TIME ZONE | sí | > start_date | Fin de vigencia (ISO 8601) |
+| `is_active` | BOOLEAN | sí | default true | Soft delete flag |
+| `created_at` | TIMESTAMP WITH TIME ZONE | sí | auto-generado | Timestamp creación |
+| `updated_at` | TIMESTAMP WITH TIME ZONE | sí | auto-generado | Timestamp actualización |
 
 #### Índices / Constraints
-- **Unique constraint**: `(ecommerce_id, start_date, end_date)` donde `is_active=true` — prevent overlapping dates per ecommerce
-- **Index**: `ecommerce_id` para consultas por ecommerce
-- **Index**: `(start_date, end_date)` para range queries eficientes
-- **Index**: `is_active` para filtrar solo reglas activas
+- **PRIMARY KEY**: `id` (UUID)
+- **FK**: `ecommerce_id` → `ecommerce(id)` ON DELETE CASCADE
+- **UNIQUE PARCIAL**: `(ecommerce_id, start_date, end_date)` WHERE `is_active=true`
+- **INDEX**: `idx_seasonal_rule_ecommerce` (ecommerce_id)
+- **INDEX**: `idx_seasonal_rule_date_range` (start_date, end_date)
+- **INDEX**: `idx_seasonal_rule_active` (is_active)
+- **CHECK**: `discount_percentage >= 0 AND discount_percentage <= 100`
+- **CHECK**: `start_date < end_date`
 
 ### API REST (Service-Admin — Sistema de Record)
 

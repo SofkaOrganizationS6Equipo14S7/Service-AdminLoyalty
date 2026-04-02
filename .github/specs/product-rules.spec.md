@@ -227,32 +227,34 @@ CREATE TABLE product_rules (
 );
 
 CREATE INDEX idx_product_rules_ecommerce_id ON product_rules(ecommerce_id);
-CREATE INDEX idx_product_rules_product_type ON product_rules(product_type);
-CREATE INDEX idx_product_rules_active ON product_rules(is_active);
-CREATE INDEX idx_product_rules_ecommerce_active 
-    ON product_rules(ecommerce_id, is_active);
+CREATE INDEX idx_product_rule_product_type ON product_rule(product_type);
+CREATE INDEX idx_product_rule_active ON product_rule(is_active);
+CREATE INDEX idx_product_rule_ecommerce_active 
+    ON product_rule(ecommerce_id, is_active);
 ```
 
-#### Campos del modelo
+#### Campos del modelo (normalizado)
 | Campo | Tipo | Obligatorio | Validación | Descripción |
 |-------|------|-------------|------------|-------------|
-| `uid` | UUID | sí | auto-generado (UUID.randomUUID()) | Identificador único de la regla |
-| `ecommerce_id` | UUID | sí | FK a `ecommerces.id` | Comercio electrónico propietario |
+| `id` | UUID | sí | auto-generado (gen_random_uuid()) | Identificador único de la regla |
+| `ecommerce_id` | UUID | sí | FK a ecommerce.id | Comercio electrónico propietario |
 | `name` | VARCHAR(255) | sí | max 255 chars, no vacío | Nombre de la regla (ej. "Premium", "Clearance") |
 | `product_type` | VARCHAR(100) | sí | max 100 chars, no vacío | Tipo de producto (ej. "ELECTRONICS", "CLOTHING") |
 | `discount_percentage` | NUMERIC(5,2) | sí | 0 ≤ valor ≤ 100 | Porcentaje de descuento (ej. 15.50) |
-| `benefit` | VARCHAR(255) | no | max 255 chars | Beneficio asociado (ej. "Free Shipping", "Extended Warranty") |
-| `is_active` | BOOLEAN | sí | default=TRUE | Estado de la regla (TRUE=activa, FALSE=eliminada) |
-| `created_at` | TIMESTAMP WITH TIME ZONE | sí | auto-generado (CURRENT_TIMESTAMP) | Timestamp de creación (UTC) |
-| `updated_at` | TIMESTAMP WITH TIME ZONE | sí | auto-generado, actualizar en UPDATE (CURRENT_TIMESTAMP) | Timestamp última actualización (UTC) |
+| `benefit` | VARCHAR(500) | no | max 500 chars | Beneficio asociado (ej. "Free Shipping", "Extended Warranty") |
+| `is_active` | BOOLEAN | sí | default TRUE | Estado de la regla (TRUE=activa, FALSE=eliminada) |
+| `created_at` | TIMESTAMP WITH TIME ZONE | sí | auto-generado | Timestamp de creación (UTC) |
+| `updated_at` | TIMESTAMP WITH TIME ZONE | sí | auto-generado | Timestamp última actualización (UTC) |
 
 #### Índices / Constraints
-- **UNIQUE(ecommerce_id, product_type, is_active)** — Garantiza solo 1 regla activa por producto_type por ecommerce. Permite múltiples inactivas (historial).
-- **FK(ecommerce_id)** — Integridad referencial con ecommerces.
-- **idx_product_rules_ecommerce_id** — Búsqueda rápida por ecommerce.
-- **idx_product_rules_product_type** — Búsqueda por tipo de producto.
-- **idx_product_rules_active** — Filtrado de reglas activas/inactivas.
-- **idx_product_rules_ecommerce_active** — Búsqueda combinada (ecommerce + activo).
+- **PRIMARY KEY**: `id` (UUID)
+- **FK**: `ecommerce_id` → `ecommerce(id)` ON DELETE CASCADE
+- **UNIQUE PARCIAL**: `(ecommerce_id, product_type, is_active)` WHERE `is_active=true` — solo 1 regla activa por tipo de producto por ecommerce
+- **INDEX**: `idx_product_rule_ecommerce` (ecommerce_id)
+- **INDEX**: `idx_product_rule_product_type` (product_type)
+- **INDEX**: `idx_product_rule_active` (is_active)
+- **INDEX**: `idx_product_rule_ecommerce_active` (ecommerce_id, is_active)
+- **CHECK**: `discount_percentage >= 0 AND discount_percentage <= 100`
 
 ### API Endpoints
 
