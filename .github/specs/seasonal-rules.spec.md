@@ -191,29 +191,23 @@ Misma estructura en ambas BDs. Admin es fuente de verdad (System of Record), Eng
 
 ```sql
 CREATE TABLE seasonal_rules (
-  uid UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  ecommerce_id UUID NOT NULL,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ecommerce_id UUID NOT NULL REFERENCES ecommerce(id) ON DELETE CASCADE,
+  discount_type_id UUID NOT NULL REFERENCES discount_types(id),
   name VARCHAR(255) NOT NULL,
   description VARCHAR(1000),
-  discount_percentage NUMERIC(5,2) NOT NULL,  -- BigDecimal: 0.00 - 100.00
-  discount_type VARCHAR(50) NOT NULL,         -- PERCENTAGE, FIXED_AMOUNT
+  discount_percentage NUMERIC(5,2) NOT NULL CHECK (discount_percentage >= 0 AND discount_percentage <= 100),
   start_date TIMESTAMP WITH TIME ZONE NOT NULL,
   end_date TIMESTAMP WITH TIME ZONE NOT NULL,
-  is_active BOOLEAN DEFAULT true,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  
-  -- Constraints
-  CONSTRAINT fk_ecommerce FOREIGN KEY (ecommerce_id) REFERENCES ecommerces(uid),
-  CONSTRAINT discount_percentage_range CHECK (discount_percentage >= 0 AND discount_percentage <= 100),
-  CONSTRAINT valid_date_range CHECK (start_date < end_date),
-  CONSTRAINT unique_seasonal_rule_per_ecommerce 
-    UNIQUE (ecommerce_id, start_date, end_date) WHERE is_active = true
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT valid_date_range CHECK (start_date < end_date)
 );
 
-CREATE INDEX idx_seasonal_rules_ecommerce_id ON seasonal_rules(ecommerce_id);
-CREATE INDEX idx_seasonal_rule_date_range ON seasonal_rule(start_date, end_date);
-CREATE INDEX idx_seasonal_rule_active ON seasonal_rule(is_active);
+CREATE INDEX idx_seasonal_rules_ecommerce ON seasonal_rules(ecommerce_id);
+CREATE INDEX idx_seasonal_rules_date ON seasonal_rules(start_date, end_date);
+CREATE INDEX idx_seasonal_rules_active ON seasonal_rules(is_active);
 ```
 
 #### Campos del modelo (normalizado)
@@ -222,13 +216,13 @@ CREATE INDEX idx_seasonal_rule_active ON seasonal_rule(is_active);
 |-------|------|-------------|------------|-------------|
 | `id` | UUID | sí | auto-generado (gen_random_uuid()) | Identificador único |
 | `ecommerce_id` | UUID | sí | FK a ecommerce.id | Ecommerce asociado |
-| `name` | VARCHAR(255) | sí | 1-255 chars | Nombre de la temporada (ej: "Black Friday 2026") |
+| `discount_type_id` | UUID | sí | FK a discount_types.id | Tipo de descuento asociado |
+| `name` | VARCHAR(255) | sí | 1-255 chars | Nombre de la temporada |
 | `description` | VARCHAR(1000) | no | max 1000 chars | Descripción adicional |
 | `discount_percentage` | NUMERIC(5,2) | sí | 0-100 | Porcentaje de descuento |
-| `discount_type` | VARCHAR(50) | sí | PERCENTAGE, FIXED_AMOUNT | Tipo de descuento a aplicar |
-| `start_date` | TIMESTAMP WITH TIME ZONE | sí | < end_date | Inicio de vigencia (ISO 8601) |
-| `end_date` | TIMESTAMP WITH TIME ZONE | sí | > start_date | Fin de vigencia (ISO 8601) |
-| `is_active` | BOOLEAN | sí | default true | Soft delete flag |
+| `start_date` | TIMESTAMP WITH TIME ZONE | sí | < end_date | Inicio de vigencia |
+| `end_date` | TIMESTAMP WITH TIME ZONE | sí | > start_date | Fin de vigencia |
+| `is_active` | BOOLEAN | sí | default TRUE | Soft delete flag |
 | `created_at` | TIMESTAMP WITH TIME ZONE | sí | auto-generado | Timestamp creación |
 | `updated_at` | TIMESTAMP WITH TIME ZONE | sí | auto-generado | Timestamp actualización |
 
