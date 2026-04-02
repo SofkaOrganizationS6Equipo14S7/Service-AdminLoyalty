@@ -55,7 +55,7 @@ CRITERIO-13.1.1: Registrar CREATE de regla de descuento
              - timestamp: fecha/hora actual UTC
              - user_id: identificador del administrador autenticado
              - ip_address: IP del cliente
-             Y el log se persiste de forma síncrona en tabla audit_logs
+             Y el log se persiste de forma síncrona en tabla audit_log
 ```
 
 ```gherkin
@@ -272,10 +272,13 @@ CRITERIO-13.3.6: Error al cargar datos del backend
 | Campo | Tipo | Obligatorio | Validación | Descripción |
 |-------|------|-------------|------------|-------------|
 | `id` | UUID | sí | auto-generado (gen_random_uuid()) | Identificador único del log |
-| `user_id` | UUID | no | FK a user.id (SET NULL) | Usuario que realizó el cambio |
-| `action` | VARCHAR(20) | sí | CREATE, UPDATE, DELETE | Tipo de acción realizada |
-| `target_entity` | VARCHAR(50) | sí | RULE, CONFIG, USER, PRODUCT, FIDELITY | Entidad afectada |
-| `change_data` | JSONB | no | – | Datos del cambio: {"old": {...}, "new": {...}} |
+| `user_id` | UUID | no | FK a app_user.id (SET NULL) | Usuario que realizó el cambio |
+| `ecommerce_id` | UUID | no | FK a ecommerce.id | Ecommerce donde occurred el cambio |
+| `action` | VARCHAR(50) | sí | CREATE, UPDATE, DELETE, etc. | Tipo de acción realizada |
+| `entity_name` | VARCHAR(100) | sí | RULE, CONFIG, USER, PRODUCT, FIDELITY | Entidad afectada |
+| `entity_id` | UUID | no | – | ID de la entidad afectada |
+| `old_value` | JSONB | no | – | Datos anteriores: {"old": {...}} |
+| `new_value` | JSONB | no | – | Datos nuevos: {"new": {...}} |
 | `created_at` | TIMESTAMP WITH TIME ZONE | sí | auto-generado | Timestamp creación del log en UTC |
 
 #### Índices / Constraints
@@ -284,20 +287,15 @@ CRITERIO-13.3.6: Error al cargar datos del backend
 PRIMARY KEY (id)
 
 -- FK (nullable, SET NULL on delete)
-FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE SET NULL
+FOREIGN KEY (user_id) REFERENCES app_user(id) ON DELETE SET NULL
+FOREIGN KEY (ecommerce_id) REFERENCES ecommerce(id)
 
 -- Índices para búsquedas frecuentes
 CREATE INDEX idx_audit_log_user ON audit_log(user_id);
+CREATE INDEX idx_audit_log_ecommerce ON audit_log(ecommerce_id);
 CREATE INDEX idx_audit_log_action ON audit_log(action);
-CREATE INDEX idx_audit_log_target ON audit_log(target_entity);
-CREATE INDEX idx_audit_log_created ON audit_log(created_at DESC);
-
--- CHECK constraints
-CHECK (action IN ('CREATE', 'UPDATE', 'DELETE'))
-CHECK (target_entity IN ('RULE', 'CONFIG', 'USER', 'PRODUCT', 'FIDELITY', 'ECOMMERCE'))
-
--- Índice GIN para búsquedas en JSONB (opcional)
-CREATE INDEX idx_audit_log_change_data_gin ON audit_log USING GIN (change_data);
+CREATE INDEX idx_audit_log_entity_name ON audit_log(entity_name);
+CREATE INDEX idx_audit_log_created_at ON audit_log(created_at DESC);
 ```
 
 #### Migration (Flyway)
@@ -306,31 +304,22 @@ CREATE INDEX idx_audit_log_change_data_gin ON audit_log USING GIN (change_data);
 -- Auditoría de cambios de configuración de reglas (Management)
 CREATE TABLE IF NOT EXISTS audit_log (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES user(id) ON DELETE SET NULL,
-    action VARCHAR(20) NOT NULL CHECK (action IN ('CREATE', 'UPDATE', 'DELETE')),
-    target_entity VARCHAR(50) NOT NULL,
-    change_data JSONB,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    
-    CONSTRAINT ck_audit_action CHECK (action IN ('CREATE', 'UPDATE', 'DELETE')),
-    CONSTRAINT ck_audit_target CHECK (target_entity IN ('RULE', 'CONFIG', 'USER', 'PRODUCT', 'FIDELITY', 'ECOMMERCE'))
-);
-    rule_id UUID NOT NULL,
-    action VARCHAR(10) NOT NULL CHECK (action IN ('CREATE', 'UPDATE', 'DELETE')),
+    user_id UUID REFERENCES app_user(id) ON DELETE SET NULL,
+    ecommerce_id UUID REFERENCES ecommerce(id),
+    action VARCHAR(50) NOT NULL, 
+    entity_name VARCHAR(100) NOT NULL,
+    entity_id UUID,
     old_value JSONB,
     new_value JSONB,
-    ip_address VARCHAR(45) NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Índices para optimizar queries frecuentes
-CREATE INDEX idx_config_audit_logs_ecommerce_id ON config_audit_logs(ecommerce_id);
-CREATE INDEX idx_config_audit_logs_timestamp ON config_audit_logs(timestamp DESC);
-CREATE INDEX idx_config_audit_logs_ecommerce_type ON config_audit_logs(ecommerce_id, rule_type);
-CREATE INDEX idx_config_audit_logs_type_timestamp ON config_audit_logs(rule_type, timestamp DESC);
-
--- Índice GIN para búsquedas eficientes en JSON (opcional pero útil para queries avanzadas)
-CREATE INDEX idx_config_audit_logs_jsonb_new_value ON config_audit_logs USING GIN (new_value);
+CREATE INDEX idx_audit_log_user ON audit_log(user_id);
+CREATE INDEX idx_audit_log_ecommerce ON audit_log(ecommerce_id);
+CREATE INDEX idx_audit_log_action ON audit_log(action);
+CREATE INDEX idx_audit_log_entity_name ON audit_log(entity_name);
+CREATE INDEX idx_audit_log_created_at ON audit_log(created_at DESC);
 ```
 
 ### API Endpoints
