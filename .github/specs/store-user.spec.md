@@ -201,16 +201,16 @@ CRITERIO-3.5: Email inválido
 #### Entidades afectadas
 | Entidad | Almacén | Cambios | Descripción |
 |---------|---------|---------|-------------|
-| `User` | tabla `users` | **existente** — sin cambios structurales | Tabla de usuarios existente con soporte para roles |
-| `Role` | tabla (implícita) | **existente** | Roles: SUPER_ADMIN, STORE_ADMIN, STORE_USER |
-| `Ecommerce` | tabla `ecommerces` | **existente** | Comercios electrónicos |
+| `User` | tabla `app_user` | **existente** | Tabla de usuarios con soporte para roles |
+| `Role` | tabla `roles` | **existente** | Roles: SUPER_ADMIN, STORE_ADMIN, STORE_USER |
+| `Ecommerce` | tabla `ecommerce` | **existente** | Comercios electrónicos |
 
 #### Validación — Constraints existentes obligatorios
 | Constraint | Tabla | Campo(s) | Descripción |
 |-----------|-------|----------|-------------|
-| `email_unique` | `users` | `email` | Email único a nivel global (sin importar ecommerce) |
-| `user_ecommerce_fk` | `users` | `ecommerce_id` | Relación con tabla ecommerces |
-| `role_enum` | `users` | `role` | Validación de rol (SUPER_ADMIN, STORE_ADMIN, STORE_USER) |
+| `email_unique` | `app_user` | `email` | Email único a nivel global |
+| `user_ecommerce_fk` | `app_user` | `ecommerce_id` | Relación con tabla ecommerce |
+| `role_fk` | `app_user` | `role_id` | FK a tabla roles |
 
 ### API Endpoints
 

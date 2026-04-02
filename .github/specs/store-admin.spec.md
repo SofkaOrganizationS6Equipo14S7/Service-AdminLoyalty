@@ -267,20 +267,21 @@ CRITERIO-3.4.3: Validar que STORE_ADMIN no se elimine a sí mismo
 
 | Entidad | Almacén | Cambios | Descripción |
 |---------|---------|---------|-------------|
-| `UserEntity` | tabla `users` | EXTENSIÓN | Nuevo rol `STORE_ADMIN` + campo `email` obligatorio |
-| `EcommerceEntity` | tabla `ecommerces` | No cambia | Mantiene estructura actual |
+| `UserEntity` | tabla `app_user` | EXTENSIÓN | Roles: SUPER_ADMIN, STORE_ADMIN, STORE_USER |
+| `EcommerceEntity` | tabla `ecommerce` | No cambia | Mantiene estructura actual |
 
 #### Cambios en UserEntity
 
 | Campo | Tipo | Obligatorio | Validación | Descripción |
 |-------|------|-------------|------------|-------------|
-| `uid` | UUID | sí | auto-generado | Identificador único global |
-| `username` | string | sí | 3-50 chars, UNIQUE GLOBAL | Único globalmente (para Login simple) |
-| `password` | string | sí | BCrypt hash, min 12 original | Contraseña hasheada |
-| `email` | string | sí | RFC 5322, UNIQUE GLOBAL | **NUEVO:** Email único globalmente |
-| `role` | string | sí | enum: SUPER_ADMIN, STORE_ADMIN, STORE_USER | Rol del usuario |
-| `ecommerce_id` | UUID | condicional | NOT NULL si role IN ('STORE_ADMIN', 'STORE_USER') | Vínculo a ecommerce |
-| `active` | boolean | sí | default true | Flag de estado |
+| `id` | UUID | sí | auto-generado | Identificador único global |
+| `username` | string | sí | 3-100 chars, UNIQUE GLOBAL | Único globalmente |
+| `password_hash` | string | sí | BCrypt hash | Contraseña hasheada |
+| `email` | string | no | email format | Correo electrónico |
+| `role_id` | UUID | sí | FK → roles.id | Rol del usuario |
+| `ecommerce_id` | UUID | condicional | FK → ecommerce.id | Vínculo a ecommerce (NULL para SUPER_ADMIN) |
+| `is_active` | boolean | sí | default TRUE | Flag de estado |
+| `last_login` | TIMESTAMP WITH TIME ZONE | no | nullable | Último inicio de sesión |
 | `created_at` | datetime (UTC) | sí | auto-generado | Timestamp creación |
 | `updated_at` | datetime (UTC) | sí | auto-generado | Timestamp actualización |
 
