@@ -165,11 +165,13 @@ Y           evento 'FidelityRangeDeleted' se publica a RabbitMQ
 
 | Entidad | Almacén | Cambios | Descripción |
 |---------|---------|---------|-------------|
-| `FidelityRangeEntity` | **Admin**: tabla `fidelity_range` (source of truth) | **nueva** | Rangos de clasificación de fidelidad (Admin Service) |
-| `FidelityRangeEntity` | **Engine**: tabla `fidelity_range` (réplica para Cold Start) | **nueva** | Replica para autonomía del Engine; se sincroniza vía RabbitMQ |
-| `PermissionEntity` | tabla `permission` | **modificada** | Agregar permisos `fidelity:read`, `fidelity:write` |
+| `CustomerTierEntity` | **Admin**: tabla `customer_tiers` (reemplaza fidelity_range) | **existente** | Rangos de clasificación de fidelidad |
+| `CustomerTierEntity` | **Engine**: tabla `customer_tiers` (réplica) | **existente** | Replica para autonomía del Engine |
+| `PermissionEntity` | tabla `permissions` | **modificada** | Agregar permisos `fidelity:read`, `fidelity:write` |
 
-#### Campos del modelo — `fidelity_range` (normalizado)
+> **Nota:** La tabla `fidelity_range` fue reemplazada por `customer_tiers` en el nuevo schema.
+
+#### Campos del modelo — `customer_tiers` (normalizado)
 
 | Campo | Tipo SQL | Obligatorio | Validación | Descripción |
 |-------|----------|-------------|------------|-------------|
