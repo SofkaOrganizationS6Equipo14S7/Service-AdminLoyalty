@@ -212,25 +212,22 @@ CRITERIO-7.4.3: Rechazo por falta de autenticación
 #### Tabla: `product_rules`
 ```sql
 CREATE TABLE product_rules (
-    uid UUID PRIMARY KEY,
-    ecommerce_id UUID NOT NULL,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    ecommerce_id UUID NOT NULL REFERENCES ecommerce(id) ON DELETE CASCADE,
+    discount_type_id UUID NOT NULL REFERENCES discount_types(id),
     name VARCHAR(255) NOT NULL,
     product_type VARCHAR(100) NOT NULL,
     discount_percentage NUMERIC(5,2) NOT NULL 
         CHECK (discount_percentage >= 0 AND discount_percentage <= 100),
-    benefit VARCHAR(255),
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(ecommerce_id) REFERENCES ecommerces(id) ON DELETE CASCADE,
-    UNIQUE(ecommerce_id, product_type, is_active)  -- Solo 1 activa por producto tipo
+    UNIQUE(ecommerce_id, product_type, is_active)
 );
 
-CREATE INDEX idx_product_rules_ecommerce_id ON product_rules(ecommerce_id);
-CREATE INDEX idx_product_rule_product_type ON product_rule(product_type);
-CREATE INDEX idx_product_rule_active ON product_rule(is_active);
-CREATE INDEX idx_product_rule_ecommerce_active 
-    ON product_rule(ecommerce_id, is_active);
+CREATE INDEX idx_product_rules_ecommerce ON product_rules(ecommerce_id);
+CREATE INDEX idx_product_rules_type ON product_rules(product_type);
+CREATE INDEX idx_product_rules_active ON product_rules(is_active);
 ```
 
 #### Campos del modelo (normalizado)
@@ -238,20 +235,22 @@ CREATE INDEX idx_product_rule_ecommerce_active
 |-------|------|-------------|------------|-------------|
 | `id` | UUID | sí | auto-generado (gen_random_uuid()) | Identificador único de la regla |
 | `ecommerce_id` | UUID | sí | FK a ecommerce.id | Comercio electrónico propietario |
-| `name` | VARCHAR(255) | sí | max 255 chars, no vacío | Nombre de la regla (ej. "Premium", "Clearance") |
-| `product_type` | VARCHAR(100) | sí | max 100 chars, no vacío | Tipo de producto (ej. "ELECTRONICS", "CLOTHING") |
-| `discount_percentage` | NUMERIC(5,2) | sí | 0 ≤ valor ≤ 100 | Porcentaje de descuento (ej. 15.50) |
-| `benefit` | VARCHAR(500) | no | max 500 chars | Beneficio asociado (ej. "Free Shipping", "Extended Warranty") |
-| `is_active` | BOOLEAN | sí | default TRUE | Estado de la regla (TRUE=activa, FALSE=eliminada) |
+| `discount_type_id` | UUID | sí | FK a discount_types.id | Tipo de descuento asociado |
+| `name` | VARCHAR(255) | sí | max 255 chars, no vacío | Nombre de la regla |
+| `product_type` | VARCHAR(100) | sí | max 100 chars, no vacío | Tipo de producto |
+| `discount_percentage` | NUMERIC(5,2) | sí | 0 ≤ valor ≤ 100 | Porcentaje de descuento |
+| `is_active` | BOOLEAN | sí | default TRUE | Estado de la regla |
 | `created_at` | TIMESTAMP WITH TIME ZONE | sí | auto-generado | Timestamp de creación (UTC) |
 | `updated_at` | TIMESTAMP WITH TIME ZONE | sí | auto-generado | Timestamp última actualización (UTC) |
 
 #### Índices / Constraints
 - **PRIMARY KEY**: `id` (UUID)
 - **FK**: `ecommerce_id` → `ecommerce(id)` ON DELETE CASCADE
-- **UNIQUE PARCIAL**: `(ecommerce_id, product_type, is_active)` WHERE `is_active=true` — solo 1 regla activa por tipo de producto por ecommerce
-- **INDEX**: `idx_product_rule_ecommerce` (ecommerce_id)
-- **INDEX**: `idx_product_rule_product_type` (product_type)
+- **FK**: `discount_type_id` → `discount_types(id)`
+- **UNIQUE PARCIAL**: `(ecommerce_id, product_type, is_active)` WHERE `is_active=true`
+- **INDEX**: `idx_product_rules_ecommerce` (ecommerce_id)
+- **INDEX**: `idx_product_rules_type` (product_type)
+- **INDEX**: `idx_product_rules_active` (is_active)
 - **INDEX**: `idx_product_rule_active` (is_active)
 - **INDEX**: `idx_product_rule_ecommerce_active` (ecommerce_id, is_active)
 - **CHECK**: `discount_percentage >= 0 AND discount_percentage <= 100`
