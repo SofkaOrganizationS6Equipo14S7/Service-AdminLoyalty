@@ -50,7 +50,7 @@ CRITERIO-3.1.1: Crear API Key exitosamente para ecommerce válido
   Y              existe un ecommerce registrado en la base de datos
   Cuando:        envío POST /api/v1/ecommerces/{ecommerceId}/api-keys sin body
   Entonces:      el sistema genera una nueva API Key en formato UUID v4
-  Y              persiste en loyalty_admin.api_keys
+  Y              persiste en loyalty_admin.api_key
   Y              publica evento en loyalty.config.exchange
   Y              responde con HTTP 201 Created + payload con UID, key (parcial), created_at
 
@@ -167,7 +167,7 @@ CRITERIO-3.3.4: Validar key después del reinicio de Engine (cold start)
   Dado que:      Engine Service se reinicia
   Y              Caffeine Cache está vacía
   Cuando:        arranca (Spring @PostConstruct)
-  Entonces:      carga todas las API Keys desde loyalty_engine.api_keys a Caffeine
+  Entonces:      carga todas las API Keys desde loyalty_engine.api_key a Caffeine
   Y              posteriormente valida requests contra la caché cargada
 ```
 
@@ -194,7 +194,7 @@ CRITERIO-3.4.1: Eliminar API Key exitosamente
   Dado que:      soy Super Admin autenticado
   Y              existe una API Key registrada
   Cuando:        envío DELETE /api/v1/ecommerces/{ecommerceId}/api-keys/{keyId}
-  Entonces:      el sistema elimina el registro de loyalty_admin.api_keys
+  Entonces:      el sistema elimina el registro de loyalty_admin.api_key
   Y              publica evento en loyalty.config.exchange (API_KEY_DELETED)
   Y              Engine Service recibe evento y elimina de Caffeine Cache
   Y              responde con HTTP 204 No Content
@@ -234,16 +234,20 @@ CRITERIO-3.4.2: Rechazar eliminación de key inexistente
 | Entidad | BD | Cambios | Descripción |
 |---------|----|---------|----|
 | `Ecommerce` | loyalty_admin | existente (referencia FK) | Entidad propietaria de las API Keys |
-| `ApiKey` | loyalty_admin | **nueva** | Par (hashed_key, ecommerce_id) con timestamps |
+| `ApiKey` | loyalty_admin | **nueva** | Par (hashed_key, key_prefix, ecommerce_id) con timestamps |
 | `Caffeine Cache` | Engine (in-memory) | **nueva** | Diccionario {hashed_key → ecommerce_id} |
-| `hashed_key` | VARCHAR(64) | sí | UNIQUE NOT NULL | UNIQUE | hash SHA-256 de la API Key |
-| `ecommerce_id` | UUID | sí | FK → ecommerces.id | FK | relación al ecommerce propietario |
-| `created_at` | TIMESTAMP | sí | DEFAULT NOW() | - | timestamp UTC de creación |
-| `updated_at` | TIMESTAMP | sí | DEFAULT NOW() | - | timestamp UTC de actualización |
+| `key_prefix` | VARCHAR(10) | sí | NOT NULL | INDEX | Prefijo visible de la key |
+| `hashed_key` | VARCHAR(255) | sí | UNIQUE NOT NULL | UNIQUE | hash SHA-256 de la API Key |
+| `ecommerce_id` | UUID | sí | FK → ecommerce.id | FK | relación al ecommerce propietario |
+| `expires_at` | TIMESTAMP WITH TIME ZONE | sí | NOT NULL | - | Fecha de expiración de la key |
+| `is_active` | BOOLEAN | sí | DEFAULT TRUE | INDEX | Estado de la key |
+| `created_at` | TIMESTAMP WITH TIME ZONE | sí | DEFAULT NOW() | - | timestamp UTC de creación |
+| `updated_at` | TIMESTAMP WITH TIME ZONE | sí | DEFAULT NOW() | - | timestamp UTC de actualización |
 
 **Índices:**
 - `UNIQUE(hashed_key)` — búsqueda fast por key durante validación
 - `INDEX(ecommerce_id)` — listar keys por ecommerce
+- `INDEX(is_active)` — filtrar keys activas
 
 ---
 
@@ -267,9 +271,12 @@ public record ApiKeyCreateRequest() { }
 **ApiKeyResponse** (Java Record)
 ```java
 public record ApiKeyResponse(
-    String uid,                    // id (UUID)
+    String id,                      // id (UUID)
     String maskedKey,              // "****XXXX"
+    String keyPrefix,              // Prefijo visible
     String ecommerceId,            // FK ecommerce.id
+    Instant expiresAt,             // Fecha de expiración
+    boolean isActive,              // Estado
     Instant createdAt,
     Instant updatedAt
 ) { }
@@ -443,7 +450,7 @@ public record ApiKeyValidationContext(
 ### Backend — Admin Service
 
 #### Implementación — Modelos & Datos
-- [x] Crear `ApiKeyEntity` con `@Entity`, `@Table("api_keys")`
+- [x] Crear `ApiKeyEntity` con `@Entity`, `@Table("api_key")`
 - [x] Crear constructor, getters (Lombok `@Data`)
 - [x] Agregar JPA annotations: `@Id`, `@GeneratedValue`, `@ManyToOne` (FK a Ecommerce)
 - [x] Crear `ApiKeyRepository extends JpaRepository<ApiKeyEntity, UUID>`
@@ -494,7 +501,7 @@ public record ApiKeyValidationContext(
 ### Backend — Engine Service
 
 #### Implementación — Modelos & Datos
-- [x] Crear `ApiKeyEntity` con `@Entity`, `@Table("api_keys")`
+- [x] Crear `ApiKeyEntity` con `@Entity`, `@Table("api_key")`
 - [x] Crear `ApiKeyRepository extends JpaRepository<ApiKeyEntity, UUID>`
 - [x] Implementar `findByHashedKey(String hashedKey): Optional<ApiKeyEntity>`
 - [x] Poblar Caffeine Cache: `cache.put(hashedKey, ecommerceId) for each`
