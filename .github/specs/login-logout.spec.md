@@ -208,7 +208,7 @@ CRITERIO-3.3: Rechazar acceso si el Usuario fue desactivado después de emitir t
 #### Entidades afectadas
 | Entidad | Almacén | Cambios | Descripción |
 |---------|---------|---------|-------------|
-| `UserEntity` | tabla `user` | **normalizada** | Usuario con id (UUID), username, password (hash BCrypt), role_id (FK), ecommerce_id (FK), email, is_active, last_login, created_at, updated_at |
+| `UserEntity` | tabla `app_user` | **normalizada** | Usuario con id (UUID), username, password_hash (BCrypt), role_id (FK), ecommerce_id (FK), email, is_active, last_login, created_at, updated_at |
 
 #### Campos del modelo UserEntity (normalizado)
 | Campo | Tipo | Obligatorio | Validación | Descripción |
