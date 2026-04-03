@@ -54,7 +54,7 @@ public class DiscountLimitPriorityService {
         // Validar request
         priorityValidator.validatePriorities(request);
 
-        UUID configId = UUID.fromString(request.discountSettingsId());
+        UUID configId = UUID.fromString(request.discountConfigId());
 
         // Eliminar prioridades anteriores
         priorityRepository.deleteByDiscountSettingsId(configId);

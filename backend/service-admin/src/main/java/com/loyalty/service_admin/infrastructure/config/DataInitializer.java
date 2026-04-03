@@ -46,7 +46,7 @@ public class DataInitializer {
                         .username("admin")
                         .email("admin@system.local")
                         .passwordHash(hashedPassword)
-                        .roleId(superAdminRole.getId())
+                        .role(superAdminRole)
                         .isActive(true)
                         .build();
                 
