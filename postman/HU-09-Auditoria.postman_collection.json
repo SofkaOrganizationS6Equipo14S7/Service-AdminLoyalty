@@ -1,0 +1,405 @@
+{
+  "info": {
+    "_postman_id": "hu-09-auditoria",
+    "name": "HU-09: Auditoría",
+    "description": "Pruebas para endpoints de auditoría (CRITERIO-9.1 al 9.4)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "CRITERIO-9.1: Listar audit logs con filtros",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 200 OK', function() {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Response es Page<AuditLogResponse>', function() {",
+              "  const data = pm.response.json();",
+              "  pm.expect(data).to.have.property('content');",
+              "  pm.expect(data).to.have.property('totalElements');",
+              "  pm.expect(data).to.have.property('totalPages');",
+              "  pm.expect(data).to.have.property('number');",
+              "  pm.expect(data).to.have.property('size');",
+              "});",
+              "",
+              "pm.test('Cada item tiene campos requeridos', function() {",
+              "  const data = pm.response.json();",
+              "  if (data.content && data.content.length > 0) {",
+              "    const log = data.content[0];",
+              "    pm.expect(log).to.have.property('id');",
+              "    pm.expect(log).to.have.property('userId');",
+              "    pm.expect(log).to.have.property('ecommerceId');",
+              "    pm.expect(log).to.have.property('action');",
+              "    pm.expect(log).to.have.property('entityName');",
+              "    pm.expect(log).to.have.property('entityId');",
+              "    pm.expect(log).to.have.property('oldValue');",
+              "    pm.expect(log).to.have.property('newValue');",
+              "    pm.expect(log).to.have.property('createdAt');",
+              "  }",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{ACCESS_TOKEN}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{BASE_URL}}/api/v1/audit-logs?entityName=app_user&ecommerceId={{ECOMMERCE_ID}}&page=0&size=50",
+          "host": [
+            "{{BASE_URL}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "audit-logs"
+          ],
+          "query": [
+            {
+              "key": "entityName",
+              "value": "app_user"
+            },
+            {
+              "key": "ecommerceId",
+              "value": "{{ECOMMERCE_ID}}"
+            },
+            {
+              "key": "page",
+              "value": "0"
+            },
+            {
+              "key": "size",
+              "value": "50"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "CRITERIO-9.2: Obtener detalles de audit log",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 200 OK', function() {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Response tiene campos de AuditLogResponse', function() {",
+              "  const log = pm.response.json();",
+              "  pm.expect(log).to.have.property('id');",
+              "  pm.expect(log).to.have.property('userId');",
+              "  pm.expect(log).to.have.property('ecommerceId');",
+              "  pm.expect(log).to.have.property('action');",
+              "  pm.expect(log).to.have.property('entityName');",
+              "  pm.expect(log).to.have.property('entityId');",
+              "  pm.expect(log).to.have.property('oldValue');",
+              "  pm.expect(log).to.have.property('newValue');",
+              "  pm.expect(log).to.have.property('createdAt');",
+              "});",
+              "",
+              "pm.test('oldValue y newValue son strings (JSON serializado)', function() {",
+              "  const log = pm.response.json();",
+              "  pm.expect(typeof log.oldValue).to.equal('string');",
+              "  pm.expect(typeof log.newValue).to.equal('string');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{ACCESS_TOKEN}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{BASE_URL}}/api/v1/audit-logs/{{AUDIT_LOG_ID}}",
+          "host": [
+            "{{BASE_URL}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "audit-logs",
+            "{{AUDIT_LOG_ID}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "CRITERIO-9.3: Listar discount application logs",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 200 OK', function() {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Response es Page<DiscountApplicationLogResponse>', function() {",
+              "  const data = pm.response.json();",
+              "  pm.expect(data).to.have.property('content');",
+              "  pm.expect(data).to.have.property('totalElements');",
+              "  pm.expect(data).to.have.property('totalPages');",
+              "});",
+              "",
+              "pm.test('Cada item tiene campos requeridos', function() {",
+              "  const data = pm.response.json();",
+              "  if (data.content && data.content.length > 0) {",
+              "    const log = data.content[0];",
+              "    pm.expect(log).to.have.property('id');",
+              "    pm.expect(log).to.have.property('ecommerceId');",
+              "    pm.expect(log).to.have.property('externalOrderId');",
+              "    pm.expect(log).to.have.property('originalAmount');",
+              "    pm.expect(log).to.have.property('discountApplied');",
+              "    pm.expect(log).to.have.property('finalAmount');",
+              "    pm.expect(log).to.have.property('appliedRulesDetails');",
+              "    pm.expect(log).to.have.property('createdAt');",
+              "  }",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{ACCESS_TOKEN}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{BASE_URL}}/api/v1/discount-logs?ecommerceId={{ECOMMERCE_ID}}&page=0&size=50",
+          "host": [
+            "{{BASE_URL}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "discount-logs"
+          ],
+          "query": [
+            {
+              "key": "ecommerceId",
+              "value": "{{ECOMMERCE_ID}}"
+            },
+            {
+              "key": "externalOrderId",
+              "value": "#ORDER-12345",
+              "disabled": true
+            },
+            {
+              "key": "page",
+              "value": "0"
+            },
+            {
+              "key": "size",
+              "value": "50"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "CRITERIO-9.3: Obtener detalles de discount log",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 200 OK', function() {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Response tiene campos de DiscountApplicationLogResponse', function() {",
+              "  const log = pm.response.json();",
+              "  pm.expect(log).to.have.property('id');",
+              "  pm.expect(log).to.have.property('ecommerceId');",
+              "  pm.expect(log).to.have.property('externalOrderId');",
+              "  pm.expect(log).to.have.property('originalAmount');",
+              "  pm.expect(log).to.have.property('discountApplied');",
+              "  pm.expect(log).to.have.property('finalAmount');",
+              "  pm.expect(log).to.have.property('appliedRulesDetails');",
+              "  pm.expect(log).to.have.property('createdAt');",
+              "});",
+              "",
+              "pm.test('appliedRulesDetails es string (JSON serializado)', function() {",
+              "  const log = pm.response.json();",
+              "  pm.expect(typeof log.appliedRulesDetails).to.equal('string');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{ACCESS_TOKEN}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{BASE_URL}}/api/v1/discount-logs/{{DISCOUNT_LOG_ID}}",
+          "host": [
+            "{{BASE_URL}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "discount-logs",
+            "{{DISCOUNT_LOG_ID}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "CRITERIO-9.4: PUT audit log retorna 405 (inmutable)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 405 Method Not Allowed', function() {",
+              "  pm.response.to.have.status(405);",
+              "});",
+              "",
+              "pm.test('Mensaje indica operación no permitida', function() {",
+              "  const errorResponse = pm.response.json();",
+              "  pm.expect(errorResponse.message || errorResponse.error).to.include('405');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{ACCESS_TOKEN}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{ \"action\": \"updated\" }"
+        },
+        "url": {
+          "raw": "{{BASE_URL}}/api/v1/audit-logs/{{AUDIT_LOG_ID}}",
+          "host": [
+            "{{BASE_URL}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "audit-logs",
+            "{{AUDIT_LOG_ID}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "CRITERIO-9.4: DELETE discount log retorna 405 (inmutable)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 405 Method Not Allowed', function() {",
+              "  pm.response.to.have.status(405);",
+              "});",
+              "",
+              "pm.test('Mensaje indica operación no permitida', function() {",
+              "  const errorResponse = pm.response.json();",
+              "  pm.expect(errorResponse.message || errorResponse.error).to.include('405');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{ACCESS_TOKEN}}"
+          }
+        ],
+        "url": {
+          "raw": "{{BASE_URL}}/api/v1/discount-logs/{{DISCOUNT_LOG_ID}}",
+          "host": [
+            "{{BASE_URL}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "discount-logs",
+            "{{DISCOUNT_LOG_ID}}"
+          ]
+        }
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "BASE_URL",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "ACCESS_TOKEN",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "ECOMMERCE_ID",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "AUDIT_LOG_ID",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "DISCOUNT_LOG_ID",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

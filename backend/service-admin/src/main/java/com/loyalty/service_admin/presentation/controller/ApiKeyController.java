@@ -31,17 +31,17 @@ public class ApiKeyController {
      * Crear nueva API Key para un ecommerce
      * @param ecommerceId ecommerce identifier
      * @param request empty body
-     * @return HTTP 201 Created with ApiKeyResponse
+     * @return HTTP 201 Created with ApiKeyCreatedResponse (key sin enmascarar)
      */
     @PostMapping
-    public ResponseEntity<ApiKeyResponse> createApiKey(
+    public ResponseEntity<ApiKeyCreatedResponse> createApiKey(
         @PathVariable UUID ecommerceId,
         @RequestBody(required = false) ApiKeyCreateRequest request
     ) {
         // Validar autorización: STORE_ADMIN solo puede crear en su propio ecommerce
         validateEcommerceAccess(ecommerceId);
         
-        ApiKeyResponse response = apiKeyService.createApiKey(ecommerceId);
+        ApiKeyCreatedResponse response = apiKeyService.createApiKey(ecommerceId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
     

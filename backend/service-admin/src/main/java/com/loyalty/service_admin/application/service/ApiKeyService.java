@@ -41,15 +41,15 @@ public class ApiKeyService {
      * 1. Generar UUID v4 (plaintext)
      * 2. Hashear con SHA-256 para persistencia
      * 3. Guardar hash en BD
-     * 4. Retornar el UUID plaintext al cliente (una sola vez, 201 Created)
+     * 4. Retornar el UUID plaintext al cliente SIN ENMASCARAR (una sola vez, 201 Created)
      * 5. Publicar evento con el hash para sincronización a Engine
      * 
      * @param ecommerceId ID del ecommerce propietario
-     * @return ApiKeyResponse con la key enmascarada (plaintext)
+     * @return ApiKeyCreatedResponse con la key completa (plaintext, sin enmascarar)
      * @throws EcommerceNotFoundException si el ecommerce no existe
      */
     @Transactional
-    public ApiKeyResponse createApiKey(UUID ecommerceId) {
+    public ApiKeyCreatedResponse createApiKey(UUID ecommerceId) {
         // Validar que el ecommerce existe
         ecommerceService.validateEcommerceExists(ecommerceId);
         
@@ -82,8 +82,8 @@ public class ApiKeyService {
         
         log.info("API Key created for ecommerce: {}, keyId: {}", ecommerceId, saved.getId());
         
-        // Retornar response con el plaintext enmascarado (solo para esta respuesta 201)
-        return toApiKeyResponse(saved, plainKeyValue);
+        // Retornar response con el plaintext SIN ENMASCARAR (solo para este 201 Created)
+        return toApiKeyCreatedResponse(saved, plainKeyValue);
     }
     
     /**
@@ -153,6 +153,23 @@ public class ApiKeyService {
         return new ApiKeyResponse(
             entity.getId(),
             maskKey(plainKeyValue),  // Masking del plaintext
+            entity.getExpiresAt(),
+            entity.getEcommerceId(),
+            entity.getCreatedAt(),
+            entity.getUpdatedAt()
+        );
+    }
+    
+    /**
+     * Convierte ApiKeyEntity a ApiKeyCreatedResponse con key SIN ENMASCARAR (solo para POST 201).
+     * 
+     * IMPORTANTE: Esta respuesta SOLO se devuelve 1 vez al crear la key.
+     * En GETs posteriores, usamos toApiKeyListResponse (con key enmascarada).
+     */
+    private ApiKeyCreatedResponse toApiKeyCreatedResponse(ApiKeyEntity entity, String plainKeyValue) {
+        return new ApiKeyCreatedResponse(
+            entity.getId(),
+            plainKeyValue,  // SIN MASKING - devolver la clave completa
             entity.getExpiresAt(),
             entity.getEcommerceId(),
             entity.getCreatedAt(),
