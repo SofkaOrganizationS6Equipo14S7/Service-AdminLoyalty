@@ -64,10 +64,8 @@ public class SeasonalRuleService {
         // Validate for overlapping dates
         validateDateOverlap(ecommerceId, request.startDate(), request.endDate(), null);
         
-        // Create entity
-        UUID ruleUid = UUID.randomUUID();
+        // Create entity (let Hibernate generate UUID)
         SeasonalRuleEntity entity = new SeasonalRuleEntity();
-        entity.setId(ruleUid);
         entity.setEcommerceId(ecommerceId);
         entity.setName(request.name());
         entity.setDescription(request.description());
@@ -85,7 +83,7 @@ public class SeasonalRuleService {
         // Publish event to RabbitMQ
         eventPublisher.publishSeasonalRuleCreated(saved);
         
-        log.info("Seasonal rule created: uid={} ecommerce={}", ruleUid, ecommerceId);
+        log.info("Seasonal rule created: uid={} ecommerce={}", saved.getId(), ecommerceId);
         
         return seasonalRuleMapper.toResponse(saved);
     }

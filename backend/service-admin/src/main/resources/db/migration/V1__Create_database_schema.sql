@@ -252,6 +252,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_classification_rule_active ON classificati
 -- discount_types
 CREATE INDEX IF NOT EXISTS idx_discount_type_code ON discount_types(code);
 
+-- discount_settings
+CREATE UNIQUE INDEX IF NOT EXISTS idx_discount_settings_active ON discount_settings(ecommerce_id) WHERE is_active = TRUE;
+
 -- discount_log
 CREATE INDEX IF NOT EXISTS idx_discount_log_ecommerce ON discount_application_log(ecommerce_id);
 
