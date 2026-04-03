@@ -11,6 +11,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/api/v1")
 @Slf4j
@@ -47,7 +49,8 @@ public class DiscountConfigController {
     public ResponseEntity<DiscountConfigResponse> getDiscountConfig(
             @RequestParam String ecommerceId
     ) {
-        DiscountConfigResponse response = discountConfigService.getActiveConfig(ecommerceId);
+        UUID ecommerceUuid = UUID.fromString(ecommerceId);
+        DiscountConfigResponse response = discountConfigService.getActiveConfig(ecommerceUuid);
         return ResponseEntity.ok(response);
     }
 

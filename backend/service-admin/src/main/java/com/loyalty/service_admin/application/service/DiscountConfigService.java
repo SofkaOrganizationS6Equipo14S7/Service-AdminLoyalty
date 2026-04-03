@@ -45,12 +45,14 @@ public class DiscountConfigService {
     @Transactional
     public DiscountConfigResponse updateConfig(DiscountConfigCreateRequest request) {
         // Validar maxDiscountLimit
-        BigDecimal maxLimit = validateAndParseMaxDiscountLimit(request.maxDiscountLimit());
+        if (request.maxDiscountLimit() == null || request.maxDiscountLimit().compareTo(java.math.BigDecimal.ZERO) <= 0) {
+            throw new BadRequestException("maxDiscountLimit debe ser un valor positivo mayor a cero");
+        }
         
         // Validar currencyCode (ISO 4217)
         validateCurrencyCode(request.currencyCode());
         
-        UUID ecommerceId = UUID.fromString(request.ecommerceId());
+        UUID ecommerceId = request.ecommerceId();
 
         // Marcar anterior config como inactiva
         discountConfigRepository.findActiveByEcommerceId(ecommerceId)
@@ -60,12 +62,36 @@ public class DiscountConfigService {
                 log.info("Marked previous config as inactive for ecommerce: {}", ecommerceId);
             });
 
-        // Crear nueva config
+        // Crear nueva config con todos los campos
         DiscountSettingsEntity newConfig = new DiscountSettingsEntity();
         newConfig.setEcommerceId(ecommerceId);
-        newConfig.setMaxDiscountCap(maxLimit);
-        newConfig.setCurrencyCode(request.currencyCode().toUpperCase());
+        newConfig.setMaxDiscountCap(request.maxDiscountLimit());
+        newConfig.setCurrencyCode(request.currencyCode() != null ? request.currencyCode().toUpperCase() : "USD");
+        newConfig.setAllowStacking(request.allowStacking() != null ? request.allowStacking() : true);
+        newConfig.setRoundingRule(request.roundingRule() != null ? request.roundingRule() : "ROUND_HALF_UP");
+        
+        // Mapear capType si está disponible
+        if (request.capType() != null) {
+            try {
+                newConfig.setCapType(com.loyalty.service_admin.domain.model.CapType.valueOf(request.capType()));
+            } catch (IllegalArgumentException e) {
+                throw new BadRequestException("capType inválido: " + request.capType());
+            }
+        }
+        
+        newConfig.setCapValue(request.capValue());
+        
+        // Mapear capAppliesTo si está disponible
+        if (request.capAppliesTo() != null) {
+            try {
+                newConfig.setCapAppliesTo(com.loyalty.service_admin.domain.model.CapAppliesTo.valueOf(request.capAppliesTo()));
+            } catch (IllegalArgumentException e) {
+                throw new BadRequestException("capAppliesTo inválido: " + request.capAppliesTo());
+            }
+        }
+        
         newConfig.setIsActive(true);
+        newConfig.setVersion(1L);
 
         DiscountSettingsEntity saved = discountConfigRepository.save(newConfig);
         log.info("Discount config created for ecommerce: {}", ecommerceId);
@@ -80,10 +106,8 @@ public class DiscountConfigService {
      * Obtiene la configuración activa para un ecommerce.
      */
     @Transactional(readOnly = true)
-    public DiscountConfigResponse getActiveConfig(String ecommerceId) {
-        UUID ecommerceUuid = UUID.fromString(ecommerceId);
-        
-        DiscountSettingsEntity config = discountConfigRepository.findActiveByEcommerceId(ecommerceUuid)
+    public DiscountConfigResponse getActiveConfig(UUID ecommerceId) {
+        DiscountSettingsEntity config = discountConfigRepository.findActiveByEcommerceId(ecommerceId)
             .orElseThrow(() -> new ResourceNotFoundException(
                 "No existe configuración activa de descuentos para el ecommerce: " + ecommerceId
             ));
@@ -100,21 +124,6 @@ public class DiscountConfigService {
             .orElseThrow(() -> new ResourceNotFoundException(
                 "No existe configuración activa de descuentos para el ecommerce: " + ecommerceId
             ));
-    }
-
-    /**
-     * Valida que maxDiscountLimit sea un número positivo mayor a cero.
-     */
-    private BigDecimal validateAndParseMaxDiscountLimit(String limitStr) {
-        try {
-            BigDecimal limit = new BigDecimal(limitStr);
-            if (limit.compareTo(BigDecimal.ZERO) <= 0) {
-                throw new BadRequestException("maxDiscountLimit debe ser un valor positivo mayor a cero");
-            }
-            return limit;
-        } catch (NumberFormatException e) {
-            throw new BadRequestException("maxDiscountLimit debe ser un número válido: " + limitStr);
-        }
     }
 
     /**
