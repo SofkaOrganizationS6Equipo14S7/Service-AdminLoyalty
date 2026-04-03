@@ -65,6 +65,7 @@ public class ApiKeyService {
         entity.setHashedKey(hashedKeyValue);
         entity.setEcommerceId(ecommerceId);
         entity.setIsActive(true);
+        entity.setExpiresAt(Instant.now().plus(java.time.Duration.ofDays(365)));  // Expira en 1 año
         
         // 4. Persistir en BD (solo el hash)
         ApiKeyEntity saved = apiKeyRepository.save(entity);
