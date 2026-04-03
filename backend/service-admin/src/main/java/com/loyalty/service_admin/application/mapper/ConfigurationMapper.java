@@ -19,13 +19,58 @@ public class ConfigurationMapper {
     public DiscountSettingsEntity toEntity(ConfigurationCreateRequest request) {
         DiscountSettingsEntity entity = new DiscountSettingsEntity();
         entity.setEcommerceId(request.ecommerceId());
+        entity.setCurrencyCode(request.currency());
+        entity.setRoundingRule(request.roundingRule().name());
+        entity.setCapType(request.cap().type());
+        entity.setCapValue(request.cap().value());
+        entity.setCapAppliesTo(request.cap().appliesTo());
         entity.setIsActive(true);
+        entity.setVersion(1L);
         entity.setCreatedAt(Instant.now());
         entity.setUpdatedAt(Instant.now());
+        
+        // Crear prioridades
+        List<DiscountPriorityEntity> priorities = new ArrayList<>();
+        if (request.priority() != null) {
+            for (var priorityReq : request.priority()) {
+                DiscountPriorityEntity priority = new DiscountPriorityEntity();
+                priority.setDiscountTypeId(UUID.nameUUIDFromBytes(priorityReq.type().getBytes()));
+                priority.setPriorityLevel(priorityReq.order());
+                priority.setCreatedAt(Instant.now());
+                priority.setUpdatedAt(Instant.now());
+                priorities.add(priority);
+            }
+        }
+        entity.setPriorities(priorities);
+        
         return entity;
     }
 
     public void applyPatch(DiscountSettingsEntity entity, ConfigurationPatchRequest request) {
+        if (request.currency() != null) {
+            entity.setCurrencyCode(request.currency());
+        }
+        if (request.roundingRule() != null) {
+            entity.setRoundingRule(request.roundingRule().name());
+        }
+        if (request.cap() != null) {
+            entity.setCapType(request.cap().type());
+            entity.setCapValue(request.cap().value());
+            entity.setCapAppliesTo(request.cap().appliesTo());
+        }
+        if (request.priority() != null && !request.priority().isEmpty()) {
+            List<DiscountPriorityEntity> priorities = new ArrayList<>();
+            for (var priorityReq : request.priority()) {
+                DiscountPriorityEntity priority = new DiscountPriorityEntity();
+                priority.setDiscountTypeId(UUID.nameUUIDFromBytes(priorityReq.type().getBytes()));
+                priority.setPriorityLevel(priorityReq.order());
+                priority.setCreatedAt(Instant.now());
+                priority.setUpdatedAt(Instant.now());
+                priorities.add(priority);
+            }
+            entity.replacePriorities(priorities);
+        }
+        entity.setVersion(entity.getVersion() + 1);
         entity.setUpdatedAt(Instant.now());
     }
 

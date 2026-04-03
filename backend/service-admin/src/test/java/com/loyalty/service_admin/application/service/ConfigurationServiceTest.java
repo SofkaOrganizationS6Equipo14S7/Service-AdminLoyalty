@@ -159,7 +159,7 @@ class ConfigurationServiceTest {
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         var result = service.patchConfiguration(ecommerceId, request);
-        assertThat(result.version()).isEqualTo(3L);
+        assertThat(result.version()).isEqualTo(4L);
         verify(eventPublisher).publishConfigUpdated(any());
     }
 
