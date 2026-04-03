@@ -150,9 +150,10 @@ public class ApiKeyService {
      */
     private ApiKeyResponse toApiKeyResponse(ApiKeyEntity entity, String plainKeyValue) {
         return new ApiKeyResponse(
-            entity.getId().toString(),
+            entity.getId(),
             maskKey(plainKeyValue),  // Masking del plaintext
-            entity.getEcommerceId().toString(),
+            entity.getExpiresAt(),
+            entity.getEcommerceId(),
             entity.getCreatedAt(),
             entity.getUpdatedAt()
         );
@@ -164,8 +165,10 @@ public class ApiKeyService {
      */
     private ApiKeyListResponse toApiKeyListResponse(ApiKeyEntity entity) {
         return new ApiKeyListResponse(
-            entity.getId().toString(),
+            entity.getId(),
             maskKey(entity.getHashedKey()),  // Masking del hash (fallback)
+            entity.getExpiresAt(),
+            entity.getIsActive(),
             entity.getCreatedAt(),
             entity.getUpdatedAt()
         );
