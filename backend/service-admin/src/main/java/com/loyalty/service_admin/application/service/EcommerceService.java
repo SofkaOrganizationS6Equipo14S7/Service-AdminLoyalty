@@ -1,8 +1,8 @@
 package com.loyalty.service_admin.application.service;
 
-import com.loyalty.service_admin.application.dto.EcommerceCreateRequest;
-import com.loyalty.service_admin.application.dto.EcommerceResponse;
-import com.loyalty.service_admin.application.dto.EcommerceUpdateStatusRequest;
+import com.loyalty.service_admin.application.dto.ecommerce.EcommerceCreateRequest;
+import com.loyalty.service_admin.application.dto.ecommerce.EcommerceResponse;
+import com.loyalty.service_admin.application.dto.ecommerce.EcommerceUpdateStatusRequest;
 import com.loyalty.service_admin.domain.entity.EcommerceEntity;
 import com.loyalty.service_admin.domain.model.ecommerce.EcommerceStatus;
 import com.loyalty.service_admin.domain.repository.EcommerceRepository;

@@ -1,10 +1,10 @@
 package com.loyalty.service_admin.presentation.controller;
 
-import com.loyalty.service_admin.application.dto.ClassificationRuleCreateRequest;
-import com.loyalty.service_admin.application.dto.ClassificationRuleResponse;
-import com.loyalty.service_admin.application.dto.ClassificationRuleUpdateRequest;
-import com.loyalty.service_admin.application.dto.CustomerTierCreateRequest;
-import com.loyalty.service_admin.application.dto.CustomerTierResponse;
+import com.loyalty.service_admin.application.dto.rules.classification.ClassificationRuleCreateRequest;
+import com.loyalty.service_admin.application.dto.rules.classification.ClassificationRuleResponse;
+import com.loyalty.service_admin.application.dto.rules.classification.ClassificationRuleUpdateRequest;
+import com.loyalty.service_admin.application.dto.customertier.CustomerTierCreateRequest;
+import com.loyalty.service_admin.application.dto.customertier.CustomerTierResponse;
 import com.loyalty.service_admin.application.service.ClassificationRuleService;
 import com.loyalty.service_admin.application.service.CustomerTierService;
 import jakarta.validation.Valid;
@@ -25,23 +25,6 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * REST Controller for Classification Admin Operations.
- *
- * Manages customer tiers and classification rules (source of truth).
- * All endpoints require SUPER_ADMIN role via JWT token.
- *
- * Endpoints:
- * - POST /api/v1/admin/tiers: Create a new tier
- * - GET /api/v1/admin/tiers: List active tiers (ordered by level)
- * - DELETE /api/v1/admin/tiers/{uid}: Soft-delete a tier
- *
- * - POST /api/v1/admin/classification-rules: Create a rule
- * - GET /api/v1/admin/classification-rules: List active rules
- * - GET /api/v1/admin/classification-rules/tier/{tierUid}: List rules for a specific tier
- * - PUT /api/v1/admin/classification-rules/{uid}: Update a rule (partial)
- * - DELETE /api/v1/admin/classification-rules/{uid}: Soft-delete a rule
- */
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/admin")
@@ -52,67 +35,86 @@ public class ClassificationAdminController {
     private final CustomerTierService tierService;
     private final ClassificationRuleService ruleService;
 
-    // ============== CUSTOMER TIER ENDPOINTS ==============
-
+    /**
+     * @param request tier creation data
+     * @return HTTP 201 Created with CustomerTierResponse
+     */
     @PostMapping("/tiers")
     public ResponseEntity<CustomerTierResponse> createTier(
             @Valid @RequestBody CustomerTierCreateRequest request) {
-        log.info("Creating new customer tier: {}", request.name());
         CustomerTierResponse response = tierService.create(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    /**
+     * @return HTTP 200 OK with list of active tiers ordered by level
+     */
     @GetMapping("/tiers")
     public ResponseEntity<List<CustomerTierResponse>> listActiveTiers() {
-        log.info("Listing active customer tiers");
         List<CustomerTierResponse> tiers = tierService.listActive();
         return ResponseEntity.ok(tiers);
     }
 
+    /**
+     * @param uid tier identifier
+     * @return HTTP 204 No Content
+     */
     @DeleteMapping("/tiers/{uid}")
     public ResponseEntity<Void> deleteTier(@PathVariable UUID uid) {
-        log.info("Deleting customer tier: {}", uid);
         tierService.delete(uid);
         return ResponseEntity.noContent().build();
     }
 
-    // ============== CLASSIFICATION RULE ENDPOINTS ==============
-
+    /**
+     * @param request rule creation data
+     * @return HTTP 201 Created with ClassificationRuleResponse
+     */
     @PostMapping("/classification-rules")
     public ResponseEntity<ClassificationRuleResponse> createRule(
             @Valid @RequestBody ClassificationRuleCreateRequest request) {
-        log.info("Creating classification rule for tier: {}", request.tierUid());
         ClassificationRuleResponse response = ruleService.create(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    /**
+     * @return HTTP 200 OK with list of active classification rules
+     */
     @GetMapping("/classification-rules")
     public ResponseEntity<List<ClassificationRuleResponse>> listActiveRules() {
-        log.info("Listing active classification rules");
         List<ClassificationRuleResponse> rules = ruleService.listActive();
         return ResponseEntity.ok(rules);
     }
 
+    /**
+     * @param tierUid tier identifier
+     * @return HTTP 200 OK with list of classification rules for the tier
+     */
     @GetMapping("/classification-rules/tier/{tierUid}")
     public ResponseEntity<List<ClassificationRuleResponse>> listRulesByTier(
             @PathVariable UUID tierUid) {
-        log.info("Listing classification rules for tier: {}", tierUid);
         List<ClassificationRuleResponse> rules = ruleService.listByTier(tierUid);
         return ResponseEntity.ok(rules);
     }
 
+    /**
+     * @param uid rule identifier
+     * @param request partial rule data to update
+     * @return HTTP 200 OK with updated ClassificationRuleResponse
+     */
     @PutMapping("/classification-rules/{uid}")
     public ResponseEntity<ClassificationRuleResponse> updateRule(
             @PathVariable UUID uid,
             @Valid @RequestBody ClassificationRuleUpdateRequest request) {
-        log.info("Updating classification rule: {}", uid);
         ClassificationRuleResponse response = ruleService.update(uid, request);
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * @param uid rule identifier
+     * @return HTTP 204 No Content
+     */
     @DeleteMapping("/classification-rules/{uid}")
     public ResponseEntity<Void> deleteRule(@PathVariable UUID uid) {
-        log.info("Deleting classification rule: {}", uid);
         ruleService.delete(uid);
         return ResponseEntity.noContent().build();
     }

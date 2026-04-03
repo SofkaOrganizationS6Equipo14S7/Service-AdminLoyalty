@@ -1,7 +1,7 @@
 package com.loyalty.service_admin.application.service;
 
-import com.loyalty.service_admin.application.dto.CustomerTierCreateRequest;
-import com.loyalty.service_admin.application.dto.CustomerTierResponse;
+import com.loyalty.service_admin.application.dto.customertier.CustomerTierCreateRequest;
+import com.loyalty.service_admin.application.dto.customertier.CustomerTierResponse;
 import com.loyalty.service_admin.domain.entity.CustomerTierEntity;
 import com.loyalty.service_admin.domain.repository.CustomerTierRepository;
 import com.loyalty.service_admin.infrastructure.exception.BadRequestException;

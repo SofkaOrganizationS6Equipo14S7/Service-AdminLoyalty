@@ -1,8 +1,6 @@
 package com.loyalty.service_admin.presentation.controller;
 
-import com.loyalty.service_admin.application.dto.ApiKeyCreateRequest;
-import com.loyalty.service_admin.application.dto.ApiKeyListResponse;
-import com.loyalty.service_admin.application.dto.ApiKeyResponse;
+import com.loyalty.service_admin.application.dto.apikey.*;
 import com.loyalty.service_admin.application.service.ApiKeyService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -24,36 +22,34 @@ public class ApiKeyController {
     }
     
     /**
-     * @param ecommerceId UUID del ecommerce
-     * @param request body vacío
-     * @return HTTP 201 Created con ApiKeyResponse
+     * @param ecommerceId ecommerce identifier
+     * @param request empty body
+     * @return HTTP 201 Created with ApiKeyResponse
      */
     @PostMapping
     public ResponseEntity<ApiKeyResponse> createApiKey(
         @PathVariable UUID ecommerceId,
         @RequestBody(required = false) ApiKeyCreateRequest request
     ) {
-        log.info("Creating API Key for ecommerce: {}", ecommerceId);
         ApiKeyResponse response = apiKeyService.createApiKey(ecommerceId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
     
     /**
-     * @param ecommerceId UUID del ecommerce
-     * @return HTTP 200 OK con lista de ApiKeyListResponse
+     * @param ecommerceId ecommerce identifier
+     * @return HTTP 200 OK with list of ApiKeyListResponse
      */
     @GetMapping
     public ResponseEntity<List<ApiKeyListResponse>> getApiKeys(
         @PathVariable UUID ecommerceId
     ) {
-        log.info("Listing API Keys for ecommerce: {}", ecommerceId);
         List<ApiKeyListResponse> keys = apiKeyService.getApiKeysByEcommerce(ecommerceId);
         return ResponseEntity.ok(keys);
     }
     
     /**
-     * @param ecommerceId UUID del ecommerce propietario
-     * @param keyId UUID de la API Key a eliminar
+     * @param ecommerceId ecommerce owner identifier
+     * @param keyId API key identifier to delete
      * @return HTTP 204 No Content
      */
     @DeleteMapping("/{keyId}")
@@ -61,7 +57,6 @@ public class ApiKeyController {
         @PathVariable UUID ecommerceId,
         @PathVariable UUID keyId
     ) {
-        log.info("Deleting API Key {} for ecommerce: {}", keyId, ecommerceId);
         apiKeyService.deleteApiKey(ecommerceId, keyId);
         return ResponseEntity.noContent().build();
     }

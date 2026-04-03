@@ -1,8 +1,8 @@
 package com.loyalty.service_admin.infrastructure.event;
 
-import com.loyalty.service_admin.application.dto.SeasonalRuleCreatedEvent;
-import com.loyalty.service_admin.application.dto.SeasonalRuleDeletedEvent;
-import com.loyalty.service_admin.application.dto.SeasonalRuleUpdatedEvent;
+import com.loyalty.service_admin.application.dto.rules.seasonal.SeasonalRuleCreatedEvent;
+import com.loyalty.service_admin.application.dto.rules.seasonal.SeasonalRuleDeletedEvent;
+import com.loyalty.service_admin.application.dto.rules.seasonal.SeasonalRuleUpdatedEvent;
 import com.loyalty.service_admin.domain.entity.SeasonalRuleEntity;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

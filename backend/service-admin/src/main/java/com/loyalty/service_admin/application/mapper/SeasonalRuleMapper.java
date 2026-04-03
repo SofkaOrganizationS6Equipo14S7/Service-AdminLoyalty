@@ -1,6 +1,6 @@
 package com.loyalty.service_admin.application.mapper;
 
-import com.loyalty.service_admin.application.dto.SeasonalRuleResponse;
+import com.loyalty.service_admin.application.dto.rules.seasonal.SeasonalRuleResponse;
 import com.loyalty.service_admin.domain.entity.SeasonalRuleEntity;
 import org.springframework.stereotype.Component;
 

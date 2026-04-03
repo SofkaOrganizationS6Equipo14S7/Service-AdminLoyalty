@@ -1,9 +1,9 @@
 package com.loyalty.service_admin.application.service;
 
-import com.loyalty.service_admin.application.dto.ProductRuleCreateRequest;
-import com.loyalty.service_admin.application.dto.ProductRuleEvent;
-import com.loyalty.service_admin.application.dto.ProductRuleResponse;
-import com.loyalty.service_admin.application.dto.ProductRuleUpdateRequest;
+import com.loyalty.service_admin.application.dto.rules.product.ProductRuleCreateRequest;
+import com.loyalty.service_admin.application.dto.rules.product.ProductRuleEvent;
+import com.loyalty.service_admin.application.dto.rules.product.ProductRuleResponse;
+import com.loyalty.service_admin.application.dto.rules.product.ProductRuleUpdateRequest;
 import com.loyalty.service_admin.application.port.out.ConfigurationPersistencePort;
 import com.loyalty.service_admin.domain.entity.DiscountSettingsEntity;
 import com.loyalty.service_admin.domain.entity.ProductRuleEntity;

@@ -1,8 +1,6 @@
 package com.loyalty.service_admin.application.service;
 
-import com.loyalty.service_admin.application.dto.ApiKeyEventPayload;
-import com.loyalty.service_admin.application.dto.ApiKeyListResponse;
-import com.loyalty.service_admin.application.dto.ApiKeyResponse;
+import com.loyalty.service_admin.application.dto.apikey.*;
 import com.loyalty.service_admin.domain.entity.ApiKeyEntity;
 import com.loyalty.service_admin.domain.repository.ApiKeyRepository;
 import com.loyalty.service_admin.infrastructure.exception.ApiKeyNotFoundException;

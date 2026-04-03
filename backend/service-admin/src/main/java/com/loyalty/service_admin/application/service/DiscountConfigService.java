@@ -1,7 +1,7 @@
 package com.loyalty.service_admin.application.service;
 
-import com.loyalty.service_admin.application.dto.DiscountConfigCreateRequest;
-import com.loyalty.service_admin.application.dto.DiscountConfigResponse;
+import com.loyalty.service_admin.application.dto.rules.discount.DiscountConfigCreateRequest;
+import com.loyalty.service_admin.application.dto.rules.discount.DiscountConfigResponse;
 import com.loyalty.service_admin.domain.entity.DiscountSettingsEntity;
 import com.loyalty.service_admin.domain.repository.DiscountConfigRepository;
 import com.loyalty.service_admin.domain.repository.DiscountLimitPriorityRepository;

@@ -1,11 +1,11 @@
 package com.loyalty.service_admin.application.service;
 
-import com.loyalty.service_admin.application.dto.UserCreateRequest;
-import com.loyalty.service_admin.application.dto.UserResponse;
-import com.loyalty.service_admin.application.dto.UserUpdateRequest;
-import com.loyalty.service_admin.application.dto.UpdateProfileRequest;
-import com.loyalty.service_admin.application.dto.ChangePasswordRequest;
-import com.loyalty.service_admin.application.dto.LoginResponse;
+import com.loyalty.service_admin.application.dto.user.UserCreateRequest;
+import com.loyalty.service_admin.application.dto.user.UserResponse;
+import com.loyalty.service_admin.application.dto.user.UserUpdateRequest;
+import com.loyalty.service_admin.application.dto.user.UpdateProfileRequest;
+import com.loyalty.service_admin.application.dto.auth.ChangePasswordRequest;
+import com.loyalty.service_admin.application.dto.auth.LoginResponse;
 import com.loyalty.service_admin.domain.entity.UserEntity;
 import com.loyalty.service_admin.domain.entity.RoleEntity;
 import com.loyalty.service_admin.domain.repository.UserRepository;

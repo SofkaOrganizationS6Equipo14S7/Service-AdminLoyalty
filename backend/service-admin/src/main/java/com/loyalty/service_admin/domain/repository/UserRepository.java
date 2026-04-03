@@ -12,20 +12,12 @@ import java.util.UUID;
 public interface UserRepository extends JpaRepository<UserEntity, UUID> {
     
     /**
-     * Busca un usuario por su ID (identificador único generado por el sistema).
-     * Utilizado en endpoints GET/PUT/DELETE /api/v1/users/{uid}.
-     * ID es único en toda la plataforma (SPEC-002 CRITERIO-3.1).
-     *
      * @param id UUID único del usuario
      * @return Optional con el usuario si existe
      */
     Optional<UserEntity> findById(UUID id);
     
     /**
-     * Busca un usuario por su username (búsqueda global, no por ecommerce).
-     * Utilizado en el login para validar credenciales.
-     * Username es único en toda la plataforma (SPEC-002 RN-03).
-     *
      * @param username nombre del usuario
      * @return Optional con el usuario si existe
      */

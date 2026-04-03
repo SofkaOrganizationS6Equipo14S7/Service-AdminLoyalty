@@ -1,11 +1,11 @@
 package com.loyalty.service_admin.application.service;
 
-import com.loyalty.service_admin.application.dto.ClassificationRuleCreateRequest;
-import com.loyalty.service_admin.application.dto.ClassificationRuleCreatedEvent;
-import com.loyalty.service_admin.application.dto.ClassificationRuleDeletedEvent;
-import com.loyalty.service_admin.application.dto.ClassificationRuleResponse;
-import com.loyalty.service_admin.application.dto.ClassificationRuleUpdateRequest;
-import com.loyalty.service_admin.application.dto.ClassificationRuleUpdatedEvent;
+import com.loyalty.service_admin.application.dto.rules.classification.ClassificationRuleCreateRequest;
+import com.loyalty.service_admin.application.dto.rules.classification.ClassificationRuleCreatedEvent;
+import com.loyalty.service_admin.application.dto.rules.classification.ClassificationRuleDeletedEvent;
+import com.loyalty.service_admin.application.dto.rules.classification.ClassificationRuleResponse;
+import com.loyalty.service_admin.application.dto.rules.classification.ClassificationRuleUpdateRequest;
+import com.loyalty.service_admin.application.dto.rules.classification.ClassificationRuleUpdatedEvent;
 import com.loyalty.service_admin.domain.entity.ClassificationRuleEntity;
 import com.loyalty.service_admin.domain.repository.ClassificationRuleRepository;
 import com.loyalty.service_admin.infrastructure.exception.BadRequestException;

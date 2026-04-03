@@ -1,8 +1,8 @@
 package com.loyalty.service_admin.application.service;
 
-import com.loyalty.service_admin.application.dto.SeasonalRuleCreateRequest;
-import com.loyalty.service_admin.application.dto.SeasonalRuleResponse;
-import com.loyalty.service_admin.application.dto.SeasonalRuleUpdateRequest;
+import com.loyalty.service_admin.application.dto.rules.seasonal.SeasonalRuleCreateRequest;
+import com.loyalty.service_admin.application.dto.rules.seasonal.SeasonalRuleResponse;
+import com.loyalty.service_admin.application.dto.rules.seasonal.SeasonalRuleUpdateRequest;
 import com.loyalty.service_admin.application.mapper.SeasonalRuleMapper;
 import com.loyalty.service_admin.domain.entity.SeasonalRuleEntity;
 import com.loyalty.service_admin.domain.repository.SeasonalRuleRepository;

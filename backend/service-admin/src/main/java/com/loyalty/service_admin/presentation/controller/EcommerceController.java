@@ -1,8 +1,8 @@
 package com.loyalty.service_admin.presentation.controller;
 
-import com.loyalty.service_admin.application.dto.EcommerceCreateRequest;
-import com.loyalty.service_admin.application.dto.EcommerceResponse;
-import com.loyalty.service_admin.application.dto.EcommerceUpdateStatusRequest;
+import com.loyalty.service_admin.application.dto.ecommerce.EcommerceCreateRequest;
+import com.loyalty.service_admin.application.dto.ecommerce.EcommerceResponse;
+import com.loyalty.service_admin.application.dto.ecommerce.EcommerceUpdateStatusRequest;
 import com.loyalty.service_admin.application.service.EcommerceService;
 import com.loyalty.service_admin.infrastructure.exception.AuthorizationException;
 import com.loyalty.service_admin.infrastructure.security.SecurityContextHelper;
@@ -28,26 +28,22 @@ public class EcommerceController {
     private final SecurityContextHelper securityContextHelper;
     
     /**
-     * @param request EcommerceCreateRequest (name, slug)
-     * @return ResponseEntity<EcommerceResponse> 201 Created
+     * @param request ecommerce data (name, slug)
+     * @return HTTP 201 Created with EcommerceResponse
      */
     @PostMapping
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<EcommerceResponse> createEcommerce(
             @Valid @RequestBody EcommerceCreateRequest request) {
-        log.info("POST /api/v1/ecommerces - Creando ecommerce: slug={}", request.slug());
-        
         EcommerceResponse response = ecommerceService.createEcommerce(request);
-        
-        log.info("Ecommerce creado exitosamente: uid={}", response.uid());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
     
     /**
-     * @param status filtro por estado (opcional)
-     * @param page número de página (default: 0)
-     * @param size tamaño de página (default: 50)
-     * @return ResponseEntity<Page<EcommerceResponse>> 200 OK
+     * @param status status filter (optional)
+     * @param page page number (default: 0)
+     * @param size page size (default: 50)
+     * @return HTTP 200 OK with paginated list of EcommerceResponse
      */
     @GetMapping
     @PreAuthorize("hasRole('SUPER_ADMIN')")
@@ -55,32 +51,22 @@ public class EcommerceController {
             @RequestParam(name = "status", required = false) String status,
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "50") int size) {
-        log.info("GET /api/v1/ecommerces - Listando ecommerces: status={}, page={}, size={}", 
-                status, page, size);
-        
         Page<EcommerceResponse> response = ecommerceService.listEcommerces(status, page, size);
-        
-        log.info("Listado completado: {} elementos", response.getTotalElements());
         return ResponseEntity.ok(response);
     }
     
     /**
-     * GET /api/v1/ecommerces/{uid}
-     * @param uid identificador único del ecommerce
-     * @return ResponseEntity<EcommerceResponse> 200 OK
+     * @param uid ecommerce identifier
+     * @return HTTP 200 OK with EcommerceResponse
      */
     @GetMapping("/{uid}")
     public ResponseEntity<EcommerceResponse> getEcommerceById(
             @PathVariable UUID uid) {
-        log.info("GET /api/v1/ecommerces/{} - Obteniendo ecommerce", uid);
-        
         String currentRole = securityContextHelper.getCurrentUserRole();
         
         if (!"SUPER_ADMIN".equals(currentRole)) {
             UUID userEcommerceId = securityContextHelper.getCurrentUserEcommerceId();
             if (userEcommerceId == null || !userEcommerceId.equals(uid)) {
-                log.warn("Intento de acceso a ecommerce no autorizado: role={}, requested_uid={}, user_ecommerce={}", 
-                        currentRole, uid, userEcommerceId);
                 throw new AuthorizationException(
                     "No tienes permiso para acceder a este ecommerce"
                 );
@@ -88,27 +74,20 @@ public class EcommerceController {
         }
         
         EcommerceResponse response = ecommerceService.getEcommerceById(uid);
-        
-        log.info("Ecommerce obtenido: {}", uid);
         return ResponseEntity.ok(response);
     }
     
     /**
-     * PUT /api/v1/ecommerces/{uid}
-     * @param uid identificador único del ecommerce
-     * @param request EcommerceUpdateStatusRequest (status)
-     * @return ResponseEntity<EcommerceResponse> 200 OK
+     * @param uid ecommerce identifier
+     * @param request status update data
+     * @return HTTP 200 OK with updated EcommerceResponse
      */
     @PutMapping("/{uid}")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<EcommerceResponse> updateEcommerceStatus(
             @PathVariable UUID uid,
             @Valid @RequestBody EcommerceUpdateStatusRequest request) {
-        log.info("PUT /api/v1/ecommerces/{} - Actualizando status: newStatus={}", uid, request.status());
-        
         EcommerceResponse response = ecommerceService.updateEcommerceStatus(uid, request);
-        
-        log.info("Ecommerce actualizado exitosamente: uid={}, newStatus={}", uid, response.status());
         return ResponseEntity.ok(response);
     }
 }

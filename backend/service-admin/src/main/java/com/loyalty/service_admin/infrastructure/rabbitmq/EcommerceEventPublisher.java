@@ -1,6 +1,6 @@
 package com.loyalty.service_admin.infrastructure.rabbitmq;
 
-import com.loyalty.service_admin.application.dto.EcommerceStatusChangedEvent;
+import com.loyalty.service_admin.application.dto.ecommerce.EcommerceStatusChangedEvent;
 import com.loyalty.service_admin.domain.model.ecommerce.EcommerceStatus;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;

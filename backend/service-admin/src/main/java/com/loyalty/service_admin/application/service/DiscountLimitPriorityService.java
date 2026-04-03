@@ -1,7 +1,7 @@
 package com.loyalty.service_admin.application.service;
 
-import com.loyalty.service_admin.application.dto.DiscountLimitPriorityRequest;
-import com.loyalty.service_admin.application.dto.DiscountLimitPriorityResponse;
+import com.loyalty.service_admin.application.dto.rules.discount.DiscountLimitPriorityRequest;
+import com.loyalty.service_admin.application.dto.rules.discount.DiscountLimitPriorityResponse;
 import com.loyalty.service_admin.application.validation.DiscountPriorityValidator;
 import com.loyalty.service_admin.domain.entity.DiscountPriorityEntity;
 import com.loyalty.service_admin.domain.entity.DiscountTypeEntity;
