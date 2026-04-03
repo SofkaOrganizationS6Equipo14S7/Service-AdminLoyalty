@@ -184,7 +184,7 @@ public class EcommerceService {
      */
     private EcommerceResponse toResponse(EcommerceEntity entity) {
         return new EcommerceResponse(
-                entity.getId().toString(),
+                entity.getId(),
                 entity.getName(),
                 entity.getSlug(),
                 entity.getStatus().name(),

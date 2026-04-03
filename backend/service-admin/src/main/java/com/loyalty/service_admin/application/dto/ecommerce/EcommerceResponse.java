@@ -1,9 +1,10 @@
 package com.loyalty.service_admin.application.dto.ecommerce;
 
 import java.time.Instant;
+import java.util.UUID;
 
 public record EcommerceResponse(
-    String uid,
+    UUID uid,
     String name,
     String slug,
     String status,
