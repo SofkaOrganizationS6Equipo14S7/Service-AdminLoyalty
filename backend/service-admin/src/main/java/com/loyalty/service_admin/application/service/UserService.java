@@ -57,17 +57,17 @@ public class UserService {
         
         // ============ VALIDACIÓN DE ROL ============
         // Roles permitidos: SUPER_ADMIN, STORE_ADMIN, STORE_USER
-        if (!"SUPER_ADMIN".equals(request.role()) && 
-            !"STORE_ADMIN".equals(request.role()) && 
-            !"STORE_USER".equals(request.role())) {
-            log.warn("Intento de crear usuario con rol inválido: {}", request.role());
-            throw new BadRequestException(
-                "Roles permitidos: SUPER_ADMIN, STORE_ADMIN, STORE_USER"
-            );
-        }
+        // Validar que el roleId existe
+        RoleEntity roleEntity = roleRepository.findById(request.roleId())
+                .orElseThrow(() -> {
+                    log.warn("Intento de crear usuario con roleId inválido: {}", request.roleId());
+                    return new BadRequestException("El roleId proporcionado no existe");
+                });
+        
+        String roleName = roleEntity.getName();
         
         // ============ VALIDACIÓN DE ECOMMERCE_ID SEGÚN ROLE ============
-        if ("SUPER_ADMIN".equals(request.role())) {
+        if ("SUPER_ADMIN".equals(roleName)) {
             if (request.ecommerceId() != null) {
                 log.warn("Intento de crear SUPER_ADMIN con ecommerce_id: {}", request.ecommerceId());
                 throw new BadRequestException(
@@ -76,9 +76,9 @@ public class UserService {
             }
         } else {
             if (request.ecommerceId() == null) {
-                log.warn("Intento de crear usuario {} sin ecommerce_id", request.role());
+                log.warn("Intento de crear usuario {} sin ecommerce_id", roleName);
                 throw new BadRequestException(
-                    String.format("%s requiere ecommerce_id obligatorio", request.role())
+                    String.format("%s requiere ecommerce_id obligatorio", roleName)
                 );
             }
             
@@ -116,11 +116,6 @@ public class UserService {
             log.warn("Intento de crear usuario con contraseña débil: {}. Username: {}", errorMsg, request.username());
             throw new BadRequestException(errorMsg);
         }
-        
-        RoleEntity roleEntity = roleRepository.findByName(request.role())
-                .orElseThrow(() -> new BadRequestException(
-                    String.format("Rol '%s' no existe en el sistema", request.role())
-                ));
         
         UserEntity user = UserEntity.builder()
                 .username(request.username())
@@ -533,6 +528,7 @@ public class UserService {
         return new UserResponse(
                 user.getId(),
                 user.getUsername(),
+                user.getRoleId(),
                 user.getRole().getName(),
                 user.getEmail(),
                 user.getEcommerceId(),

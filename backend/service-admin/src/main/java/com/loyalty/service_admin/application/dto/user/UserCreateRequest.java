@@ -19,8 +19,8 @@ public record UserCreateRequest(
     @Size(min = 12, message = "La contraseña debe tener mínimo 12 caracteres")
     String password,
     
-    @NotBlank(message = "El rol es obligatorio")
-    String role,
+    @NotNull(message = "El roleId es obligatorio")
+    UUID roleId,
     
     UUID ecommerceId
 ) {

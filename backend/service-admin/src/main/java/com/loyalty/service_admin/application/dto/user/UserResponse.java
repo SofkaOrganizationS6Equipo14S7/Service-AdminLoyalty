@@ -6,10 +6,11 @@ import java.util.UUID;
 public record UserResponse(
     UUID uid,
     String username,
-    String role,
+    UUID roleId,
+    String roleName,
     String email,
     UUID ecommerceId,
-    Boolean active,
+    Boolean isActive,
     Instant createdAt,
     Instant updatedAt
 ) {
