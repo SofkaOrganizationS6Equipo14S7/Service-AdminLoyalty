@@ -418,8 +418,7 @@ public class UserService {
                 updated.getId(), updated.getEmail(), currentUserUid);
         
         // Registrar en tabla de auditoría (SPEC-004 RN-08)
-        auditService.auditProfileUpdate(updated.getId(), 
-                String.format("Perfil actualizado: email=%s", request.email()));
+        auditService.auditProfileUpdate(updated.getId(), updated.getEmail());
         
         return toResponse(updated);
     }
