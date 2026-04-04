@@ -1,7 +1,5 @@
 package com.loyalty.service_admin.domain.entity;
 
-import com.loyalty.service_admin.domain.model.CapAppliesTo;
-import com.loyalty.service_admin.domain.model.CapType;
 import com.loyalty.service_admin.domain.model.RoundingRule;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -43,17 +41,6 @@ public class DiscountSettingsEntity {
 
     @Column(name = "rounding_rule", nullable = false, length = 20)
     private String roundingRule = "ROUND_HALF_UP";
-
-    @Column(name = "cap_type", length = 20)
-    @Enumerated(EnumType.STRING)
-    private CapType capType;
-
-    @Column(name = "cap_value", precision = 12, scale = 4)
-    private BigDecimal capValue;
-
-    @Column(name = "cap_applies_to", length = 20)
-    @Enumerated(EnumType.STRING)
-    private CapAppliesTo capAppliesTo;
 
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;

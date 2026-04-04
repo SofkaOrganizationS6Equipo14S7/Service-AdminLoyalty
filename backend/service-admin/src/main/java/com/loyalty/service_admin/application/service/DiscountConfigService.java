@@ -69,27 +69,6 @@ public class DiscountConfigService {
         newConfig.setCurrencyCode(request.currencyCode() != null ? request.currencyCode().toUpperCase() : "USD");
         newConfig.setAllowStacking(request.allowStacking() != null ? request.allowStacking() : true);
         newConfig.setRoundingRule(request.roundingRule() != null ? request.roundingRule() : "ROUND_HALF_UP");
-        
-        // Mapear capType si está disponible
-        if (request.capType() != null) {
-            try {
-                newConfig.setCapType(com.loyalty.service_admin.domain.model.CapType.valueOf(request.capType()));
-            } catch (IllegalArgumentException e) {
-                throw new BadRequestException("capType inválido: " + request.capType());
-            }
-        }
-        
-        newConfig.setCapValue(request.capValue());
-        
-        // Mapear capAppliesTo si está disponible
-        if (request.capAppliesTo() != null) {
-            try {
-                newConfig.setCapAppliesTo(com.loyalty.service_admin.domain.model.CapAppliesTo.valueOf(request.capAppliesTo()));
-            } catch (IllegalArgumentException e) {
-                throw new BadRequestException("capAppliesTo inválido: " + request.capAppliesTo());
-            }
-        }
-        
         newConfig.setIsActive(true);
         newConfig.setVersion(1L);
 
