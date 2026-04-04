@@ -3,7 +3,7 @@
 -- Used for Cold Start autonomy and cache population
 
 INSERT INTO classification_rules_replica 
-(uid, customer_tier_uid, metric_type, min_value, max_value, priority, is_active, last_synced) 
+(uid, tier_uid, metric_type, min_value, max_value, priority, is_active, last_synced) 
 VALUES 
 -- Bronze tier rules
 ('550e8400-e29b-41d4-a716-446655450001', '550e8400-e29b-41d4-a716-446655440001', 'total_spent', 0, 100, 1, true, CURRENT_TIMESTAMP),

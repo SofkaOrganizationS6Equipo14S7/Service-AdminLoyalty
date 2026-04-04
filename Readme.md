@@ -39,12 +39,13 @@ docker compose down
 
 Puerto: `8081`
 
-```bash
-cd backend/service-admin
-./mvnw spring-boot:run
+```powershell
+cd backend\service-admin
+$env:JAVA_HOME="C:\jdk-21.0.9_windows-x64_bin\jdk-21.0.9"
+.\mvnw.cmd spring-boot:run
 ```
 
-> En Windows usar `mvnw.cmd spring-boot:run`
+> Si `JAVA_HOME` ya apunta a JDK 21, podés omitir la segunda línea.
 
 ---
 
@@ -52,12 +53,13 @@ cd backend/service-admin
 
 Puerto: `8082`
 
-```bash
-cd backend/service-engine
-./mvnw spring-boot:run
+```powershell
+cd backend\service-engine
+$env:JAVA_HOME="C:\jdk-21.0.9_windows-x64_bin\jdk-21.0.9"
+.\mvnw.cmd spring-boot:run
 ```
 
-> En Windows usar `mvnw.cmd spring-boot:run`
+> Si `JAVA_HOME` ya apunta a JDK 21, podés omitir la segunda línea.
 
 ---
 
