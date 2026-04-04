@@ -235,10 +235,10 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at DESC);
 -- SEED DATA (Initial Data)
 -- ==========================================
 
-INSERT INTO roles (name, is_active) VALUES
-    ('SUPER_ADMIN', TRUE),
-    ('STORE_ADMIN', TRUE),
-    ('STORE_USER', TRUE)
+INSERT INTO roles (id, name, is_active) VALUES
+    ('97f4b983-6454-4086-83ba-be641c6c9f0b'::UUID, 'SUPER_ADMIN', TRUE),
+    ('fa94e179-670c-484a-a8ae-5e55a400b724'::UUID, 'STORE_ADMIN', TRUE),
+    ('8c23eacb-dbbd-4f31-9613-af9cda1d4cce'::UUID, 'STORE_USER', TRUE)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO discount_types (code, display_name) VALUES
