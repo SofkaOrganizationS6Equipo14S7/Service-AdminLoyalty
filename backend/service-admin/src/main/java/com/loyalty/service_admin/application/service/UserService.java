@@ -401,13 +401,7 @@ public class UserService {
         UserEntity user = userRepository.findById(currentUserUid)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
         
-        // ============ ACTUALIZAR NOMBRE ============
-        if (request.name() != null && !request.name().isBlank()) {
-            user.setEmail(request.name()); // Nota: en UserEntity probablemente name se guarda en email, verificar schema
-            // TODO: Si UserEntity tiene campo 'name' separado, actualizar ese campo en su lugar
-        }
-        
-        // ============ ACTUALIZAR EMAIL (ValidaciónGlobal) ============
+        // ============ ACTUALIZAR EMAIL (Validación Global) ============
         if (request.email() != null && !request.email().isBlank() && 
                 !request.email().equals(user.getEmail())) {
             // Validar unicidad global (no limitada al ecommerce) - CRITERIO-3.3
@@ -425,7 +419,7 @@ public class UserService {
         
         // Registrar en tabla de auditoría (SPEC-004 RN-08)
         auditService.auditProfileUpdate(updated.getId(), 
-                String.format("Perfil actualizado: nombre=%s, email=%s", request.name(), request.email()));
+                String.format("Perfil actualizado: email=%s", request.email()));
         
         return toResponse(updated);
     }
