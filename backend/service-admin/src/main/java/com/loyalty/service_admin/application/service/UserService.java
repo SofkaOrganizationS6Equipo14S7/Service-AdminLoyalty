@@ -295,8 +295,7 @@ public class UserService {
             // Nota: en UserEntity probablemente name se guarda en email, verificar schema
             // TODO: Si UserEntity tiene campo 'name' separado, actualizar ese campo en su lugar
         }
-        
-        // ============ ACTUALIZAR EMAIL (ValidaciónGlobal) ============
+
         if (request.email() != null && !request.email().isBlank() && 
                 !request.email().equals(user.getEmail())) {
             // Validar unicidad global (no limitada al ecommerce) - CRITERIO-3.3
@@ -313,8 +312,7 @@ public class UserService {
                 updated.getId(), updated.getEmail(), currentUserUid);
         
         // Registrar en tabla de auditoría (SPEC-004 RN-08)
-        auditService.auditProfileUpdate(updated.getId(), 
-                String.format("Perfil actualizado: nombre=%s, email=%s", request.name(), request.email()));
+        auditService.auditProfileUpdate(updated.getId(), updated.getEmail());
         
         return toResponse(updated);
     }

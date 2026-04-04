@@ -1,5 +1,7 @@
 package com.loyalty.service_admin.application.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loyalty.service_admin.domain.entity.AuditLogEntity;
 import com.loyalty.service_admin.domain.repository.AuditLogRepository;
 import com.loyalty.service_admin.infrastructure.security.SecurityContextHelper;
@@ -8,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -17,15 +20,25 @@ public class AuditService {
     
     private final AuditLogRepository auditLogRepository;
     private final SecurityContextHelper securityContextHelper;
+    private final ObjectMapper objectMapper;
+
+    private String toJson(Map<String, Object> data) {
+        try {
+            return objectMapper.writeValueAsString(data);
+        } catch (JsonProcessingException e) {
+            log.warn("Error serializando audit value a JSON", e);
+            return "{\"error\":\"serialization_failed\"}";
+        }
+    }
     
     @Transactional
-    public void auditProfileUpdate(UUID userId, String description) {
+    public void auditProfileUpdate(UUID userId, String email) {
         AuditLogEntity auditLog = AuditLogEntity.builder()
                 .userId(userId)
                 .action("PROFILE_UPDATE")
                 .entityName("USER_PROFILE")
                 .entityId(userId)
-                .newValue(description != null ? description : "Profile updated")
+                .newValue(toJson(Map.of("email", email != null ? email : "")))
                 .build();
         
         auditLogRepository.save(auditLog);
@@ -39,7 +52,7 @@ public class AuditService {
                 .action("PASSWORD_CHANGE")
                 .entityName("USER_PASSWORD")
                 .entityId(userId)
-                .newValue("Password changed")
+                .newValue(toJson(Map.of("description", description != null ? description : "Password changed")))
                 .build();
         
         auditLogRepository.save(auditLog);
@@ -53,8 +66,8 @@ public class AuditService {
                 .action("ROLE_CHANGE")
                 .entityName("USER_ROLE")
                 .entityId(userId)
-                .oldValue(oldRole != null ? oldRole.toString() : "null")
-                .newValue(newRole != null ? newRole.toString() : "null")
+                .oldValue(toJson(Map.of("role", oldRole != null ? oldRole.toString() : "")))
+                .newValue(toJson(Map.of("role", newRole != null ? newRole.toString() : "")))
                 .build();
         
         auditLogRepository.save(auditLog);
@@ -68,8 +81,8 @@ public class AuditService {
                 .action("ECOMMERCE_CHANGE")
                 .entityName("USER_ECOMMERCE")
                 .entityId(userId)
-                .oldValue(oldEcommerceId != null ? oldEcommerceId.toString() : "null")
-                .newValue(newEcommerceId != null ? newEcommerceId.toString() : "null")
+                .oldValue(toJson(Map.of("ecommerceId", oldEcommerceId != null ? oldEcommerceId.toString() : "")))
+                .newValue(toJson(Map.of("ecommerceId", newEcommerceId != null ? newEcommerceId.toString() : "")))
                 .build();
         
         auditLogRepository.save(auditLog);
