@@ -1,6 +1,6 @@
 package com.loyalty.service_admin.application.validation;
 
-import com.loyalty.service_admin.application.dto.DiscountLimitPriorityRequest;
+import com.loyalty.service_admin.application.dto.rules.discount.DiscountLimitPriorityRequest;
 import com.loyalty.service_admin.infrastructure.exception.BadRequestException;
 import org.springframework.stereotype.Component;
 

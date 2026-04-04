@@ -26,6 +26,10 @@ public class ConfigurationController {
 
     private final ConfigurationUseCase configurationService;
 
+    /**
+     * @param request configuration creation data
+     * @return HTTP 201 Created with ConfigurationWriteData
+     */
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<ConfigurationWriteData>> create(@Valid @RequestBody ConfigurationCreateRequest request) {
@@ -33,6 +37,11 @@ public class ConfigurationController {
         return ResponseEntity.status(HttpStatus.CREATED).body(new ApiResponse<>(true, data));
     }
 
+    /**
+     * @param ecommerceId ecommerce identifier
+     * @param request partial configuration data
+     * @return HTTP 200 OK with updated ConfigurationWriteData
+     */
     @PatchMapping("/{ecommerceId}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<ConfigurationWriteData>> patch(

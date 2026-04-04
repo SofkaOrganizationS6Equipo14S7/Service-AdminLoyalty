@@ -1,11 +1,13 @@
 package com.loyalty.service_admin.application.service;
 
-import com.loyalty.service_admin.application.dto.DiscountLimitPriorityRequest;
-import com.loyalty.service_admin.application.dto.DiscountLimitPriorityResponse;
+import com.loyalty.service_admin.application.dto.rules.discount.DiscountLimitPriorityRequest;
+import com.loyalty.service_admin.application.dto.rules.discount.DiscountLimitPriorityResponse;
 import com.loyalty.service_admin.application.validation.DiscountPriorityValidator;
-import com.loyalty.service_admin.domain.entity.DiscountLimitPriorityEntity;
+import com.loyalty.service_admin.domain.entity.DiscountPriorityEntity;
+import com.loyalty.service_admin.domain.entity.DiscountTypeEntity;
 import com.loyalty.service_admin.domain.model.DiscountType;
 import com.loyalty.service_admin.domain.repository.DiscountLimitPriorityRepository;
+import com.loyalty.service_admin.domain.repository.DiscountTypeRepository;
 import com.loyalty.service_admin.infrastructure.exception.BadRequestException;
 import com.loyalty.service_admin.infrastructure.exception.ResourceNotFoundException;
 import com.loyalty.service_admin.infrastructure.rabbitmq.DiscountConfigEventPublisher;
@@ -27,15 +29,18 @@ import java.util.stream.Collectors;
 public class DiscountLimitPriorityService {
 
     private final DiscountLimitPriorityRepository priorityRepository;
+    private final DiscountTypeRepository discountTypeRepository;
     private final DiscountPriorityValidator priorityValidator;
     private final DiscountConfigEventPublisher eventPublisher;
 
     public DiscountLimitPriorityService(
             DiscountLimitPriorityRepository priorityRepository,
+            DiscountTypeRepository discountTypeRepository,
             DiscountPriorityValidator priorityValidator,
             DiscountConfigEventPublisher eventPublisher
     ) {
         this.priorityRepository = priorityRepository;
+        this.discountTypeRepository = discountTypeRepository;
         this.priorityValidator = priorityValidator;
         this.eventPublisher = eventPublisher;
     }
@@ -52,22 +57,26 @@ public class DiscountLimitPriorityService {
         UUID configId = UUID.fromString(request.discountConfigId());
 
         // Eliminar prioridades anteriores
-        priorityRepository.deleteByDiscountConfigId(configId);
+        priorityRepository.deleteByDiscountSettingsId(configId);
         log.info("Cleared previous priorities for config: {}", configId);
 
-        // Insertar nuevas prioridades
-        List<DiscountLimitPriorityEntity> entities = request.priorities()
+        // Insert nuevas prioridades
+        List<DiscountPriorityEntity> entities = request.priorities()
             .stream()
-            .map(entry -> {
-                DiscountLimitPriorityEntity entity = new DiscountLimitPriorityEntity();
-                entity.setDiscountConfigId(configId);
-                entity.setDiscountType(DiscountType.valueOf(entry.discountType()));
-                entity.setPriorityLevel(entry.priorityLevel());
+            .map(dto -> {
+                DiscountPriorityEntity entity = new DiscountPriorityEntity();
+                entity.setDiscountSettingId(configId);
+                // Buscar el UUID del discount type por código
+                UUID discountTypeId = discountTypeRepository.findByCode(dto.discountType())
+                    .map(DiscountTypeEntity::getId)
+                    .orElseThrow(() -> new BadRequestException("Tipo de descuento no encontrado: " + dto.discountType()));
+                entity.setDiscountTypeId(discountTypeId);
+                entity.setPriorityLevel(dto.priorityLevel());
                 return entity;
             })
             .toList();
 
-        List<DiscountLimitPriorityEntity> saved = priorityRepository.saveAll(entities);
+        List<DiscountPriorityEntity> saved = priorityRepository.saveAll(entities);
         log.info("Saved {} priorities for config: {}", saved.size(), configId);
 
         // Publicar evento
@@ -83,8 +92,8 @@ public class DiscountLimitPriorityService {
     public DiscountLimitPriorityResponse getPriorities(String configId) {
         UUID configUuid = UUID.fromString(configId);
 
-        List<DiscountLimitPriorityEntity> priorities = priorityRepository
-            .findByDiscountConfigIdOrderByPriorityLevel(configUuid);
+        List<DiscountPriorityEntity> priorities = priorityRepository
+            .findByDiscountSettingsIdOrderByPriorityLevel(configUuid);
 
         if (priorities.isEmpty()) {
             throw new ResourceNotFoundException(
@@ -98,14 +107,19 @@ public class DiscountLimitPriorityService {
     /**
      * Convierte entidades a DTO response.
      */
-    private DiscountLimitPriorityResponse toResponse(UUID configId, List<DiscountLimitPriorityEntity> entities) {
+    private DiscountLimitPriorityResponse toResponse(UUID configId, List<DiscountPriorityEntity> entities) {
         List<DiscountLimitPriorityResponse.PriorityEntry> entries = entities
             .stream()
-            .map(entity -> new DiscountLimitPriorityResponse.PriorityEntry(
-                entity.getDiscountType().name(),
-                entity.getPriorityLevel(),
-                entity.getCreatedAt()
-            ))
+            .map(entity -> {
+                String discountTypeCode = discountTypeRepository.findById(entity.getDiscountTypeId())
+                    .map(DiscountTypeEntity::getCode)
+                    .orElse("UNKNOWN");
+                return new DiscountLimitPriorityResponse.PriorityEntry(
+                    discountTypeCode,
+                    entity.getPriorityLevel(),
+                    entity.getCreatedAt().atOffset(java.time.ZoneOffset.UTC)
+                );
+            })
             .collect(Collectors.toList());
 
         return new DiscountLimitPriorityResponse(

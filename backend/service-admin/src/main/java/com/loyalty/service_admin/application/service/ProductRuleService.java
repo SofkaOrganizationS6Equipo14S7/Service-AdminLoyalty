@@ -1,11 +1,11 @@
 package com.loyalty.service_admin.application.service;
 
-import com.loyalty.service_admin.application.dto.ProductRuleCreateRequest;
-import com.loyalty.service_admin.application.dto.ProductRuleEvent;
-import com.loyalty.service_admin.application.dto.ProductRuleResponse;
-import com.loyalty.service_admin.application.dto.ProductRuleUpdateRequest;
+import com.loyalty.service_admin.application.dto.rules.product.ProductRuleCreateRequest;
+import com.loyalty.service_admin.application.dto.rules.product.ProductRuleEvent;
+import com.loyalty.service_admin.application.dto.rules.product.ProductRuleResponse;
+import com.loyalty.service_admin.application.dto.rules.product.ProductRuleUpdateRequest;
 import com.loyalty.service_admin.application.port.out.ConfigurationPersistencePort;
-import com.loyalty.service_admin.domain.entity.DiscountConfigurationEntity;
+import com.loyalty.service_admin.domain.entity.DiscountSettingsEntity;
 import com.loyalty.service_admin.domain.entity.ProductRuleEntity;
 import com.loyalty.service_admin.domain.model.CapType;
 import com.loyalty.service_admin.domain.repository.ProductRuleRepository;
@@ -86,12 +86,12 @@ public class ProductRuleService {
         // Create entity
         UUID ruleUid = UUID.randomUUID();
         ProductRuleEntity entity = new ProductRuleEntity();
-        entity.setUid(ruleUid);
+        entity.setId(ruleUid);
         entity.setEcommerceId(ecommerceId);
+        entity.setDiscountTypeId(request.discountTypeId());
         entity.setName(request.name());
         entity.setProductType(request.productType());
         entity.setDiscountPercentage(request.discountPercentage());
-        entity.setBenefit(request.benefit());
         entity.setIsActive(true);
         
         // Persist
@@ -143,7 +143,7 @@ public class ProductRuleService {
         
         log.debug("Fetching product rule: uid={} ecommerce={}", uid, ecommerceId);
         
-        ProductRuleEntity rule = productRuleRepository.findByUidAndEcommerceId(uid, ecommerceId)
+        ProductRuleEntity rule = productRuleRepository.findByIdAndEcommerceId(uid, ecommerceId)
             .orElseThrow(() -> new ResourceNotFoundException(
                 String.format("Product rule not found with uid: %s", uid)
             ));
@@ -175,7 +175,7 @@ public class ProductRuleService {
         log.info("Updating product rule: uid={} ecommerce={}", uid, ecommerceId);
         
         // Find the rule
-        ProductRuleEntity rule = productRuleRepository.findByUidAndEcommerceId(uid, ecommerceId)
+        ProductRuleEntity rule = productRuleRepository.findByIdAndEcommerceId(uid, ecommerceId)
             .orElseThrow(() -> new ResourceNotFoundException(
                 String.format("Product rule not found with uid: %s", uid)
             ));
@@ -189,8 +189,8 @@ public class ProductRuleService {
             validateDiscountAgainstConfiguration(ecommerceId, request.discountPercentage());
             rule.setDiscountPercentage(request.discountPercentage());
         }
-        if (request.benefit() != null) {
-            rule.setBenefit(request.benefit());
+        if (request.discountPercentage() != null) {
+            rule.setDiscountPercentage(request.discountPercentage());
         }
         
         rule.setUpdatedAt(Instant.now());
@@ -219,7 +219,7 @@ public class ProductRuleService {
         log.info("Deleting product rule: uid={} ecommerce={}", uid, ecommerceId);
         
         // Find the rule
-        ProductRuleEntity rule = productRuleRepository.findByUidAndEcommerceId(uid, ecommerceId)
+        ProductRuleEntity rule = productRuleRepository.findByIdAndEcommerceId(uid, ecommerceId)
             .orElseThrow(() -> new ResourceNotFoundException(
                 String.format("Product rule not found with uid: %s", uid)
             ));
@@ -242,12 +242,12 @@ public class ProductRuleService {
      */
     private ProductRuleResponse toProductRuleResponse(ProductRuleEntity entity) {
         return new ProductRuleResponse(
-            entity.getUid().toString(),
+            entity.getId().toString(),
             entity.getEcommerceId().toString(),
             entity.getName(),
             entity.getProductType(),
             entity.getDiscountPercentage(),
-            entity.getBenefit(),
+            null,
             entity.getIsActive(),
             entity.getCreatedAt(),
             entity.getUpdatedAt()
@@ -257,11 +257,11 @@ public class ProductRuleService {
     private void publishCreatedEvent(ProductRuleEntity entity) {
         ProductRuleEvent event = new ProductRuleEvent(
             "PRODUCT_RULE_CREATED",
-            entity.getUid(),
+            entity.getId(),
             entity.getEcommerceId(),
             entity.getProductType(),
             entity.getDiscountPercentage(),
-            entity.getBenefit(),
+            null,
             entity.getIsActive(),
             Instant.now()
         );
@@ -271,11 +271,11 @@ public class ProductRuleService {
     private void publishUpdatedEvent(ProductRuleEntity entity) {
         ProductRuleEvent event = new ProductRuleEvent(
             "PRODUCT_RULE_UPDATED",
-            entity.getUid(),
+            entity.getId(),
             entity.getEcommerceId(),
             entity.getProductType(),
             entity.getDiscountPercentage(),
-            entity.getBenefit(),
+            null,
             entity.getIsActive(),
             Instant.now()
         );
@@ -285,11 +285,11 @@ public class ProductRuleService {
     private void publishDeletedEvent(ProductRuleEntity entity) {
         ProductRuleEvent event = new ProductRuleEvent(
             "PRODUCT_RULE_DELETED",
-            entity.getUid(),
+            entity.getId(),
             entity.getEcommerceId(),
             entity.getProductType(),
             entity.getDiscountPercentage(),
-            entity.getBenefit(),
+            null,
             entity.getIsActive(),
             Instant.now()
         );
@@ -299,7 +299,7 @@ public class ProductRuleService {
     /**
      * Validate discount percentage against ecommerce global configuration limits
      * 
-     * If a DiscountConfigurationEntity exists for the ecommerce with capType=PERCENTAGE,
+     * If a DiscountSettingsEntity exists for the ecommerce with max_discount_cap,
      * the discount percentage must not exceed the configured cap value.
      * If no configuration exists, discount is allowed between 0-100.
      * 
@@ -311,7 +311,7 @@ public class ProductRuleService {
         var config = configurationPort.findByEcommerceId(ecommerceId);
         
         if (config.isPresent()) {
-            DiscountConfigurationEntity discountConfig = config.get();
+            DiscountSettingsEntity discountConfig = config.get();
             
             // Only validate if cap_type is PERCENTAGE
             if (discountConfig.getCapType() == CapType.PERCENTAGE) {

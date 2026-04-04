@@ -9,7 +9,7 @@ import com.loyalty.service_admin.application.port.out.ConfigurationEventPort;
 import com.loyalty.service_admin.application.port.out.ConfigurationPersistencePort;
 import com.loyalty.service_admin.application.port.out.CurrentUserPort;
 import com.loyalty.service_admin.application.validation.ConfigurationBusinessValidator;
-import com.loyalty.service_admin.domain.entity.DiscountConfigurationEntity;
+import com.loyalty.service_admin.domain.entity.DiscountSettingsEntity;
 import com.loyalty.service_admin.domain.entity.DiscountPriorityEntity;
 import com.loyalty.service_admin.domain.model.CapAppliesTo;
 import com.loyalty.service_admin.domain.model.CapType;
@@ -68,8 +68,8 @@ class ConfigurationServiceTest {
 
         when(currentUserPort.isSuperAdmin()).thenReturn(true);
         when(repository.existsByEcommerceId(ecommerceId)).thenReturn(false);
-        when(repository.save(any(DiscountConfigurationEntity.class))).thenAnswer(invocation -> {
-            DiscountConfigurationEntity entity = invocation.getArgument(0);
+        when(repository.save(any(DiscountSettingsEntity.class))).thenAnswer(invocation -> {
+            DiscountSettingsEntity entity = invocation.getArgument(0);
             entity.setId(UUID.randomUUID());
             entity.setVersion(1L);
             entity.setUpdatedAt(Instant.now());
@@ -82,9 +82,9 @@ class ConfigurationServiceTest {
         assertThat(result.version()).isEqualTo(1L);
         verify(eventPublisher).publishConfigUpdated(any());
 
-        ArgumentCaptor<DiscountConfigurationEntity> captor = ArgumentCaptor.forClass(DiscountConfigurationEntity.class);
+        ArgumentCaptor<DiscountSettingsEntity> captor = ArgumentCaptor.forClass(DiscountSettingsEntity.class);
         verify(repository).save(captor.capture());
-        assertThat(captor.getValue().getCurrency()).isEqualTo("COP");
+        assertThat(captor.getValue().getCurrencyCode()).isEqualTo("COP");
     }
 
     @Test
@@ -159,7 +159,7 @@ class ConfigurationServiceTest {
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         var result = service.patchConfiguration(ecommerceId, request);
-        assertThat(result.version()).isEqualTo(3L);
+        assertThat(result.version()).isEqualTo(4L);
         verify(eventPublisher).publishConfigUpdated(any());
     }
 
@@ -226,12 +226,12 @@ class ConfigurationServiceTest {
         );
     }
 
-    private DiscountConfigurationEntity existingConfig(UUID ecommerceId) {
-        DiscountConfigurationEntity entity = new DiscountConfigurationEntity();
+    private DiscountSettingsEntity existingConfig(UUID ecommerceId) {
+        DiscountSettingsEntity entity = new DiscountSettingsEntity();
         entity.setId(UUID.randomUUID());
         entity.setEcommerceId(ecommerceId);
-        entity.setCurrency("COP");
-        entity.setRoundingRule(RoundingRule.HALF_UP);
+        entity.setCurrencyCode("COP");
+        entity.setRoundingRule("HALF_UP");
         entity.setCapType(CapType.PERCENTAGE);
         entity.setCapValue(new BigDecimal("10"));
         entity.setCapAppliesTo(CapAppliesTo.SUBTOTAL);
@@ -240,9 +240,9 @@ class ConfigurationServiceTest {
 
         DiscountPriorityEntity priority = new DiscountPriorityEntity();
         priority.setId(UUID.randomUUID());
-        priority.setDiscountType("SEASONAL");
-        priority.setOrder(1);
-        priority.setConfiguration(entity);
+        priority.setDiscountTypeId(UUID.randomUUID());
+        priority.setPriorityLevel(1);
+        priority.setDiscountSettingId(entity.getId());
         entity.setPriorities(new ArrayList<>(List.of(priority)));
         return entity;
     }

@@ -1,8 +1,8 @@
 package com.loyalty.service_admin.infrastructure.rabbitmq;
 
-import com.loyalty.service_admin.application.dto.ClassificationRuleCreatedEvent;
-import com.loyalty.service_admin.application.dto.ClassificationRuleDeletedEvent;
-import com.loyalty.service_admin.application.dto.ClassificationRuleUpdatedEvent;
+import com.loyalty.service_admin.application.dto.rules.classification.ClassificationRuleCreatedEvent;
+import com.loyalty.service_admin.application.dto.rules.classification.ClassificationRuleDeletedEvent;
+import com.loyalty.service_admin.application.dto.rules.classification.ClassificationRuleUpdatedEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

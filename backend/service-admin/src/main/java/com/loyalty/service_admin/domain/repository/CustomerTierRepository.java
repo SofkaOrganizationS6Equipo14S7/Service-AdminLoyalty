@@ -8,30 +8,18 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-/**
- * Repository for CustomerTierEntity.
- * Manages tier definitions (source of truth).
- */
 @Repository
 public interface CustomerTierRepository extends JpaRepository<CustomerTierEntity, UUID> {
 
-    /**
-     * Find all active tiers, ordered by level ascending.
-     */
-    List<CustomerTierEntity> findByIsActiveTrueOrderByLevelAsc();
+    List<CustomerTierEntity> findByEcommerceIdAndIsActiveTrueOrderByHierarchyLevelAsc(UUID ecommerceId);
 
-    /**
-     * Find a tier by name.
-     */
-    Optional<CustomerTierEntity> findByNameAndIsActiveTrue(String name);
+    List<CustomerTierEntity> findByIsActiveTrueOrderByHierarchyLevelAsc();
 
-    /**
-     * Find all tiers (active and inactive) ordered by level.
-     */
-    List<CustomerTierEntity> findAllByOrderByLevelAsc();
+    Optional<CustomerTierEntity> findByEcommerceIdAndNameAndIsActiveTrue(UUID ecommerceId, String name);
 
-    /**
-     * Check if a tier with a given name already exists (case-sensitive).
-     */
-    boolean existsByName(String name);
+    List<CustomerTierEntity> findAllByOrderByHierarchyLevelAsc();
+
+    List<CustomerTierEntity> findByEcommerceId(UUID ecommerceId);
+
+    boolean existsByEcommerceIdAndName(UUID ecommerceId, String name);
 }

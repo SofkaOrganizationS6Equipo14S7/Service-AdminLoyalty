@@ -1,8 +1,11 @@
 package com.loyalty.service_admin.application.mapper;
 
-import com.loyalty.service_admin.application.dto.SeasonalRuleResponse;
+import com.loyalty.service_admin.application.dto.rules.seasonal.SeasonalRuleResponse;
 import com.loyalty.service_admin.domain.entity.SeasonalRuleEntity;
 import org.springframework.stereotype.Component;
+
+import java.time.Instant;
+import java.util.UUID;
 
 /**
  * Mapper for SeasonalRuleEntity ↔ SeasonalRuleResponse
@@ -18,12 +21,12 @@ public class SeasonalRuleMapper {
             return null;
         }
         return new SeasonalRuleResponse(
-            entity.getUid().toString(),
+            entity.getId().toString(),
             entity.getEcommerceId().toString(),
             entity.getName(),
             entity.getDescription(),
             entity.getDiscountPercentage(),
-            entity.getDiscountType(),
+            entity.getDiscountTypeId().toString(),
             entity.getStartDate(),
             entity.getEndDate(),
             entity.getIsActive(),

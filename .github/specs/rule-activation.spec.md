@@ -165,25 +165,27 @@ CRITERIO-14.2.2: Cambio al mismo estado no produce cambios
 | Entidad | Almacén | Cambios | Descripción |
 |---------|---------|---------|-------------|
 | `SeasonalRuleEntity` | tabla `seasonal_rules` | campo `is_active` ya existe | Regla de descuento por temporada |
-| `FidelityRangeEntity` | tabla `fidelity_ranges` | agregar campo `is_active` | Rango de fidelidad (ej. Oro, Plata) |
+| `CustomerTierEntity` | tabla `customer_tiers` | campo `is_active` ya existe | Rangos de clasificación de fidelidad |
 
 #### Campos del modelo — `seasonal_rules`
 
 | Campo | Tipo | Obligatorio | Validación | Descripción |
 |-------|------|-------------|------------|-------------|
-| `uid` | UUID | sí | auto-generado (gen_random_uuid) | Identificador único |
+| `id` | UUID | sí | auto-generado (gen_random_uuid) | Identificador único |
 | `is_active` | BOOLEAN | sí | TRUE/FALSE | Estado: activa = true, inactiva = false |
-| `updated_at` | TIMESTAMP UTC | sí | auto-actualizado | Última modificación |
+| `updated_at` | TIMESTAMP WITH TIME ZONE | sí | auto-actualizado | Última modificación |
 
-**Nota:** El campo `is_active` ya existe en la tabla `seasonal_rules`. No hay cambios de migración necesarios para esta entidad.
+**Nota:** El campo `is_active` ya existe en la tabla `seasonal_rules`.
 
-#### Campos del modelo — `fidelity_ranges`
+#### Campos del modelo — `customer_tiers`
 
 | Campo | Tipo | Obligatorio | Validación | Descripción |
 |-------|------|-------------|------------|-------------|
+| `id` | UUID | sí | auto-generado (gen_random_uuid) | Identificador único |
 | `is_active` | BOOLEAN | sí | TRUE/FALSE | Estado: activo = true, inactivo = false |
+| `updated_at` | TIMESTAMP WITH TIME ZONE | sí | auto-actualizado | Última modificación |
 
-**Nota:** El campo `is_active` ya fue creado en SPEC-008 (Rangos de Fidelidad) con valor por defecto `true`. No hay migraciones nuevas necesarias.
+**Nota:** El campo `is_active` ya existe en la tabla `customer_tiers`.
 
 #### Índices / Constraints
 

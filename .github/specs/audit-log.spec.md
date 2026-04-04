@@ -49,13 +49,12 @@ CRITERIO-13.1.1: Registrar CREATE de regla de descuento
   Cuando:    La regla se guarda exitosamente en BD
   Entonces:  El sistema genera automáticamente un AuditLog con:
              - action: "CREATE"
-             - rule_type: "DISCOUNT"
+             - entity_name: "product_rules" (o seasonal_rules, customer_tiers, etc.)
              - old_value: null
              - new_value: <valores completos de la regla>
              - timestamp: fecha/hora actual UTC
              - user_id: identificador del administrador autenticado
-             - ip_address: IP del cliente
-             Y el log se persiste de forma síncrona en tabla audit_logs
+             Y el log se persiste de forma síncrona en tabla audit_log
 ```
 
 ```gherkin
@@ -64,10 +63,10 @@ CRITERIO-13.1.2: Registrar UPDATE de regla de producto
   Cuando:    La regla se actualiza exitosamente en BD
   Entonces:  El sistema genera un AuditLog con:
              - action: "UPDATE"
-             - rule_type: "PRODUCT"
+             - entity_name: "product_rules"
              - old_value: <estado anterior completo>
              - new_value: <estado nuevo completo>
-             - rule_id: identificador de la regla modificada
+             - entity_id: identificador de la regla modificada
              Y el log se persiste de forma síncrona
 ```
 
@@ -77,7 +76,7 @@ CRITERIO-13.1.3: Registrar DELETE de regla de fidelidad
   Cuando:    La regla se elimina exitosamente de BD
   Entonces:  El sistema genera un AuditLog con:
              - action: "DELETE"
-             - rule_type: "FIDELITY"
+             - entity_name: "customer_tiers"
              - old_value: <estado completo antes de eliminar>
              - new_value: null
              Y el log se persiste de forma síncrona
@@ -109,16 +108,16 @@ CRITERIO-13.2.1: Listar historial de auditoría sin filtros
   Y:         Envío header Authorization: Bearer <JWT con rol SUPER_ADMIN>
   Entonces:  El sistema retorna 200 OK con:
              - Array de AuditLog (máximo 100 por página, ordenados DESC por timestamp)
-             - Cada item incluye: id, timestamp, user_id, ecommerce_id, rule_type, 
-               rule_id, action, old_value, new_value, ip_address, user_email (si existe)
+             - Cada item incluye: id, timestamp, user_id, ecommerce_id, entity_name, 
+               entity_id, action, old_value, new_value
              - Paginación: page, size, totalElements, totalPages
 ```
 
 ```gherkin
-CRITERIO-13.2.2: Filtrar por tipo de regla
-  Dado que:  Existen AuditLogs de múltiples tipos (DISCOUNT, PRODUCT, FIDELITY)
-  Cuando:    Realizo GET /api/v1/audit-logs?ruleType=DISCOUNT
-  Entonces:  El sistema retorna 200 OK solo con AuditLogs cuyo rule_type sea DISCOUNT
+CRITERIO-13.2.2: Filtrar por entidad
+  Dado que:  Existen AuditLogs de múltiples entidades (product_rules, seasonal_rules, customer_tiers)
+  Cuando:    Realizo GET /api/v1/audit-logs?entityName=product_rules
+  Entonces:  El sistema retorna 200 OK solo con AuditLogs cuyo entity_name sea product_rules
 ```
 
 ```gherkin
@@ -162,10 +161,10 @@ CRITERIO-13.2.7: Acceso sin rol SUPER_ADMIN
 
 ```gherkin
 CRITERIO-13.2.8: Filtro con valor inválido
-  Dado que:  Envío un ruleType no soportado ( ej. "INVALID")
-  Cuando:    Realizo GET /api/v1/audit-logs?ruleType=INVALID
+  Dado que:  Envío un entityName no soportado (ej. "INVALID_ENTITY")
+  Cuando:    Realizo GET /api/v1/audit-logs?entityName=INVALID_ENTITY
   Entonces:  El sistema retorna 400 BAD REQUEST con mensaje:
-             { "error": "ruleType must be one of: DISCOUNT, PRODUCT, FIDELITY" }
+             { "error": "entityName must be one of: product_rules, seasonal_rules, customer_tiers, discount_settings, etc." }
 ```
 
 ```gherkin
@@ -201,19 +200,18 @@ CRITERIO-13.3.1: Renderizar tabla de auditoría con datos
              - Timestamp (formato: DD/MM/YYYY HH:mm:ss UTC)
              - Usuario (email o nombre)
              - Ecommerce
-             - Tipo de Regla (DISCOUNT, PRODUCT, FIDELITY)
+             - Entidad (product_rules, seasonal_rules, customer_tiers, etc.)
              - Acción (CREATE, UPDATE, DELETE)
              - Detalles (enlace o modal para expandir old_value/new_value)
-             - IP Address
              Y se muestran máximo 25 filas por página con paginación
 ```
 
 ```gherkin
-CRITERIO-13.3.2: Aplicar filtro por tipo de regla en UI
+CRITERIO-13.3.2: Aplicar filtro por entidad en UI
   Dado que:  Veo la tabla de auditoría renderizada
-  Cuando:    Selecciono un tipo de regla en el dropdown (ej. DISCOUNT)
+  Cuando:    Selecciono una entidad en el dropdown (ej. product_rules)
   Entonces:  La tabla se filtra de inmediato (con loading spinner) 
-             y muestra solo AuditLogs de ese tipo
+             y muestra solo AuditLogs de esa entidad
 ```
 
 ```gherkin
@@ -235,7 +233,7 @@ CRITERIO-13.3.5: Exportar como CSV
   Dado que:  Veo tabla renderizada con datos filtrados
   Cuando:    Hago click en botón "Exportar a CSV"
   Entonces:  Se descarga un archivo audit_logs_<timestamp>.csv con:
-             - Headers: Timestamp, Usuario, Ecommerce, Tipo Regla, Acción, Valor Anterior, Valor Nuevo, IP
+             - Headers: Timestamp, Usuario, Ecommerce, Entidad, Acción, Valor Anterior, Valor Nuevo
              - Todas las filas que cumplen los filtros actuales
              - Valores JSON complejos se formatean como strings legibles
 ```
@@ -254,8 +252,7 @@ CRITERIO-13.3.6: Error al cargar datos del backend
 2. **Solo SUPER_ADMIN:** Solo usuarios con rol SUPER_ADMIN pueden consultar auditoría.
 3. **Retención indefinida:** Los AuditLogs se mantienen indefinidamente (sin purga automática).
 4. **Timestamp UTC:** Todos los timestamps se almacenan y retornan en UTC ISO 8601.
-5. **IP dinámima:** Se captura la IP del cliente de cada request (header `X-Forwarded-For` o `RemoteAddr`).
-6. **Validación de filtros:** startDate debe ser < endDate, y ruleType debe estar en [DISCOUNT, PRODUCT, FIDELITY].
+5. **Validación de filtros:** startDate debe ser < endDate, y entity_name debe ser válida (product_rules, seasonal_rules, customer_tiers, etc.).
 
 ---
 
@@ -266,68 +263,60 @@ CRITERIO-13.3.6: Error al cargar datos del backend
 #### Entidades afectadas
 | Entidad | Almacén | Cambios | Descripción |
 |---------|---------|---------|-------------|
-| `AuditLog` | tabla `config_audit_logs` (nueva) | nueva | Log de cambios de reglas (Management) |
+| `AuditLogEntity` | tabla `audit_log` (nueva) | nueva | Log de cambios de reglas (Management) |
 
-#### Campos del modelo `AuditLog`
+#### Campos del modelo `AuditLogEntity` (normalizado)
 | Campo | Tipo | Obligatorio | Validación | Descripción |
 |-------|------|-------------|------------|-------------|
-| `id` | UUID | sí | auto-generado | Identificador único del log |
-| `timestamp` | TIMESTAMPTZ | sí | auto-generado | Momento del cambio en UTC (con zona horaria) |
-| `user_id` | UUID | sí | FK a users.uid | Usuario que realizó el cambio |
-| `ecommerce_id` | UUID | sí | FK a ecommerces.uid | Ecommerce afectado |
-| `rule_type` | ENUM | sí | DISCOUNT, PRODUCT, FIDELITY | Tipo de regla modificada |
-| `rule_id` | UUID | sí | – | ID de la regla modificada |
-| `action` | ENUM | sí | CREATE, UPDATE, DELETE | Tipo de acción realizada |
-| `old_value` | JSONB | no | – | Estado anterior (null en CREATE). Almacenado como JSONB para búsquedas eficientes |
-| `new_value` | JSONB | no | – | Estado nuevo (null en DELETE). Almacenado como JSONB para búsquedas eficientes |
-| `ip_address` | VARCHAR(45) | sí | IPv4 o IPv6 | IP del cliente que realizó cambio |
-| `created_at` | TIMESTAMPTZ | sí | auto-generado | Timestamp creación del log en UTC |
+| `id` | UUID | sí | auto-generado (gen_random_uuid()) | Identificador único del log |
+| `user_id` | UUID | no | FK a app_user.id (SET NULL) | Usuario que realizó el cambio |
+| `ecommerce_id` | UUID | no | FK a ecommerce.id | Ecommerce donde occurred el cambio |
+| `action` | VARCHAR(50) | sí | CREATE, UPDATE, DELETE, etc. | Tipo de acción realizada |
+| `entity_name` | VARCHAR(100) | sí | RULE, CONFIG, USER, PRODUCT, FIDELITY | Entidad afectada |
+| `entity_id` | UUID | no | – | ID de la entidad afectada |
+| `old_value` | JSONB | no | – | Datos anteriores: {"old": {...}} |
+| `new_value` | JSONB | no | – | Datos nuevos: {"new": {...}} |
+| `created_at` | TIMESTAMP WITH TIME ZONE | sí | auto-generado | Timestamp creación del log en UTC |
 
 #### Índices / Constraints
 ```sql
--- Para búsquedas rápidas por ecommerce
-CREATE INDEX idx_config_audit_logs_ecommerce_id ON config_audit_logs(ecommerce_id);
+-- PRIMARY KEY
+PRIMARY KEY (id)
 
--- Para búsquedas por rango de fechas (muy frecuente)
-CREATE INDEX idx_config_audit_logs_timestamp ON config_audit_logs(timestamp DESC);
+-- FK (nullable, SET NULL on delete)
+FOREIGN KEY (user_id) REFERENCES app_user(id) ON DELETE SET NULL
+FOREIGN KEY (ecommerce_id) REFERENCES ecommerce(id)
 
--- Búsqueda combinada: ecommerce + tipo de regla
-CREATE INDEX idx_config_audit_logs_ecommerce_type ON config_audit_logs(ecommerce_id, rule_type);
-
--- Búsqueda combinada: tipo de regla + timestamp (filtro común)
-CREATE INDEX idx_config_audit_logs_type_timestamp ON config_audit_logs(rule_type, timestamp DESC);
-
--- Índice JSONB para búsquedas eficientes dentro de old_value/new_value (si fuera necesario)
-CREATE INDEX idx_config_audit_logs_jsonb_new_value ON config_audit_logs USING GIN (new_value);
+-- Índices para búsquedas frecuentes
+CREATE INDEX idx_audit_log_user ON audit_log(user_id);
+CREATE INDEX idx_audit_log_ecommerce ON audit_log(ecommerce_id);
+CREATE INDEX idx_audit_log_action ON audit_log(action);
+CREATE INDEX idx_audit_log_entity_name ON audit_log(entity_name);
+CREATE INDEX idx_audit_log_created_at ON audit_log(created_at DESC);
 ```
 
 #### Migration (Flyway)
 ```sql
--- V13__Create_config_audit_logs_table.sql
+-- V1__Create_audit_log_table.sql
 -- Auditoría de cambios de configuración de reglas (Management)
--- Diferenciado de transaction_audit_logs (SPEC-012) que viene del Engine vía RabbitMQ
-CREATE TABLE IF NOT EXISTS config_audit_logs (
-    id UUID PRIMARY KEY NOT NULL,
-    timestamp TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    user_id UUID NOT NULL REFERENCES users(uid) ON DELETE CASCADE,
-    ecommerce_id UUID NOT NULL REFERENCES ecommerces(uid) ON DELETE CASCADE,
-    rule_type VARCHAR(20) NOT NULL CHECK (rule_type IN ('DISCOUNT', 'PRODUCT', 'FIDELITY')),
-    rule_id UUID NOT NULL,
-    action VARCHAR(10) NOT NULL CHECK (action IN ('CREATE', 'UPDATE', 'DELETE')),
+CREATE TABLE IF NOT EXISTS audit_log (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES app_user(id) ON DELETE SET NULL,
+    ecommerce_id UUID REFERENCES ecommerce(id),
+    action VARCHAR(50) NOT NULL, 
+    entity_name VARCHAR(100) NOT NULL,
+    entity_id UUID,
     old_value JSONB,
     new_value JSONB,
-    ip_address VARCHAR(45) NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Índices para optimizar queries frecuentes
-CREATE INDEX idx_config_audit_logs_ecommerce_id ON config_audit_logs(ecommerce_id);
-CREATE INDEX idx_config_audit_logs_timestamp ON config_audit_logs(timestamp DESC);
-CREATE INDEX idx_config_audit_logs_ecommerce_type ON config_audit_logs(ecommerce_id, rule_type);
-CREATE INDEX idx_config_audit_logs_type_timestamp ON config_audit_logs(rule_type, timestamp DESC);
-
--- Índice GIN para búsquedas eficientes en JSON (opcional pero útil para queries avanzadas)
-CREATE INDEX idx_config_audit_logs_jsonb_new_value ON config_audit_logs USING GIN (new_value);
+CREATE INDEX idx_audit_log_user ON audit_log(user_id);
+CREATE INDEX idx_audit_log_ecommerce ON audit_log(ecommerce_id);
+CREATE INDEX idx_audit_log_action ON audit_log(action);
+CREATE INDEX idx_audit_log_entity_name ON audit_log(entity_name);
+CREATE INDEX idx_audit_log_created_at ON audit_log(created_at DESC);
 ```
 
 ### API Endpoints

@@ -1,6 +1,6 @@
 package com.loyalty.service_admin.infrastructure.rabbitmq;
 
-import com.loyalty.service_admin.application.dto.ApiKeyEventPayload;
+import com.loyalty.service_admin.application.dto.apikey.ApiKeyEventPayload;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.Message;

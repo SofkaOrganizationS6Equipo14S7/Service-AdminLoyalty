@@ -10,7 +10,7 @@ import com.loyalty.service_admin.application.port.out.ConfigurationEventPort;
 import com.loyalty.service_admin.application.port.out.ConfigurationPersistencePort;
 import com.loyalty.service_admin.application.port.out.CurrentUserPort;
 import com.loyalty.service_admin.application.validation.ConfigurationBusinessValidator;
-import com.loyalty.service_admin.domain.entity.DiscountConfigurationEntity;
+import com.loyalty.service_admin.domain.entity.DiscountSettingsEntity;
 import com.loyalty.service_admin.infrastructure.exception.AuthorizationException;
 import com.loyalty.service_admin.infrastructure.exception.ConfigurationAlreadyExistsException;
 import com.loyalty.service_admin.infrastructure.exception.ConfigurationNotFoundException;
@@ -43,8 +43,8 @@ public class ConfigurationService implements ConfigurationUseCase {
             throw new ConfigurationAlreadyExistsException("Configuration already exists for ecommerce");
         }
 
-        DiscountConfigurationEntity entity = mapper.toEntity(request);
-        DiscountConfigurationEntity saved = configurationRepository.save(entity);
+        DiscountSettingsEntity entity = mapper.toEntity(request);
+        DiscountSettingsEntity saved = configurationRepository.save(entity);
         publishUpdatedEvent(saved);
         return mapper.toWriteData(saved);
     }
@@ -55,18 +55,18 @@ public class ConfigurationService implements ConfigurationUseCase {
         validator.validatePatch(request);
         assertUserCanAccessEcommerce(ecommerceId);
 
-        DiscountConfigurationEntity entity = configurationRepository.findByEcommerceId(ecommerceId)
+        DiscountSettingsEntity entity = configurationRepository.findByEcommerceId(ecommerceId)
                 .orElseThrow(() -> new ConfigurationNotFoundException("Configuration not found for ecommerce"));
 
         mapper.applyPatch(entity, request);
         validator.validateEntityState(entity);
 
-        DiscountConfigurationEntity saved = configurationRepository.save(entity);
+        DiscountSettingsEntity saved = configurationRepository.save(entity);
         publishUpdatedEvent(saved);
         return mapper.toWriteData(saved);
     }
 
-    private void publishUpdatedEvent(DiscountConfigurationEntity saved) {
+    private void publishUpdatedEvent(DiscountSettingsEntity saved) {
         ConfigurationUpdatedEvent event = mapper.toUpdatedEvent(saved);
         eventPublisher.publishConfigUpdated(event);
         log.info("Configuration updated event published for ecommerce={} version={}", saved.getEcommerceId(), saved.getVersion());

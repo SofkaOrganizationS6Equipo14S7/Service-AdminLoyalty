@@ -1,41 +1,61 @@
 package com.loyalty.service_admin.domain.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Index;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
-import lombok.Getter;
-import lombok.Setter;
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
+import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "discount_priorities", indexes = {
-        @Index(name = "idx_discount_priority_cfg_id", columnList = "configuration_id"),
-        @Index(name = "idx_discount_priority_cfg_order", columnList = "configuration_id, priority_order", unique = true),
-        @Index(name = "idx_discount_priority_cfg_type", columnList = "configuration_id, discount_type", unique = true)
-})
-@Getter
-@Setter
+@Table(
+    name = "discount_priorities",
+    uniqueConstraints = {
+        @UniqueConstraint(
+            name = "uk_discount_setting_type",
+            columnNames = {"discount_setting_id", "discount_type_id"}
+        ),
+        @UniqueConstraint(
+            name = "uk_discount_setting_priority",
+            columnNames = {"discount_setting_id", "priority_level"}
+        )
+    }
+)
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class DiscountPriorityEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "configuration_id", nullable = false)
-    private DiscountConfigurationEntity configuration;
+    @Column(name = "discount_setting_id", nullable = false)
+    private UUID discountSettingId;
 
-    @Column(name = "discount_type", nullable = false, length = 50)
-    private String discountType;
+    @Column(name = "discount_type_id", nullable = false)
+    private UUID discountTypeId;
 
-    @Column(name = "priority_order", nullable = false)
-    private Integer order;
+    @Column(name = "priority_level", nullable = false)
+    private Integer priorityLevel;
+
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
+
+    @PrePersist
+    protected void onCreate() {
+        createdAt = Instant.now();
+        updatedAt = Instant.now();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = Instant.now();
+    }
 }

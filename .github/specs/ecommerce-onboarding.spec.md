@@ -223,27 +223,22 @@ CRITERIO-3.4: No se pueden actualizar otros campos
 
 | Entidad | Almacén | Cambios | Descripción |
 |---------|---------|---------|-------------|
-| `EcommerceEntity` | tabla `ecommerces` | **nueva** | Registro de ecommerce con uid, name, slug, status |
-| `UserEntity` | tabla `users` | **ya existe** `ecommerce_id` | Se valida FK a `ecommerces.uid` |
-| `ApiKeyEntity` | tabla `api_keys` | **ya existe** `ecommerce_id` | Se valida FK a `ecommerces.uid` |
+| `EcommerceEntity` | tabla `ecommerce` | **nueva** | Registro de ecommerce con id, name, slug, status |
+| `UserEntity` | tabla `app_user` | **ya existe** `ecommerce_id` | Se valida FK a `ecommerce.id` |
+| `ApiKeyEntity` | tabla `api_key` | **ya existe** `ecommerce_id` | Se valida FK a `ecommerce.id` |
 
-#### Tabla `ecommerces`
+#### Foreign Keys con tablas existentes
 
 ```sql
-CREATE TABLE ecommerces (
-  uid UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name VARCHAR(255) NOT NULL,
-  slug VARCHAR(255) UNIQUE NOT NULL,
-  status VARCHAR(10) NOT NULL CHECK (status IN ('ACTIVE', 'INACTIVE')) DEFAULT 'ACTIVE',
-  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT slug_format CHECK (slug ~ '^[a-z0-9]([a-z0-9-]{0,252}[a-z0-9])?$')
-);
+-- En tabla app_user (ya existe, asegurar constraints)
+ALTER TABLE app_user 
+  ADD CONSTRAINT fk_app_user_ecommerce_id 
+  FOREIGN KEY (ecommerce_id) REFERENCES ecommerce(id) ON DELETE RESTRICT;
 
--- Índices
-CREATE INDEX idx_ecommerces_slug ON ecommerces(slug);
-CREATE INDEX idx_ecommerces_status ON ecommerces(status);
-CREATE INDEX idx_ecommerces_created_at ON ecommerces(created_at);
+-- En tabla api_key (ya existe, asegurar constraints)
+ALTER TABLE api_key
+  ADD CONSTRAINT fk_api_key_ecommerce_id
+  FOREIGN KEY (ecommerce_id) REFERENCES ecommerce(id) ON DELETE CASCADE;
 ```
 
 #### Foreign Keys con tablas existentes
@@ -263,28 +258,27 @@ ALTER TABLE api_keys
 ```
 
 **Nota crítica — UUID Consistency:**
-- El mapeo `ecommerce_id` → `ecommerces.uid` garantiza que todos los registros de usuarios y API Keys apunten al UUID del ecommerce padre, NO a un ID secuencial interno.
+- El mapeo `ecommerce_id` → `ecommerce.id` garantiza que todos los registros de usuarios y API Keys apunten al UUID del ecommerce padre, NO a un ID secuencial interno.
 - Esto mantiene la consistencia arquitectónica de identificadores UUID en toda la capa de servicio y facilita auditoría y sincronización multi-tenant.
 
-#### Campos del modelo `EcommerceEntity`
+#### Campos del modelo `EcommerceEntity` (normalizado)
 
 | Campo | Tipo | Obligatorio | Validación | Descripción |
 |-------|------|-------------|------------|-------------|
-| `uid` | UUID | sí | auto-generado | Identificador único generado por el sistema |
-| `name` | string | sí | min 3, max 100 chars | Nombre del ecommerce (ej. "Tienda Nike") |
-| `slug` | string | sí | unique, regex `^[a-z0-9]([a-z0-9-]{0,252}[a-z0-9])?$` | Identificador amigable para URL (ej. "nike-store") |
-| `status` | enum | sí | `ACTIVE` \| `INACTIVE` | Estado del ecommerce |
-| `created_at` | datetime (UTC) | sí | auto-generado | Timestamp creación |
-| `updated_at` | datetime (UTC) | sí | auto-generado | Timestamp actualización |
+| `id` | UUID | sí | auto-generado (gen_random_uuid()) | Identificador único |
+| `name` | VARCHAR(255) | sí | min 3, max 255 chars | Nombre del ecommerce (ej. "Tienda Nike") |
+| `slug` | VARCHAR(255) | sí | unique, regex `^[a-z0-9]([a-z0-9-]{0,252}[a-z0-9])?$` | Identificador amigable para URL (ej. "nike-store") |
+| `status` | VARCHAR(20) | sí | `ACTIVE` \| `INACTIVE` | Estado del ecommerce |
+| `created_at` | TIMESTAMP WITH TIME ZONE | sí | auto-generado | Timestamp creación |
+| `updated_at` | TIMESTAMP WITH TIME ZONE | sí | auto-generado | Timestamp actualización |
 
 #### Índices / Constraints
-- **Índice:** `idx_ecommerces_slug` — búsqueda frecuente por slug, validación de duplicados
-- **Índice:** `idx_ecommerces_status` — filtrado de ecommerces activos/inactivos
-- **Índice:** `idx_ecommerces_created_at` — ordenamientos por fecha de creación
-- **Constraint:** `UNIQUE(slug)` — garantiza slug único
-- **Constraint:** `CHECK(status IN (...))` — valida estados permitidos
-- **Constraint:** `NOT NULL` — name, slug, status obligatorios
-- **Constraint CHECK (slug):** regex para formato válido
+- **PRIMARY KEY**: `id` (UUID)
+- **UNIQUE**: `slug`
+- **INDEX**: `idx_ecommerce_status` (status)
+- **INDEX**: `idx_ecommerce_slug` (slug)
+- **CHECK**: `status IN ('ACTIVE', 'INACTIVE')`
+- **CHECK**: `slug` regex `^[a-z0-9]([a-z0-9-]{0,252}[a-z0-9])?$`
 
 ---
 

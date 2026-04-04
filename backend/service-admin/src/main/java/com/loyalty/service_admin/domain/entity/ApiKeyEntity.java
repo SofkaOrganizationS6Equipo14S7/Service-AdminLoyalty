@@ -8,9 +8,8 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "api_keys", indexes = {
-    @Index(name = "idx_hashed_key", columnList = "hashed_key", unique = true),
-    @Index(name = "idx_ecommerce_id", columnList = "ecommerce_id")
+@Table(name = "api_key", indexes = {
+    @Index(name = "idx_api_key_ecommerce", columnList = "ecommerce_id")
 })
 @Data
 @NoArgsConstructor
@@ -21,11 +20,17 @@ public class ApiKeyEntity {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
     
-    @Column(name = "hashed_key", unique = true, nullable = false, length = 64)
-    private String hashedKey;
-    
     @Column(name = "ecommerce_id", nullable = false)
     private UUID ecommerceId;
+    
+    @Column(name = "hashed_key", unique = true, nullable = false, length = 255)
+    private String hashedKey;
+    
+    @Column(name = "expires_at", nullable = false)
+    private Instant expiresAt;
+    
+    @Column(name = "is_active", nullable = false)
+    private Boolean isActive = true;
     
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

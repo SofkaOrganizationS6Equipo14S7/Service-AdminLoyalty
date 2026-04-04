@@ -46,7 +46,7 @@ para mostrarle al usuario final en el checkout.
 |---------|---------|---------|-------------|
 | `ProcessedTransaction` | tabla `processed_transactions` (Engine) | **nueva** | Índice mínimalista para idempotencia y conteo después de restart |
 | `CalculationProcessedEvent` | RabbitMQ | **nuevo evento** | Evento asíncrono que se publica por cada cálculo |
-| Existentes | - | sin cambios | `DiscountConfigEntity`, `DiscountPriorityEntity`, `SeasonalRuleEntity` |
+| Existentes | - | sin cambios | `DiscountSettingsEntity`, `DiscountPriorityEntity`, `SeasonalRuleEntity` |
 
 #### ProcessedTransactionEntity (Service-Engine)
 ```sql

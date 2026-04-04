@@ -1,0 +1,264 @@
+{
+  "info": {
+    "name": "SPEC-002 HU-03: ApiKeyController",
+    "description": "Test cases for API Key Controller alignment with SPEC-002 HU-03",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "CRITERIO-3.1: Crear API key para un ecommerce",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": ""
+        },
+        "url": {
+          "raw": "http://localhost:8080/api/v1/ecommerces/464683ee-fda9-4293-a83d-521d201997ee/api-keys",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8080",
+          "path": ["api", "v1", "ecommerces", "464683ee-fda9-4293-a83d-521d201997ee", "api-keys"]
+        }
+      },
+      "response": [
+        {
+          "name": "201 Created",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": ""
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/v1/ecommerces/464683ee-fda9-4293-a83d-521d201997ee/api-keys",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "v1", "ecommerces", "464683ee-fda9-4293-a83d-521d201997ee", "api-keys"]
+            }
+          },
+          "status": "Created",
+          "code": 201,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"uid\": \"550e8400-e29b-41d4-a716-446655440100\",\n  \"maskedKey\": \"****0000\",\n  \"expiresAt\": \"2027-04-03T01:19:44Z\",\n  \"ecommerceId\": \"464683ee-fda9-4293-a83d-521d201997ee\",\n  \"createdAt\": \"2026-04-03T01:19:44Z\",\n  \"updatedAt\": \"2026-04-03T01:19:44Z\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "CRITERIO-3.2: Listar API keys de un ecommerce",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "http://localhost:8080/api/v1/ecommerces/464683ee-fda9-4293-a83d-521d201997ee/api-keys",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8080",
+          "path": ["api", "v1", "ecommerces", "464683ee-fda9-4293-a83d-521d201997ee", "api-keys"]
+        }
+      },
+      "response": [
+        {
+          "name": "200 OK - List of API Keys",
+          "originalRequest": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/v1/ecommerces/464683ee-fda9-4293-a83d-521d201997ee/api-keys",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "v1", "ecommerces", "464683ee-fda9-4293-a83d-521d201997ee", "api-keys"]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "[\n  {\n    \"uid\": \"550e8400-e29b-41d4-a716-446655440100\",\n    \"maskedKey\": \"****0000\",\n    \"expiresAt\": \"2027-04-03T01:19:44Z\",\n    \"isActive\": true,\n    \"createdAt\": \"2026-04-03T01:19:44Z\",\n    \"updatedAt\": \"2026-04-03T01:19:44Z\"\n  },\n  {\n    \"uid\": \"660e8400-e29b-41d4-a716-446655440101\",\n    \"maskedKey\": \"****0001\",\n    \"expiresAt\": \"2027-04-03T01:19:44Z\",\n    \"isActive\": true,\n    \"createdAt\": \"2026-04-03T01:20:00Z\",\n    \"updatedAt\": \"2026-04-03T01:20:00Z\"\n  }\n]"
+        }
+      ]
+    },
+    {
+      "name": "CRITERIO-3.3: Eliminar API key (DELETE físico)",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "http://localhost:8080/api/v1/ecommerces/464683ee-fda9-4293-a83d-521d201997ee/api-keys/550e8400-e29b-41d4-a716-446655440100",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8080",
+          "path": ["api", "v1", "ecommerces", "464683ee-fda9-4293-a83d-521d201997ee", "api-keys", "550e8400-e29b-41d4-a716-446655440100"]
+        }
+      },
+      "response": [
+        {
+          "name": "204 No Content",
+          "originalRequest": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/v1/ecommerces/464683ee-fda9-4293-a83d-521d201997ee/api-keys/550e8400-e29b-41d4-a716-446655440100",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "v1", "ecommerces", "464683ee-fda9-4293-a83d-521d201997ee", "api-keys", "550e8400-e29b-41d4-a716-446655440100"]
+            }
+          },
+          "status": "No Content",
+          "code": 204,
+          "header": []
+        }
+      ]
+    },
+    {
+      "name": "CRITERIO-3.4: API key expirada rechazada (401 Unauthorized)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-API-Key",
+            "value": "expired-key-value"
+          }
+        ],
+        "url": {
+          "raw": "http://localhost:8080/api/v1/discounts",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8080",
+          "path": ["api", "v1", "discounts"]
+        }
+      },
+      "response": [
+        {
+          "name": "401 Unauthorized - Key Expired",
+          "originalRequest": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "expired-key-value"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/v1/discounts",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "v1", "discounts"]
+            }
+          },
+          "status": "Unauthorized",
+          "code": 401,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"timestamp\": \"2026-04-03T01:19:44Z\",\n  \"status\": 401,\n  \"error\": \"Unauthorized\",\n  \"code\": \"UNAUTHORIZED\",\n  \"message\": \"API key ha expirado\",\n  \"path\": \"/api/v1/discounts\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "CRITERIO-3.5: Rechazar acceso a API keys de otro ecommerce (403 Forbidden)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "http://localhost:8080/api/v1/ecommerces/550e8400-e29b-41d4-a716-446655440000/api-keys",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8080",
+          "path": ["api", "v1", "ecommerces", "550e8400-e29b-41d4-a716-446655440000", "api-keys"]
+        }
+      },
+      "response": [
+        {
+          "name": "403 Forbidden",
+          "originalRequest": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/v1/ecommerces/550e8400-e29b-41d4-a716-446655440000/api-keys",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "v1", "ecommerces", "550e8400-e29b-41d4-a716-446655440000", "api-keys"]
+            }
+          },
+          "status": "Forbidden",
+          "code": 403,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"timestamp\": \"2026-04-03T01:19:44Z\",\n  \"status\": 403,\n  \"error\": \"Forbidden\",\n  \"code\": \"AUTHORIZATION_ERROR\",\n  \"message\": \"No tienes permiso para acceder a las API keys de este ecommerce\",\n  \"path\": \"/api/v1/ecommerces/550e8400-e29b-41d4-a716-446655440000/api-keys\"\n}"
+        }
+      ]
+    }
+  ]
+}

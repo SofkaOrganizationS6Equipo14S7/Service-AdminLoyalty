@@ -1,11 +1,11 @@
 package com.loyalty.service_admin.application.service;
 
-import com.loyalty.service_admin.application.dto.ClassificationRuleCreateRequest;
-import com.loyalty.service_admin.application.dto.ClassificationRuleCreatedEvent;
-import com.loyalty.service_admin.application.dto.ClassificationRuleDeletedEvent;
-import com.loyalty.service_admin.application.dto.ClassificationRuleResponse;
-import com.loyalty.service_admin.application.dto.ClassificationRuleUpdateRequest;
-import com.loyalty.service_admin.application.dto.ClassificationRuleUpdatedEvent;
+import com.loyalty.service_admin.application.dto.rules.classification.ClassificationRuleCreateRequest;
+import com.loyalty.service_admin.application.dto.rules.classification.ClassificationRuleCreatedEvent;
+import com.loyalty.service_admin.application.dto.rules.classification.ClassificationRuleDeletedEvent;
+import com.loyalty.service_admin.application.dto.rules.classification.ClassificationRuleResponse;
+import com.loyalty.service_admin.application.dto.rules.classification.ClassificationRuleUpdateRequest;
+import com.loyalty.service_admin.application.dto.rules.classification.ClassificationRuleUpdatedEvent;
 import com.loyalty.service_admin.domain.entity.ClassificationRuleEntity;
 import com.loyalty.service_admin.domain.repository.ClassificationRuleRepository;
 import com.loyalty.service_admin.infrastructure.exception.BadRequestException;
@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Service for Classification Rule management (source of truth in Admin).
+ * Service for Classification Rule management
  * Handles CRUD operations and publishes RabbitMQ events for Engine sync.
  */
 @Service
@@ -34,36 +34,34 @@ public class ClassificationRuleService {
     private final ClassificationEventPublisher eventPublisher;
 
     public ClassificationRuleResponse create(ClassificationRuleCreateRequest request) {
-        log.info("Creating classification rule: tierUid={}, metricType={}, priority={}",
+        log.info("Creating classification rule: tierId={}, metricType={}, priority={}",
             request.tierUid(), request.metricType(), request.priority());
 
-        // Validate max >= min
         if (request.maxValue() != null && request.maxValue().compareTo(request.minValue()) < 0) {
             throw new BadRequestException("maxValue must be >= minValue");
         }
 
-        // Check priority uniqueness for tier (not duplicate)
         if (repository.existsByTierAndPriority(request.tierUid(), request.priority())) {
             throw new BadRequestException("Priority " + request.priority() + " already exists for this tier");
         }
 
-        ClassificationRuleEntity entity = new ClassificationRuleEntity(
-            request.tierUid(),
-            request.metricType(),
-            request.minValue(),
-            request.maxValue(),
-            request.priority()
-        );
+        ClassificationRuleEntity entity = new ClassificationRuleEntity();
+        entity.setCustomerTierId(request.tierUid());
+        entity.setMetricType(request.metricType());
+        entity.setMinValue(request.minValue());
+        entity.setMaxValue(request.maxValue());
+        entity.setPriority(request.priority() != null ? request.priority() : 1);
+        entity.setIsActive(true);
 
         ClassificationRuleEntity saved = repository.save(entity);
-        log.info("Classification rule created: uid={}", saved.getUid());
+        log.info("Classification rule created: id={}", saved.getId());
 
         // Publish event
         eventPublisher.publishRuleCreated(
             new ClassificationRuleCreatedEvent(
                 "CLASSIFICATION_RULE_CREATED",
-                saved.getUid(),
-                saved.getCustomerTierUid(),
+                saved.getId(),
+                saved.getCustomerTierId(),
                 saved.getMetricType(),
                 saved.getMinValue(),
                 saved.getMaxValue(),
@@ -88,7 +86,7 @@ public class ClassificationRuleService {
     }
 
     public List<ClassificationRuleResponse> listByTier(UUID tierUid) {
-        return repository.findByCustomerTierUidOrderByPriorityAsc(tierUid).stream()
+        return repository.findByCustomerTierIdOrderByPriorityAsc(tierUid).stream()
             .map(this::mapToResponse)
             .toList();
     }
@@ -117,8 +115,8 @@ public class ClassificationRuleService {
         eventPublisher.publishRuleUpdated(
             new ClassificationRuleUpdatedEvent(
                 "CLASSIFICATION_RULE_UPDATED",
-                saved.getUid(),
-                saved.getCustomerTierUid(),
+                saved.getId(),
+                saved.getCustomerTierId(),
                 saved.getMetricType(),
                 saved.getMinValue(),
                 saved.getMaxValue(),
@@ -143,8 +141,8 @@ public class ClassificationRuleService {
         eventPublisher.publishRuleDeleted(
             new ClassificationRuleDeletedEvent(
                 "CLASSIFICATION_RULE_DELETED",
-                entity.getUid(),
-                entity.getCustomerTierUid(),
+                entity.getId(),
+                entity.getCustomerTierId(),
                 Instant.now()
             )
         );
@@ -152,8 +150,8 @@ public class ClassificationRuleService {
 
     private ClassificationRuleResponse mapToResponse(ClassificationRuleEntity entity) {
         return new ClassificationRuleResponse(
-            entity.getUid(),
-            entity.getCustomerTierUid(),
+            entity.getId(),
+            entity.getCustomerTierId(),
             entity.getMetricType(),
             entity.getMinValue(),
             entity.getMaxValue(),

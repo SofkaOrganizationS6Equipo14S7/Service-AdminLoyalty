@@ -1,7 +1,7 @@
 package com.loyalty.service_admin.infrastructure.adapter;
 
 import com.loyalty.service_admin.application.port.out.ConfigurationPersistencePort;
-import com.loyalty.service_admin.domain.entity.DiscountConfigurationEntity;
+import com.loyalty.service_admin.domain.entity.DiscountSettingsEntity;
 import com.loyalty.service_admin.infrastructure.persistence.jpa.JpaDiscountConfigurationRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -21,12 +21,12 @@ public class ConfigurationPersistenceAdapter implements ConfigurationPersistence
     }
 
     @Override
-    public Optional<DiscountConfigurationEntity> findByEcommerceId(UUID ecommerceId) {
+    public Optional<DiscountSettingsEntity> findByEcommerceId(UUID ecommerceId) {
         return repository.findByEcommerceId(ecommerceId);
     }
 
     @Override
-    public DiscountConfigurationEntity save(DiscountConfigurationEntity entity) {
+    public DiscountSettingsEntity save(DiscountSettingsEntity entity) {
         return repository.save(entity);
     }
 }

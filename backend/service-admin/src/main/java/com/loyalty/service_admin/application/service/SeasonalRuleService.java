@@ -1,8 +1,8 @@
 package com.loyalty.service_admin.application.service;
 
-import com.loyalty.service_admin.application.dto.SeasonalRuleCreateRequest;
-import com.loyalty.service_admin.application.dto.SeasonalRuleResponse;
-import com.loyalty.service_admin.application.dto.SeasonalRuleUpdateRequest;
+import com.loyalty.service_admin.application.dto.rules.seasonal.SeasonalRuleCreateRequest;
+import com.loyalty.service_admin.application.dto.rules.seasonal.SeasonalRuleResponse;
+import com.loyalty.service_admin.application.dto.rules.seasonal.SeasonalRuleUpdateRequest;
 import com.loyalty.service_admin.application.mapper.SeasonalRuleMapper;
 import com.loyalty.service_admin.domain.entity.SeasonalRuleEntity;
 import com.loyalty.service_admin.domain.repository.SeasonalRuleRepository;
@@ -64,15 +64,13 @@ public class SeasonalRuleService {
         // Validate for overlapping dates
         validateDateOverlap(ecommerceId, request.startDate(), request.endDate(), null);
         
-        // Create entity
-        UUID ruleUid = UUID.randomUUID();
+        // Create entity (let Hibernate generate UUID)
         SeasonalRuleEntity entity = new SeasonalRuleEntity();
-        entity.setUid(ruleUid);
         entity.setEcommerceId(ecommerceId);
         entity.setName(request.name());
         entity.setDescription(request.description());
+        entity.setDiscountTypeId(request.discountTypeId());
         entity.setDiscountPercentage(request.discountPercentage());
-        entity.setDiscountType(request.discountType());
         entity.setStartDate(request.startDate());
         entity.setEndDate(request.endDate());
         entity.setIsActive(true);
@@ -85,7 +83,7 @@ public class SeasonalRuleService {
         // Publish event to RabbitMQ
         eventPublisher.publishSeasonalRuleCreated(saved);
         
-        log.info("Seasonal rule created: uid={} ecommerce={}", ruleUid, ecommerceId);
+        log.info("Seasonal rule created: uid={} ecommerce={}", saved.getId(), ecommerceId);
         
         return seasonalRuleMapper.toResponse(saved);
     }
@@ -120,7 +118,7 @@ public class SeasonalRuleService {
         
         log.debug("Fetching seasonal rule: uid={} ecommerce={}", uid, ecommerceId);
         
-        SeasonalRuleEntity rule = seasonalRuleRepository.findByUidAndEcommerceId(uid, ecommerceId)
+        SeasonalRuleEntity rule = seasonalRuleRepository.findByIdAndEcommerceId(uid, ecommerceId)
             .orElseThrow(() -> new ResourceNotFoundException(
                 String.format("Regla de temporada no encontrada para el identificador %s", uid)
             ));
@@ -148,7 +146,7 @@ public class SeasonalRuleService {
         log.info("Updating seasonal rule: uid={} ecommerce={}", uid, ecommerceId);
         
         // Find the rule
-        SeasonalRuleEntity rule = seasonalRuleRepository.findByUidAndEcommerceId(uid, ecommerceId)
+        SeasonalRuleEntity rule = seasonalRuleRepository.findByIdAndEcommerceId(uid, ecommerceId)
             .orElseThrow(() -> new ResourceNotFoundException(
                 String.format("Regla de temporada no encontrada para el identificador %s", uid)
             ));
@@ -160,11 +158,11 @@ public class SeasonalRuleService {
         if (request.description() != null) {
             rule.setDescription(request.description());
         }
+        if (request.discountTypeId() != null) {
+            rule.setDiscountTypeId(request.discountTypeId());
+        }
         if (request.discountPercentage() != null) {
             rule.setDiscountPercentage(request.discountPercentage());
-        }
-        if (request.discountType() != null) {
-            rule.setDiscountType(request.discountType());
         }
         
         // If dates are updated, validate them
@@ -211,7 +209,7 @@ public class SeasonalRuleService {
         log.info("Deleting seasonal rule: uid={} ecommerce={}", uid, ecommerceId);
         
         // Find the rule
-        SeasonalRuleEntity rule = seasonalRuleRepository.findByUidAndEcommerceId(uid, ecommerceId)
+        SeasonalRuleEntity rule = seasonalRuleRepository.findByIdAndEcommerceId(uid, ecommerceId)
             .orElseThrow(() -> new ResourceNotFoundException(
                 String.format("Regla de temporada no encontrada para el identificador %s", uid)
             ));
@@ -238,13 +236,13 @@ public class SeasonalRuleService {
      * @param excludeUid (optional) UID to exclude from the check (useful during updates)
      * @throws ConflictException if overlap found
      */
-    private void validateDateOverlap(UUID ecommerceId, Instant startDate, Instant endDate, UUID excludeUid) {
+    private void validateDateOverlap(UUID ecommerceId, Instant startDate, Instant endDate, UUID excludeId) {
         
         List<SeasonalRuleEntity> overlapping = seasonalRuleRepository.findOverlappingRules(
             ecommerceId,
             startDate,
             endDate,
-            excludeUid
+            excludeId
         );
         
         if (!overlapping.isEmpty()) {

@@ -208,23 +208,30 @@ CRITERIO-3.3: Rechazar acceso si el Usuario fue desactivado después de emitir t
 #### Entidades afectadas
 | Entidad | Almacén | Cambios | Descripción |
 |---------|---------|---------|-------------|
-| `UserEntity` | tabla `users` | ya existe | Usuario con id, username, password (hash BCrypt), role, active, created_at, updated_at |
+| `UserEntity` | tabla `app_user` | **normalizada** | Usuario con id (UUID), username, password_hash (BCrypt), role_id (FK), ecommerce_id (FK), email, is_active, last_login, created_at, updated_at |
 
-#### Campos del modelo UserEntity (ya existe)
+#### Campos del modelo UserEntity (normalizado)
 | Campo | Tipo | Obligatorio | Validación | Descripción |
 |-------|------|-------------|------------|-------------|
-| `id` | Long (auto-increment) | sí | auto-generado | Identificador único de BD |
-| `username` | String (50 chars) | sí | unique, not null | Nombre de usuario único |
-| `password` | String (255 chars) | sí | not null | Contraseña hasheada con BCrypt |
-| `role` | String (50 chars) | sí | not null | Rol del usuario (ej. "ADMIN") |
-| `active` | Boolean | sí | default true | Estado del usuario |
-| `created_at` | Instant (UTC) | sí | auto-generado | Timestamp creación |
-| `updated_at` | Instant (UTC) | sí | auto-generado | Timestamp actualización |
+| `id` | UUID | sí | auto-generado (gen_random_uuid()) | Identificador único |
+| `ecommerce_id` | UUID | no | FK a ecommerce.id (NULL para SUPER_ADMIN) | Ecommerce asociado |
+| `role_id` | UUID | sí | FK a role.id | Rol del usuario |
+| `username` | VARCHAR(100) | sí | unique, not null | Nombre de usuario único |
+| `password_hash` | VARCHAR(255) | sí | not null | Contraseña hasheada con BCrypt |
+| `email` | VARCHAR(255) | no | email format | Correo electrónico |
+| `is_active` | BOOLEAN | sí | default true | Estado del usuario |
+| `last_login` | TIMESTAMP WITH TIME ZONE | no | nullable | Último inicio de sesión |
+| `created_at` | TIMESTAMP WITH TIME ZONE | sí | auto-generado | Timestamp creación |
+| `updated_at` | TIMESTAMP WITH TIME ZONE | sí | auto-generado | Timestamp actualización |
 
 #### Índices / Constraints
-- **idx_username**: Índice único en columna `username` (búsqueda rápida y garantía de unicidad)
-- **idx_active**: Índice en columna `active` (filtrado de usuarios activos)
-- **PRIMARY KEY**: `id`
+- **PRIMARY KEY**: `id` (UUID)
+- **UNIQUE**: `username`
+- **INDEX**: `idx_user_ecommerce` (ecommerce_id)
+- **INDEX**: `idx_user_role` (role_id)
+- **INDEX**: `idx_user_active` (is_active)
+- **FK**: `ecommerce_id` → `ecommerce(id)` ON DELETE RESTRICT
+- **FK**: `role_id` → `role(id)` ON DELETE RESTRICT
 
 ---
 

@@ -303,20 +303,21 @@ CRITERIO-6.3: Solo SUPER_ADMIN puede eliminar
 
 | Entidad | Almacén | Cambios | Descripción |
 |---------|---------|---------|-------------|
-| `UserEntity` | tabla `users` (PostgreSQL) | modificada | Usuario con roles SUPER_ADMIN (ecommerce_id NULL) o USER (ecommerce_id NOT NULL) |
+| `UserEntity` | tabla `app_user` (PostgreSQL) | modificada | Usuario con roles SUPER_ADMIN, STORE_ADMIN, STORE_USER |
 | `Ecommerce` | tabla `ecommerce` | no modificada | Entidad de ecommerce (referenciada por FK) |
 
 #### Campos del modelo UserEntity
 
 | Campo | Tipo | Nullable | Validación | Descripción |
 |-------|------|----------|------------|-------------|
-| `id` | Long (BigSerial) | no | auto-generado | ID de base de datos (interno) |
-| `uid` | UUID | no | generado | UUID público del usuario (para requests/responses) |
-| `username` | String(50) | no | UNIQUE, alphanumeric + underscore | Nombre único globalmente |
-| `password` | String(255) | no | BCrypt hash, min 12 chars | Contraseña hasheada |
-| `role` | String(50) | no | enum: SUPER_ADMIN, USER | Rol del usuario |
-| `ecommerceId` | UUID | **SÍ** | FK a ecommerce (solo si role=USER) | NULL para SUPER_ADMIN, NOT NULL para USER |
-| `active` | Boolean | no | default: true | Estado del usuario (activo/inactivo) |
+| `id` | UUID | no | auto-generado | Identificador único |
+| `ecommerce_id` | UUID | **SÍ** | FK a ecommerce | NULL para SUPER_ADMIN, NOT NULL para STORE_ADMIN/STORE_USER |
+| `role_id` | UUID | no | FK a roles | Rol del usuario |
+| `username` | String(100) | no | UNIQUE | Nombre único globalmente |
+| `password_hash` | String(255) | no | BCrypt hash | Contraseña hasheada |
+| `email` | String(255) | no | email format | Correo electrónico |
+| `is_active` | Boolean | no | default: TRUE | Estado del usuario |
+| `last_login` | TIMESTAMP WITH TIME ZONE | **SÍ** | nullable | Último inicio de sesión |
 | `created_at` | Instant (UTC) | no | auto-generado | Timestamp de creación |
 | `updated_at` | Instant (UTC) | no | auto-generado | Timestamp de última actualización |
 

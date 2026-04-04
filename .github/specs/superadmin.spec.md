@@ -370,22 +370,23 @@ CRITERIO-2.5.3: SUPER_ADMIN intenta eliminar usuario inexistente
 
 | Entidad | Almacén | Cambios | Descripción |
 |---------|---------|---------|-------------|
-| `UserEntity` | tabla `users` | modificada | Añadir validaciones para SUPER_ADMIN role |
-| `EcommerceEntity` | tabla `ecommerces` | sin cambios | Ya existe (SPEC-001) |
+| `UserEntity` | tabla `app_user` | modificada | Añadir validaciones para SUPER_ADMIN role |
+| `EcommerceEntity` | tabla `ecommerce` | sin cambios | Ya existe (SPEC-001) |
 
 #### Campos del modelo `UserEntity` (estado actual + validaciones)
 
 | Campo | Tipo | Obligatorio | Validación | Descripción |
 |-------|------|-------------|------------|-------------|
-| `id` | BIGINT (PK) | sí | auto-generado | ID secuencial interno |
-| `uid` | UUID | sí | UNIQUE | Identificador único público |
-| `username` | VARCHAR(50) | sí | UNIQUE, NOT NULL | Nombre de usuario global |
-| `password` | VARCHAR(255) | sí | NOT NULL, 12+ chars → BCrypt | Contraseña hasheada |
-| `role` | VARCHAR(50) | sí | Enum: SUPER_ADMIN, STORE_ADMIN, STORE_USER | Rol del usuario |
-| `ecommerce_id` | UUID | condicional | FK → ecommerces.uid, NULL si SUPER_ADMIN | UUID del ecommerce |
-| `active` | BOOLEAN | sí | DEFAULT true | Flag de soft delete (true=activo) |
-| `created_at` | TIMESTAMP (UTC) | sí | NOT NULL, DEFAULT NOW() | Timestamp creación |
-| `updated_at` | TIMESTAMP (UTC) | sí | NOT NULL, DEFAULT NOW() | Timestamp última actualización |
+| `id` | UUID | sí | auto-generado (gen_random_uuid()) | Identificador único |
+| `ecommerce_id` | UUID | no | FK → ecommerce.id, NULL si SUPER_ADMIN | UUID del ecommerce |
+| `role_id` | UUID | sí | FK → roles.id | Rol del usuario |
+| `username` | VARCHAR(100) | sí | UNIQUE, NOT NULL | Nombre de usuario global |
+| `password_hash` | VARCHAR(255) | sí | NOT NULL, BCrypt | Contraseña hasheada |
+| `email` | VARCHAR(255) | no | email format | Correo electrónico |
+| `is_active` | BOOLEAN | sí | DEFAULT TRUE | Flag de soft delete |
+| `last_login` | TIMESTAMP WITH TIME ZONE | no | nullable | Último login |
+| `created_at` | TIMESTAMP WITH TIME ZONE | sí | NOT NULL, DEFAULT NOW() | Timestamp creación |
+| `updated_at` | TIMESTAMP WITH TIME ZONE | sí | NOT NULL, DEFAULT NOW() | Timestamp última actualización |
 
 #### Índices / Constraints
 
@@ -614,26 +615,9 @@ CRITERIO-2.5.3: SUPER_ADMIN intenta eliminar usuario inexistente
 1. Crear componente `SuperAdminPanel` como entry point.
 2. Crear página `/superadmin` con dashboard y acciones rápidas.
 3. Crear tabla de usuarios con columna "ecommerce" (visible para SUPER_ADMIN).
-4. Crear página `/superadmin/ecommerces` listado global.
-5. Proteger rutas `/superadmin/*` con verificación de JWT role.
 
-#### Integraciones y servicios externos
-
-- **RabbitMQ:** No afecta. Los eventos de usuario cambios siguen mismo flujo.
-- **PostgreSQL:** CHECK constraint añadido en migration.
-- **JWT (JwtProvider):** Sin cambios. El claim `role: SUPER_ADMIN` ya fomata correctamente.
-
-#### Impacto en punto de entrada de la app
-
-- **Backend (`ServiceAdminApplication`):** Sin cambios. Configuración existente soporta SUPER_ADMIN.
-- **Frontend:** Añadir ruta `/superadmin` en router principal si aún no existe.
-
----
-
-### Notas de Implementación
-
-- **CHECK Constraint:** Migracion Flyway nuevamás debe añadir constraint `(role='SUPER_ADMIN' AND ecommerce_id IS NULL) OR (role!='SUPER_ADMIN' AND ecommerce_id IS NOT NULL)` en tabla `users`.
-- **Validación de Ecommerce:** Toda operación que refiera a `ecommerce_id` debe validar que existe en tabla ecommerces.
+- **CHECK Constraint:** Migracion Flyway nueva debe añadir constraint `(role_id IS NOT NULL)` en tabla `app_user`.
+- **Validación de Ecommerce:** Toda operación que refiera a `ecommerce_id` debe validar que existe en tabla ecommerce.
 - **Logging de Auditoría:** Toda operación CRUD debe loguear `[actor=SUPER_ADMIN uid=X, action=CREATE|UPDATE|DELETE, target=user uid=Y, timestamp=Z]`.
 - **Frontend Role Guard:** Usar helper `isUserSuperAdmin()` (extraído del JWT `role` claim) antes de renderizar componentyes `/superadmin/*`.
 - **Backwards Compatibility:** Todas las operaciones STORE_ADMIN/STORE_USER existentes deben funcionar igual (filtro por ecommerce_id se aplica solo si user NO es SUPER_ADMIN).

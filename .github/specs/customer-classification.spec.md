@@ -113,51 +113,57 @@ Entonces:  el Engine carga automáticamente la matriz desde su tabla réplica (P
 | Entidad | Almacén | Cambios | Descripción |
 |---------|---------|---------|-------------|
 | `CustomerTierEntity` | tabla `customer_tiers` (Admin) | **nueva** | Define los tiers (Bronce, Plata, Oro, Platino) con rangos de atributos |
-| `CustomerTierReplicaEntity` | tabla `customer_tiers_replica` (Engine) | **nueva** | Réplica read-only del Admin. Permite Cold Start autonomo |
-| `ClassificationRuleEntity` | tabla `classification_rules` (Admin) | **nueva** | Reglas individuales asociadas a un tier |
-| `ClassificationRuleReplicaEntity` | tabla `classification_rules_replica` (Engine) | **nueva** | Réplica read-only del Admin. Permite Cold Start autonomo |
+| `CustomerTierReplicaEntity` | tabla `customer_tiers` (Engine) | **nueva** | Réplica read-only del Admin. Permite Cold Start autonomo |
+| `ClassificationRuleEntity` | tabla `classification_rule` (Admin) | **nueva** | Reglas individuales asociadas a un tier |
+| `ClassificationRuleReplicaEntity` | tabla `classification_rule` (Engine) | **nueva** | Réplica read-only del Admin. Permite Cold Start autonomo |
 
-#### Campos del modelo — CustomerTierEntity
+#### Campos del modelo — CustomerTierEntity (normalizado)
 | Campo | Tipo | Obligatorio | Validación | Descripción |
 |-------|------|-------------|------------|-------------|
-| `uid` | UUID | sí | auto-generado | Identificador único del tier |
-| `name` | string | sí | ENUM: Bronce, Plata, Oro, Platino | Nombre del tier de fidelidad |
-| `level` | int | sí | 1, 2, 3, 4 (Bronce=1, Plata=2, Oro=3, Platino=4) | Jerarquía del tier (usado para desempate) |
-| `is_active` | boolean | sí | default true | Si el tier está activo o archivado |
-| `created_at` | datetime (UTC) | sí | auto-generado | Timestamp creación |
-| `updated_at` | datetime (UTC) | sí | auto-generado | Timestamp actualización |
+| `id` | UUID | sí | auto-generado (gen_random_uuid()) | Identificador único del tier |
+| `ecommerce_id` | UUID | sí | FK a ecommerce.id | Ecommerce propietario del tier |
+| `discount_type_id` | UUID | sí | FK a discount_types.id | Tipo de descuento asociado |
+| `name` | VARCHAR(100) | sí | unique por ecommerce | Nombre del tier de fidelidad |
+| `discount_percentage` | DECIMAL(5,2) | sí | 0-100 | Porcentaje de descuento del tier |
+| `hierarchy_level` | INTEGER | sí | >= 1 | Jerarquía del tier (usado para排序) |
+| `is_active` | BOOLEAN | sí | default true | Si el tier está activo |
+| `created_at` | TIMESTAMP WITH TIME ZONE | sí | auto-generado | Timestamp creación |
+| `updated_at` | TIMESTAMP WITH TIME ZONE | sí | auto-generado | Timestamp actualización |
 
-#### Campos del modelo — ClassificationRuleEntity
+#### Campos del modelo — ClassificationRuleEntity (normalizado)
 | Campo | Tipo | Obligatorio | Validación | Descripción |
 |-------|------|-------------|------------|-------------|
-| `uid` | UUID | sí | auto-generado | Identificador único de la regla |
-| `customer_tier_uid` | UUID | sí | FK a customer_tiers.uid | Tier asignado cuando la regla aplica |
-| `min_total_spent` | BigDecimal | sí | >= 0 | Mínimo de gasto acumulado (inclusive) |
-| `max_total_spent` | BigDecimal | no | >= min_total_spent o NULL (sin límite) | Máximo de gasto (inclusive). NULL = sin límite superior |
-| `min_order_count` | int | sí | >= 0 | Mínimas órdenes completadas (inclusive) |
-| `max_order_count` | int | no | >= min_order_count o NULL (sin límite) | Máximas órdenes permitidas (inclusive). NULL = sin límite superior |
-| `metric_type` | string | sí | 'loyalty_points' \| 'total_spent' \| 'order_count' \| 'custom' | **[NEW]** Métrica evaluada. Permite extensibilidad futura sin cambios de código. El cliente se evalúa contra múltiples métricas simultáneamente |
-| `priority` | int | sí | >= 1 | Prioridad de evaluación (menor = evalúa primero). Si múltiples tiers aplican, se asigna el de MAYOR `level` (Platino > Oro > Plata > Bronce) |
-| `is_active` | boolean | sí | default true | Si la regla está activa |
-| `created_at` | datetime (UTC) | sí | auto-generado | Timestamp creación |
-| `updated_at` | datetime (UTC) | sí | auto-generado | Timestamp actualización |
+| `id` | UUID | sí | auto-generado (gen_random_uuid()) | Identificador único de la regla |
+| `customer_tier_id` | UUID | sí | FK a customer_tiers.id | Tier asignado cuando la regla aplica |
+| `metric_type` | VARCHAR(50) | sí | 'total_spent' \| 'order_count' \| 'loyalty_points' \| 'custom' | Métrica evaluada |
+| `min_value` | NUMERIC(19,2) | sí | >= 0 DEFAULT 0 | Valor mínimo (inclusive) |
+| `max_value` | NUMERIC(19,2) | no | >= min_value o NULL | Valor máximo (inclusive). NULL = sin límite |
+| `priority` | INTEGER | sí | DEFAULT 1 | Prioridad de evaluación (menor = evalúa primero) |
+| `is_active` | BOOLEAN | sí | default true | Si la regla está activa |
+| `created_at` | TIMESTAMP WITH TIME ZONE | sí | auto-generado | Timestamp creación |
+| `updated_at` | TIMESTAMP WITH TIME ZONE | sí | auto-generado | Timestamp actualización |
 
 #### Índices / Constraints
-- **customer_tiers**: Unique constraint en `name` (Bronce, Plata, Oro, Platino)
-- **customer_tiers**: Index en `is_active=true, level` (búsqueda frecuente)
-- **classification_rules**: Index en `customer_tier_uid` (búsqueda de reglas por tier)
-- **classification_rules**: Index en `is_active=true` (solo reglas activas)
-- **classification_rules**: Composite unique constraint pending evaluation: `(customer_tier_uid, priority)` para evitar prioridades duplicadas por tier
+- **PRIMARY KEY**: `id` (UUID) en ambas tablas
+- **customer_tiers**: UNIQUE en `(ecommerce_id, name)`
+- **customer_tiers**: INDEX en `ecommerce_id`, `is_active`, `hierarchy_level`
+- **classification_rule**: FK → `customer_tiers(id)` ON DELETE CASCADE
+- **classification_rule**: INDEX en `customer_tier_id`
+- **classification_rule**: INDEX en `is_active`
+- **classification_rule**: UNIQUE PARCIAL `(customer_tier_id, priority)` WHERE `is_active=true`
+- **CHECK**: `min_value >= 0`
+- **CHECK**: `priority > 0`
+- **CHECK**: `metric_type IN ('total_spent', 'order_count', 'loyalty_points', 'custom')`
 
 #### Seeders (Data Inicial)
 ```sql
 -- Inserts de ejemplo:
-INSERT INTO customer_tiers (uid, name, level, is_active, created_at, updated_at)
+INSERT INTO customer_tier (id, name, level, is_active, created_at, updated_at)
 VALUES 
-  ('00000000-0000-0000-0000-000000000001', 'Bronce', 1, true, now(), now()),
-  ('00000000-0000-0000-0000-000000000002', 'Plata', 2, true, now(), now()),
-  ('00000000-0000-0000-0000-000000000003', 'Oro', 3, true, now(), now()),
-  ('00000000-0000-0000-0000-000000000004', 'Platino', 4, true, now(), now());
+  (gen_random_uuid(), 'BRONZE', 1, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'SILVER', 2, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'GOLD', 3, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'PLATINUM', 4, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
 -- Reglas de ejemplo:
 INSERT INTO classification_rules (uid, customer_tier_uid, min_total_spent, max_total_spent, min_order_count, max_order_count, priority, is_active, created_at, updated_at)
@@ -455,62 +461,68 @@ VALUES
 #### Migrations
 
 **En Service-Admin:**
-- [x] Crear `V13__Create_customer_tiers_table.sql`:
+- [x] Crear `V1__Create_customer_tiers_table.sql`:
   ```sql
   CREATE TABLE customer_tiers (
-    uid UUID PRIMARY KEY,
-    name VARCHAR(50) NOT NULL UNIQUE,
-    level INTEGER NOT NULL,
-    is_active BOOLEAN DEFAULT true,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CHECK (level BETWEEN 1 AND 4)
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    ecommerce_id UUID NOT NULL REFERENCES ecommerce(id) ON DELETE CASCADE,
+    discount_type_id UUID NOT NULL REFERENCES discount_types(id),
+    name VARCHAR(100) NOT NULL,
+    discount_percentage DECIMAL(5,2) NOT NULL,
+    hierarchy_level INTEGER NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(ecommerce_id, name)
   );
-  CREATE INDEX idx_customer_tiers_active_level ON customer_tiers(is_active, level);
+  CREATE INDEX idx_customer_tiers_ecommerce ON customer_tiers(ecommerce_id);
+  CREATE INDEX idx_customer_tiers_active ON customer_tiers(is_active);
+  CREATE INDEX idx_customer_tiers_level ON customer_tiers(hierarchy_level);
   ```
-- [x] Crear `V14__Create_classification_rules_table.sql`:
+- [x] Crear `V1__Create_classification_rule_table.sql`:
   ```sql
-  CREATE TABLE classification_rules (
-    uid UUID PRIMARY KEY,
-    customer_tier_uid UUID NOT NULL REFERENCES customer_tiers(uid),
-    min_total_spent NUMERIC(19,2) NOT NULL DEFAULT 0,
-    max_total_spent NUMERIC(19,2),
-    min_order_count INTEGER NOT NULL DEFAULT 0,
-    max_order_count INTEGER,
-    priority INTEGER NOT NULL,
-    is_active BOOLEAN DEFAULT true,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_tier FOREIGN KEY (customer_tier_uid) REFERENCES customer_tiers(uid),
-    CONSTRAINT priority_range CHECK (priority > 0),
-    CONSTRAINT total_spent_range CHECK (max_total_spent IS NULL OR max_total_spent >= min_total_spent),
-    CONSTRAINT order_count_range CHECK (max_order_count IS NULL OR max_order_count >= min_order_count)
+  CREATE TABLE classification_rule (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    customer_tier_id UUID NOT NULL REFERENCES customer_tiers(id) ON DELETE CASCADE,
+    metric_type VARCHAR(50) NOT NULL CHECK (metric_type IN ('total_spent', 'order_count', 'loyalty_points', 'custom')),
+    min_value NUMERIC(19,2) NOT NULL DEFAULT 0,
+    max_value NUMERIC(19,2),
+    priority INTEGER NOT NULL DEFAULT 1,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
-  CREATE INDEX idx_classification_rules_tier ON classification_rules(customer_tier_uid);
-  CREATE INDEX idx_classification_rules_active ON classification_rules(is_active);
+  CREATE INDEX idx_classification_rule_tier ON classification_rule(customer_tier_id);
+  CREATE UNIQUE INDEX idx_classification_rule_active ON classification_rule(customer_tier_id, priority) WHERE is_active = TRUE;
   ```
-- [x] Crear `V15__Seed_default_tiers.sql`: Inserts Bronce, Plata, Oro, Platino
-- [x] Crear `V16__Seed_default_classification_rules.sql`: Inserts reglas de ejemplo
 
 **En Service-Engine (Réplicas para Cold Start):**
-- [x] Crear `V13__Create_customer_tiers_replica_table.sql`:
+- [x] Crear `V1__Create_customer_tiers_replica_table.sql`:
   ```sql
-  CREATE TABLE customer_tiers_replica (
-    uid UUID PRIMARY KEY,
-    name VARCHAR(50) NOT NULL,
-    level INTEGER NOT NULL,
-    is_active BOOLEAN DEFAULT true,
-    last_synced TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CHECK (level BETWEEN 1 AND 4)
+  CREATE TABLE customer_tiers (
+    id UUID PRIMARY KEY,
+    ecommerce_id UUID NOT NULL,
+    discount_type_id UUID NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    discount_percentage DECIMAL(5,2) NOT NULL,
+    hierarchy_level INTEGER NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    last_synced TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
-  CREATE INDEX idx_tiers_replica_active_level ON customer_tiers_replica(is_active, level);
   ```
-- [x] Crear `V14__Create_classification_rules_replica_table.sql`:
+- [x] Crear `V1__Create_classification_rule_replica_table.sql`:
   ```sql
-  CREATE TABLE classification_rules_replica (
-    uid UUID PRIMARY KEY,
-    tier_uid UUID NOT NULL REFERENCES customer_tiers_replica(uid),
+  CREATE TABLE classification_rule (
+    id UUID PRIMARY KEY,
+    customer_tier_id UUID NOT NULL,
     metric_type VARCHAR(50) NOT NULL,
+    min_value NUMERIC(19,2) NOT NULL DEFAULT 0,
+    max_value NUMERIC(19,2),
+    priority INTEGER NOT NULL DEFAULT 1,
+    is_active BOOLEAN DEFAULT TRUE,
+    last_synced TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+  ```
     min_value NUMERIC(19,2) NOT NULL DEFAULT 0,
     max_value NUMERIC(19,2),
     priority INTEGER NOT NULL,

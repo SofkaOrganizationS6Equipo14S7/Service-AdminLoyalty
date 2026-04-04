@@ -229,8 +229,8 @@ public class GlobalExceptionHandler {
 ```java
 package com.loyalty.service_admin.presentation.controller;
 
-import com.loyalty.service_admin.application.dto.ApiKeyCreateRequest;
-import com.loyalty.service_admin.application.dto.ApiKeyResponse;
+import com.loyalty.service_admin.application.dto.apikey.ApiKeyCreateRequest;
+import com.loyalty.service_admin.application.dto.apikey.ApiKeyResponse;
 import com.loyalty.service_admin.application.service.ApiKeyService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;

@@ -1,6 +1,8 @@
 package com.loyalty.service_admin.infrastructure.config;
 
+import com.loyalty.service_admin.domain.entity.RoleEntity;
 import com.loyalty.service_admin.domain.entity.UserEntity;
+import com.loyalty.service_admin.domain.repository.RoleRepository;
 import com.loyalty.service_admin.domain.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,19 +30,24 @@ public class DataInitializer {
     @Bean
     public CommandLineRunner initDatabase(
             UserRepository userRepository,
+            RoleRepository roleRepository,
             @Value("${app.bootstrap.admin-ecommerce-id:00000000-0000-0000-0000-000000000001}") UUID adminEcommerceId
     ) {
         return args -> {
             // Verificar si ya existen usuarios
             if (userRepository.count() == 0) {
+                // Obtener el rol SUPER_ADMIN
+                RoleEntity superAdminRole = roleRepository.findByName("SUPER_ADMIN")
+                        .orElseThrow(() -> new RuntimeException("SUPER_ADMIN role not found"));
+                
                 String hashedPassword = BCrypt.hashpw("admin123", BCrypt.gensalt());
                 
                 UserEntity adminUser = UserEntity.builder()
                         .username("admin")
                         .email("admin@system.local")
-                        .password(hashedPassword)
-                        .role("SUPER_ADMIN")
-                        .active(true)
+                        .passwordHash(hashedPassword)
+                        .role(superAdminRole)
+                        .isActive(true)
                         .build();
                 
                 userRepository.save(adminUser);
