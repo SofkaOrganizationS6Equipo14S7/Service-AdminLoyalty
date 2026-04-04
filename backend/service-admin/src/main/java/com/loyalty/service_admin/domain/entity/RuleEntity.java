@@ -6,41 +6,43 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
 @Entity
 @Table(
-    name = "discount_priorities",
-    uniqueConstraints = {
-        @UniqueConstraint(
-            name = "uk_discount_setting_type",
-            columnNames = {"discount_setting_id", "discount_type_id"}
-        ),
-        @UniqueConstraint(
-            name = "uk_discount_setting_priority",
-            columnNames = {"discount_setting_id", "priority_level"}
-        )
+    name = "rules",
+    indexes = {
+        @Index(name = "idx_rules_ecommerce", columnList = "ecommerce_id"),
+        @Index(name = "idx_rules_discount_priority", columnList = "discount_priority_id"),
+        @Index(name = "idx_rules_active", columnList = "is_active")
     }
 )
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class DiscountPriorityEntity {
+public class RuleEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "discount_setting_id", nullable = false)
-    private UUID discountSettingId;
+    @Column(name = "ecommerce_id", nullable = false)
+    private UUID ecommerceId;
 
-    @Column(name = "discount_type_id", nullable = false)
-    private UUID discountTypeId;
+    @Column(name = "discount_priority_id", nullable = false)
+    private UUID discountPriorityId;
 
-    @Column(name = "priority_level", nullable = false)
-    private Integer priorityLevel;
+    @Column(nullable = false, length = 255)
+    private String name;
+
+    @Column(length = 1000)
+    private String description;
+
+    @Column(name = "discount_percentage", nullable = false, precision = 5, scale = 2)
+    private BigDecimal discountPercentage;
 
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;

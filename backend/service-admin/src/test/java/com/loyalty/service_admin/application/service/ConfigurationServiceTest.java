@@ -232,9 +232,6 @@ class ConfigurationServiceTest {
         entity.setEcommerceId(ecommerceId);
         entity.setCurrencyCode("COP");
         entity.setRoundingRule("HALF_UP");
-        entity.setCapType(CapType.PERCENTAGE);
-        entity.setCapValue(new BigDecimal("10"));
-        entity.setCapAppliesTo(CapAppliesTo.SUBTOTAL);
         entity.setVersion(3L);
         entity.setUpdatedAt(Instant.now());
 

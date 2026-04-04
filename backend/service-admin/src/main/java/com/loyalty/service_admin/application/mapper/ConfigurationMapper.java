@@ -21,9 +21,6 @@ public class ConfigurationMapper {
         entity.setEcommerceId(request.ecommerceId());
         entity.setCurrencyCode(request.currency());
         entity.setRoundingRule(request.roundingRule().name());
-        entity.setCapType(request.cap().type());
-        entity.setCapValue(request.cap().value());
-        entity.setCapAppliesTo(request.cap().appliesTo());
         entity.setIsActive(true);
         entity.setVersion(1L);
         entity.setCreatedAt(Instant.now());
@@ -36,6 +33,7 @@ public class ConfigurationMapper {
                 DiscountPriorityEntity priority = new DiscountPriorityEntity();
                 priority.setDiscountTypeId(UUID.nameUUIDFromBytes(priorityReq.type().getBytes()));
                 priority.setPriorityLevel(priorityReq.order());
+                priority.setIsActive(true);
                 priority.setCreatedAt(Instant.now());
                 priority.setUpdatedAt(Instant.now());
                 priorities.add(priority);
@@ -53,17 +51,13 @@ public class ConfigurationMapper {
         if (request.roundingRule() != null) {
             entity.setRoundingRule(request.roundingRule().name());
         }
-        if (request.cap() != null) {
-            entity.setCapType(request.cap().type());
-            entity.setCapValue(request.cap().value());
-            entity.setCapAppliesTo(request.cap().appliesTo());
-        }
         if (request.priority() != null && !request.priority().isEmpty()) {
             List<DiscountPriorityEntity> priorities = new ArrayList<>();
             for (var priorityReq : request.priority()) {
                 DiscountPriorityEntity priority = new DiscountPriorityEntity();
                 priority.setDiscountTypeId(UUID.nameUUIDFromBytes(priorityReq.type().getBytes()));
                 priority.setPriorityLevel(priorityReq.order());
+                priority.setIsActive(true);
                 priority.setCreatedAt(Instant.now());
                 priority.setUpdatedAt(Instant.now());
                 priorities.add(priority);
@@ -86,9 +80,9 @@ public class ConfigurationMapper {
                 entity.getVersion(),
                 entity.getCurrencyCode(),
                 null,
-                entity.getCapType(),
-                entity.getCapValue(),
-                entity.getCapAppliesTo(),
+                null,
+                null,
+                null,
                 new ArrayList<>(),
                 entity.getUpdatedAt()
         );

@@ -19,7 +19,6 @@ public class ConfigurationBusinessValidator {
         validatePriorityPairs(
                 request.priority().stream().map(i -> new PriorityPair(i.type(), i.order())).toList()
         );
-        validateCapValue(request.cap().value().doubleValue());
     }
 
     public void validatePatch(ConfigurationPatchRequest request) {
@@ -31,9 +30,6 @@ public class ConfigurationBusinessValidator {
                     request.priority().stream().map(i -> new PriorityPair(i.type(), i.order())).toList()
             );
         }
-        if (request.cap() != null) {
-            validateCapValue(request.cap().value().doubleValue());
-        }
     }
 
     public void validateEntityState(DiscountSettingsEntity entity) {
@@ -41,10 +37,6 @@ public class ConfigurationBusinessValidator {
             throw new BadRequestException("VALIDATION_ERROR: currency is required");
         }
         validateCurrency(entity.getCurrencyCode());
-        if (entity.getCapValue() == null) {
-            throw new BadRequestException("VALIDATION_ERROR: cap.value is required");
-        }
-        validateCapValue(entity.getCapValue().doubleValue());
         validatePriorityPairs(entity.getPriorities().stream()
                 .map(item -> new PriorityPair(item.getDiscountTypeId().toString(), item.getPriorityLevel()))
                 .toList());

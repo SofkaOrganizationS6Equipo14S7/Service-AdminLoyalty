@@ -52,9 +52,6 @@ class ConfigurationMapperTest {
         entity.setEcommerceId(UUID.randomUUID());
         entity.setCurrencyCode("COP");
         entity.setRoundingRule("HALF_UP");
-        entity.setCapType(CapType.PERCENTAGE);
-        entity.setCapValue(new BigDecimal("10"));
-        entity.setCapAppliesTo(CapAppliesTo.SUBTOTAL);
         entity.setVersion(2L);
         entity.setUpdatedAt(Instant.now());
 
