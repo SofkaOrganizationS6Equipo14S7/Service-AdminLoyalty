@@ -11,6 +11,7 @@ import com.loyalty.service_admin.infrastructure.exception.ConflictException;
 import com.loyalty.service_admin.infrastructure.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+// @Service - DEPRECATED: Migrated to generic Rule architecture
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -28,7 +29,7 @@ import java.util.UUID;
  * - Persist seasonal rules to database
  * - Publish RabbitMQ events when rules are created/updated/deleted
  */
-@Service
+// @Service - DEPRECATED: Migrated to generic Rule architecture
 @Slf4j
 @RequiredArgsConstructor
 public class SeasonalRuleService {

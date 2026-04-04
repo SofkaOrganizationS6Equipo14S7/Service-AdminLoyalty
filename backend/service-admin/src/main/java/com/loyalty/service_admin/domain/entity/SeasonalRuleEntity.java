@@ -10,12 +10,13 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
-@Entity
-@Table(name = "seasonal_rules", indexes = {
-    @Index(name = "idx_seasonal_rules_ecommerce", columnList = "ecommerce_id"),
-    @Index(name = "idx_seasonal_rules_date", columnList = "start_date, end_date"),
-    @Index(name = "idx_seasonal_rules_active", columnList = "is_active")
-})
+// DEPRECATED: Migrated to generic Rule + RuleAttribute architecture
+// @Entity
+// @Table(name = "seasonal_rules", indexes = {
+//     @Index(name = "idx_seasonal_rules_ecommerce", columnList = "ecommerce_id"),
+//     @Index(name = "idx_seasonal_rules_date", columnList = "start_date, end_date"),
+//     @Index(name = "idx_seasonal_rules_active", columnList = "is_active")
+// })
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

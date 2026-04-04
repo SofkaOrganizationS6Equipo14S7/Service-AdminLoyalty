@@ -10,14 +10,15 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
-@Entity
-@Table(name = "product_rules", indexes = {
-    @Index(name = "idx_product_rules_ecommerce", columnList = "ecommerce_id"),
-    @Index(name = "idx_product_rules_type", columnList = "product_type"),
-    @Index(name = "idx_product_rules_active", columnList = "is_active")
-}, uniqueConstraints = {
-    @UniqueConstraint(name = "uk_product_rules_ecommerce_type_active", columnNames = {"ecommerce_id", "product_type", "is_active"})
-})
+// DEPRECATED: Migrated to generic Rule + RuleAttribute architecture
+// @Entity
+// @Table(name = "product_rules", indexes = {
+//     @Index(name = "idx_product_rules_ecommerce", columnList = "ecommerce_id"),
+//     @Index(name = "idx_product_rules_type", columnList = "product_type"),
+//     @Index(name = "idx_product_rules_active", columnList = "is_active")
+// }, uniqueConstraints = {
+//     @UniqueConstraint(name = "uk_product_rules_ecommerce_type_active", columnNames = {"ecommerce_id", "product_type", "is_active"})
+// })
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

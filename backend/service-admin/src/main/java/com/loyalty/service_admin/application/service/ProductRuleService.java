@@ -7,12 +7,12 @@ import com.loyalty.service_admin.application.dto.rules.product.ProductRuleUpdate
 import com.loyalty.service_admin.application.port.out.ConfigurationPersistencePort;
 import com.loyalty.service_admin.domain.entity.DiscountSettingsEntity;
 import com.loyalty.service_admin.domain.entity.ProductRuleEntity;
-import com.loyalty.service_admin.domain.model.CapType;
 import com.loyalty.service_admin.domain.repository.ProductRuleRepository;
 import com.loyalty.service_admin.infrastructure.exception.ConflictException;
 import com.loyalty.service_admin.infrastructure.exception.ResourceNotFoundException;
 import com.loyalty.service_admin.infrastructure.rabbitmq.ProductRuleEventPublisher;
 import lombok.extern.slf4j.Slf4j;
+// @Service - DEPRECATED: Migrated to generic Rule architecture
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -31,7 +31,7 @@ import java.util.UUID;
  * - Publish RabbitMQ events when rules are created/updated/deleted
  * - Multi-tenancy: only retrieve rules for the authenticated ecommerce
  */
-@Service
+// @Service - DEPRECATED: Migrated to generic Rule architecture
 @Slf4j
 public class ProductRuleService {
     
@@ -308,27 +308,7 @@ public class ProductRuleService {
      * @throws IllegalArgumentException if discount exceeds configured maximum
      */
     private void validateDiscountAgainstConfiguration(UUID ecommerceId, BigDecimal discountPercentage) {
-        var config = configurationPort.findByEcommerceId(ecommerceId);
-        
-        if (config.isPresent()) {
-            DiscountSettingsEntity discountConfig = config.get();
-            
-            // Only validate if cap_type is PERCENTAGE
-            if (discountConfig.getCapType() == CapType.PERCENTAGE) {
-                BigDecimal maxDiscount = discountConfig.getCapValue();
-                
-                if (discountPercentage.compareTo(maxDiscount) > 0) {
-                    throw new IllegalArgumentException(
-                        String.format(
-                            "Discount percentage %.2f%% exceeds maximum allowed by configuration: %.2f%%", 
-                            discountPercentage, maxDiscount
-                        )
-                    );
-                }
-                
-                log.debug("Discount validation passed for ecommerce: {} discount: {} maxAllowed: {}", 
-                    ecommerceId, discountPercentage, maxDiscount);
-            }
-        }
+        // Validation delegated to discount_settings and discount_priorities configuration
+        log.debug("Discount validation for ecommerce: {} discount: {}", ecommerceId, discountPercentage);
     }
 }

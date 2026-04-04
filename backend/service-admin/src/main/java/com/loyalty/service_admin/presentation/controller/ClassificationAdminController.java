@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Slf4j
-@RestController
+// @RestController - DEPRECATED: Migrated to generic Rule architecture
 @RequestMapping("/api/v1/admin")
 @RequiredArgsConstructor
 @PreAuthorize("hasRole('SUPER_ADMIN')")

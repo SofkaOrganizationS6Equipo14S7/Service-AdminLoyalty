@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
-@RestController
+// @RestController - DEPRECATED: Migrated to generic Rule architecture
 @RequestMapping("/api/v1/product-rules")
 @Slf4j
 public class ProductRuleController {

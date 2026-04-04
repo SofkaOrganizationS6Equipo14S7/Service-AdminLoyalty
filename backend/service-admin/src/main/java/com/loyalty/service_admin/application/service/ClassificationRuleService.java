@@ -13,6 +13,7 @@ import com.loyalty.service_admin.infrastructure.exception.ResourceNotFoundExcept
 import com.loyalty.service_admin.infrastructure.rabbitmq.ClassificationEventPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+// @Service - DEPRECATED: Migrated to generic Rule architecture
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,7 +25,7 @@ import java.util.UUID;
  * Service for Classification Rule management
  * Handles CRUD operations and publishes RabbitMQ events for Engine sync.
  */
-@Service
+// @Service - DEPRECATED: Migrated to generic Rule architecture
 @Slf4j
 @RequiredArgsConstructor
 @Transactional

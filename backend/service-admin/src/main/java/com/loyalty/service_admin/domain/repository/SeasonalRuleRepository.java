@@ -13,7 +13,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-@Repository
+// @Repository - DEPRECATED: Migrated to generic Rule architecture
+@org.springframework.data.repository.NoRepositoryBean
 public interface SeasonalRuleRepository extends JpaRepository<SeasonalRuleEntity, UUID> {
 
     /**

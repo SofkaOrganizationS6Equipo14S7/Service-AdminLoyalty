@@ -10,43 +10,39 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
-// DEPRECATED: Migrated to generic Rule + RuleAttribute architecture
-// @Entity
-// @Table(
-//     name = "classification_rule",
-//     indexes = {
-//         @Index(
-//             name = "idx_classification_rule_tier",
-//             columnList = "customer_tier_id"
-//         ),
-//         @Index(
-//             name = "idx_classification_rule_active",
-//             columnList = "customer_tier_id, priority"
-//         )
-// })
+@Entity
+@Table(
+    name = "rules",
+    indexes = {
+        @Index(name = "idx_rules_ecommerce", columnList = "ecommerce_id"),
+        @Index(name = "idx_rules_discount_priority", columnList = "discount_priority_id"),
+        @Index(name = "idx_rules_active", columnList = "is_active")
+    }
+)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class ClassificationRuleEntity {
+@Builder
+public class RuleEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "customer_tier_id", nullable = false)
-    private UUID customerTierId;
+    @Column(name = "ecommerce_id", nullable = false)
+    private UUID ecommerceId;
 
-    @Column(name = "metric_type", nullable = false, length = 50)
-    private String metricType;
+    @Column(name = "discount_priority_id", nullable = false)
+    private UUID discountPriorityId;
 
-    @Column(name = "min_value", nullable = false)
-    private BigDecimal minValue;
+    @Column(nullable = false, length = 255)
+    private String name;
 
-    @Column(name = "max_value")
-    private BigDecimal maxValue;
+    @Column(length = 1000)
+    private String description;
 
-    @Column(nullable = false)
-    private Integer priority = 1;
+    @Column(name = "discount_percentage", nullable = false, precision = 5, scale = 2)
+    private BigDecimal discountPercentage;
 
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;

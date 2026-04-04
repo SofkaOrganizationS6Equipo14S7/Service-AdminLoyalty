@@ -10,7 +10,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-@Repository
+// @Repository - DEPRECATED: Migrated to generic Rule architecture
+@org.springframework.data.repository.NoRepositoryBean
 public interface ClassificationRuleRepository extends JpaRepository<ClassificationRuleEntity, UUID> {
 
     List<ClassificationRuleEntity> findByCustomerTierIdAndIsActiveTrueOrderByPriorityAsc(UUID customerTierId);

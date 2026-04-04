@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
-@RestController
+// @RestController - DEPRECATED: Migrated to generic Rule architecture
 @RequestMapping("/api/v1/seasonal-rules")
 @RequiredArgsConstructor
 @Slf4j
