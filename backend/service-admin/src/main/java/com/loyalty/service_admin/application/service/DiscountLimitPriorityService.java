@@ -89,11 +89,16 @@ public class DiscountLimitPriorityService {
      * Obtiene las prioridades para una configuración, ordenadas por nivel.
      */
     @Transactional(readOnly = true)
-    public DiscountLimitPriorityResponse getPriorities(String configId) {
-        UUID configUuid = UUID.fromString(configId);
-
+    /**
+     * Obtiene las prioridades guardadas para una configuración de descuentos.
+     * 
+     * @param configId identificador UUID de la configuración
+     * @return response con lista ordenada de prioridades
+     * @throws ResourceNotFoundException si no existen prioridades configuradas
+     */
+    public DiscountLimitPriorityResponse getPriorities(UUID configId) {
         List<DiscountPriorityEntity> priorities = priorityRepository
-            .findByDiscountSettingsIdOrderByPriorityLevel(configUuid);
+            .findByDiscountSettingsIdOrderByPriorityLevel(configId);
 
         if (priorities.isEmpty()) {
             throw new ResourceNotFoundException(
@@ -101,7 +106,7 @@ public class DiscountLimitPriorityService {
             );
         }
 
-        return toResponse(configUuid, priorities);
+        return toResponse(configId, priorities);
     }
 
     /**

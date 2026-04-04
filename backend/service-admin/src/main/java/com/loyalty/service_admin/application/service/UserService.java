@@ -290,12 +290,6 @@ public class UserService {
         UserEntity user = userRepository.findById(currentUserUid)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
         
-        if (request.name() != null && !request.name().isBlank()) {
-            user.setEmail(request.name());
-            // Nota: en UserEntity probablemente name se guarda en email, verificar schema
-            // TODO: Si UserEntity tiene campo 'name' separado, actualizar ese campo en su lugar
-        }
-
         if (request.email() != null && !request.email().isBlank() && 
                 !request.email().equals(user.getEmail())) {
             // Validar unicidad global (no limitada al ecommerce) - CRITERIO-3.3
