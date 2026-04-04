@@ -57,8 +57,12 @@ public class UserController {
     }
     
     /**
+     * Actualizar usuario - CRITERIO-1.3, CRITERIO-1.4
      * @param uid user identifier
-     * @param request user data to update (optional fields: username, email, password, ecommerceId, active)
+     * @param request user data to update
+     *        Optional fields: username, email, password
+     *        SUPER_ADMIN only: ecommerceId, active
+     *        PROHIBITED (immutable): roleId → returns HTTP 400 if sent
      * @return HTTP 200 OK with updated UserResponse
      */
     @PutMapping("/{uid}")

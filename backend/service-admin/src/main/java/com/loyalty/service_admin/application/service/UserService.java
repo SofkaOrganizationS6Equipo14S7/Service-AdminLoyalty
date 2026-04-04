@@ -252,6 +252,16 @@ public class UserService {
             );
         }
         
+        // ============ VALIDACIÓN CRÍTICA: ROLE ID ES INMUTABLE ============
+        // CRITERIO-1.4: roleId nunca puede ser modificado via API
+        if (request.roleId() != null) {
+            log.warn("Intento de cambiar roleId del usuario uid={}. New roleId={}. Operación RECHAZADA.", 
+                    uid, request.roleId());
+            throw new BadRequestException(
+                "No se puede cambiar el roleId de un usuario. El rol es inmutable."
+            );
+        }
+        
         // ============ VALIDACIONES DE CAMPO ============
         // Verificar intentos de cambiar campos prohibidos según el rol
         if (!currentRole.equals("SUPER_ADMIN")) {

@@ -243,34 +243,34 @@ Capa:        Backend
 **Criterios de Aceptación — HU-05**
 
 ```gherkin
-CRITERIO-5.1: Crear regla estacional
-  Dado que:   STORE_ADMIN de ecommerce X intenta POST /api/v1/seasonal-rules
-  Cuando:     envía { name, description, discountPercentage (0-100), startDate, endDate, discountTypeId }
-  Entonces:   crea seasonal_rule con isActive=true, ecommerceId inferido del token, y retorna HTTP 201
+CRITERIO-5.1: Crear regla estacional (endpoint unificado con type=SEASONAL)
+  Dado que:   STORE_ADMIN de ecommerce X intenta POST /api/v1/rules
+  Cuando:     envía { type: "SEASONAL", name, description, discountPercentage (0-100), startDate, endDate, discountTypeId }
+  Entonces:   crea rule con type=SEASONAL, isActive=true, ecommerceId inferido del token, y retorna HTTP 201
 
-CRITERIO-5.2: Validar rango de fechas (startDate < endDate)
-  Dado que:   usuario intenta crear regla
+CRITERIO-5.2: Validar rango de fechas (startDate < endDate) para SEASONAL
+  Dado que:   usuario intenta crear regla tipo SEASONAL
   Cuando:     startDate >= endDate
   Entonces:   retorna HTTP 400 Bad Request
 
 CRITERIO-5.3: Listar reglas estacionales de mi ecommerce con paginación
-  Dado que:   STORE_ADMIN intenta GET /api/v1/seasonal-rules?page=0&size=20
+  Dado que:   STORE_ADMIN intenta GET /api/v1/rules?type=SEASONAL&page=0&size=20
   Cuando:     ecommerceId está en el token
-  Entonces:   retorna HTTP 200 con Page<SeasonalRuleResponse> solo de su ecommerce
+  Entonces:   retorna HTTP 200 con Page<RuleResponse> filtrado por type=SEASONAL de su ecommerce
 
 CRITERIO-5.4: Obtener detalles de una regla específica
-  Dado que:   usuario intenta GET /api/v1/seasonal-rules/{uid}
-  Cuando:     regla existe en su ecommerce
-  Entonces:   retorna HTTP 200 con SeasonalRuleResponse (id, name, description, discountPercentage, startDate, endDate, discountTypeId, isActive, createdAt, updatedAt)
+  Dado que:   usuario intenta GET /api/v1/rules/{uid}
+  Cuando:     regla (type=SEASONAL) existe en su ecommerce
+  Entonces:   retorna HTTP 200 con RuleResponse (id, type, name, description, discountPercentage, startDate, endDate, discountTypeId, isActive, createdAt, updatedAt)
 
 CRITERIO-5.5: Actualizar regla estacional
-  Dado que:   usuario intenta PUT /api/v1/seasonal-rules/{uid}
-  Cuando:     envía campos a actualizar (name, description, discountPercentage, startDate, endDate)
+  Dado que:   usuario intenta PUT /api/v1/rules/{uid}
+  Cuando:     envía campos a actualizar para rule type=SEASONAL (name, description, discountPercentage, startDate, endDate)
   Entonces:   actualiza solo los campos enviados, valida fechas y retorna HTTP 200
 
 CRITERIO-5.6: Eliminar regla estacional (soft delete con isActive=false)
-  Dado que:   usuario intenta DELETE /api/v1/seasonal-rules/{uid}
-  Cuando:     regla existe en su ecommerce
+  Dado que:   usuario intenta DELETE /api/v1/rules/{uid}
+  Cuando:     regla (type=SEASONAL) existe en su ecommerce
   Entonces:   marca isActive=false y retorna HTTP 204 No Content
 ```
 
@@ -292,34 +292,34 @@ Capa:        Backend
 **Criterios de Aceptación — HU-06**
 
 ```gherkin
-CRITERIO-6.1: Crear regla de producto
-  Dado que:   STORE_ADMIN intenta POST /api/v1/product-rules
-  Cuando:     envía { name, productType, discountPercentage (0-100), discountTypeId }
-  Entonces:   crea product_rule con isActive=true y retorna HTTP 201
+CRITERIO-6.1: Crear regla de producto (endpoint unificado con type=PRODUCT)
+  Dado que:   STORE_ADMIN intenta POST /api/v1/rules
+  Cuando:     envía { type: "PRODUCT", name, productType, discountPercentage (0-100), discountTypeId }
+  Entonces:   crea rule con type=PRODUCT, isActive=true y retorna HTTP 201
 
-CRITERIO-6.2: Validar unicidad (ecommerceId, productType, isActive)
-  Dado que:   usuario intenta crear dos reglas con mismo productType (activas)
-  Cuando:     envía el segundo POST
+CRITERIO-6.2: Validar unicidad (ecommerceId, productType, isActive) para PRODUCT
+  Dado que:   usuario intenta crear dos reglas con mismo productType (activas, type=PRODUCT)
+  Cuando:     envía el segundo POST /api/v1/rules con type=PRODUCT
   Entonces:   retorna HTTP 409 Conflict (UNIQUE constraint)
 
 CRITERIO-6.3: Listar reglas de producto con filtros
-  Dado que:   usuario intenta GET /api/v1/product-rules?isActive=true&page=0&size=20
+  Dado que:   usuario intenta GET /api/v1/rules?type=PRODUCT&isActive=true&page=0&size=20
   Cuando:     ejecuta la búsqueda
-  Entonces:   retorna HTTP 200 con Page<ProductRuleResponse> (solo activas si isActive=true)
+  Entonces:   retorna HTTP 200 con Page<RuleResponse> filtrado por type=PRODUCT (solo activas si isActive=true)
 
 CRITERIO-6.4: Obtener detalles de una regla
-  Dado que:   usuario intenta GET /api/v1/product-rules/{uid}
-  Cuando:     regla existe
-  Entonces:   retorna HTTP 200 con ProductRuleResponse
+  Dado que:   usuario intenta GET /api/v1/rules/{uid}
+  Cuando:     regla (type=PRODUCT) existe
+  Entonces:   retorna HTTP 200 con RuleResponse (incluye productType)
 
 CRITERIO-6.5: Actualizar regla de producto
-  Dado que:   usuario intenta PUT /api/v1/product-rules/{uid}
-  Cuando:     envía { name, productType, discountPercentage }
+  Dado que:   usuario intenta PUT /api/v1/rules/{uid}
+  Cuando:     envía actualizaciones para rule type=PRODUCT { name, productType, discountPercentage }
   Entonces:   actualiza y valida, retorna HTTP 200
 
 CRITERIO-6.6: Eliminar regla (soft delete con isActive=false)
-  Dado que:   usuario intenta DELETE /api/v1/product-rules/{uid}
-  Cuando:     regla existe
+  Dado que:   usuario intenta DELETE /api/v1/rules/{uid}
+  Cuando:     regla (type=PRODUCT) existe
   Entonces:   marca isActive=false y retorna HTTP 204 No Content
 ```
 
@@ -351,13 +351,13 @@ CRITERIO-7.2: Validar unicidad (ecommerceId, name)
   Cuando:     POST /api/v1/customer-tiers con name existente
   Entonces:   retorna HTTP 409 Conflict
 
-CRITERIO-7.3: Crear classification_rule para un tier
+CRITERIO-7.3: Crear classification_rule para un tier (usando endpoint unificado type=CLASSIFICATION)
   Dado que:   STORE_ADMIN intenta POST /api/v1/customer-tiers/{tierId}/classification-rules
   Cuando:     envía { metricType (total_spent|order_count|loyalty_points|custom), minValue, maxValue, priority }
-  Entonces:   crea classification_rule y retorna HTTP 201
+  Entonces:   crea classification_rule (que internamente es type=CLASSIFICATION) y retorna HTTP 201
 
 CRITERIO-7.4: Validar metricType está en enum
-  Dado que:   usuario intenta crear rule
+  Dado que:   usuario intenta crear rule de clasificación
   Cuando:     envía metricType=INVALID
   Entonces:   retorna HTTP 400 Bad Request
 
@@ -477,9 +477,8 @@ CRITERIO-9.4: No permitir modificación de logs
 | EcommerceController | service-admin | ecommerce | ✅ Alineado | Añadir endpoints de actualización de status |
 | ApiKeyController | service-admin | api_key | ✅ Alineado | Validar control de acceso por ecommerceId |
 | DiscountConfigController | service-admin | discount_settings, discount_priorities | ✅ Alineado | Refactor: separar endpoints, usar UUID en lugar de String |
-| SeasonalRuleController | service-admin | seasonal_rules | ✅ Alineado | Validar ecommerceId de contexto de seguridad |
-| ProductRuleController | service-admin | product_rules | ❓ Por revisar | Revisar si existe y está completo |
-| ClassificationAdminController | service-admin | customer_tiers, classification_rule | ❓ Por revisar | Revisar si existe y está completo |
+| **RuleController (Unificado)** | service-admin | rules (type=SEASONAL\|PRODUCT\|CLASSIFICATION) | ✅ Implementado | Consolidado: todos los tipos de reglas en una tabla con parámetro type |
+| **CustomerTierController** | service-admin | customer_tiers, classification_rule | ✅ Por crear | Gestiona tiers y classification rules anidadas |
 | ConfigurationController | service-admin | (obsoleto) | ⚠️ Revisar | Podría ser redundante con DiscountConfigController |
 | AuthController | service-admin | (auth) | ✅ Alineado | Mantener como está |
 | RoleController | service-admin | roles, permissions, role_permissions | ❌ FALTA | **CREAR** (HU-08) |
@@ -519,21 +518,15 @@ GET    /api/v1/discount-config                 (query: ?ecommerceId=uuid)
 POST   /api/v1/discount-priority
 GET    /api/v1/discount-priority               (query: ?discountSettingId=uuid)
 
-# SEASONAL RULES
-POST   /api/v1/seasonal-rules
-GET    /api/v1/seasonal-rules                  (query: ?page=0&size=20)
-GET    /api/v1/seasonal-rules/{uid}
-PUT    /api/v1/seasonal-rules/{uid}
-DELETE /api/v1/seasonal-rules/{uid}
+# UNIFIED RULES ENDPOINT (Seasonal, Product, Classification by Type)
+# All rules (SEASONAL, PRODUCT, CLASSIFICATION) share the same endpoint with type parameter
+POST   /api/v1/rules                           (body: { type: "SEASONAL"|"PRODUCT"|"CLASSIFICATION", ... })
+GET    /api/v1/rules                           (query: ?type=SEASONAL|PRODUCT|CLASSIFICATION&page=0&size=20)
+GET    /api/v1/rules/{uid}
+PUT    /api/v1/rules/{uid}
+DELETE /api/v1/rules/{uid}
 
-# PRODUCT RULES
-POST   /api/v1/product-rules
-GET    /api/v1/product-rules                   (query: ?active=true&page=0&size=20)
-GET    /api/v1/product-rules/{uid}
-PUT    /api/v1/product-rules/{uid}
-DELETE /api/v1/product-rules/{uid}
-
-# CUSTOMER TIERS (Classification)
+# CUSTOMER TIERS (Classification Tiers Management)
 POST   /api/v1/customer-tiers
 GET    /api/v1/customer-tiers                  (query: ?page=0&size=20)
 GET    /api/v1/customer-tiers/{tierId}
@@ -629,9 +622,8 @@ DiscountApplicationLogResponse       { id, ecommerceId, externalOrderId, origina
 | POST(/GET/DELETE) /api-keys | STORE_ADMIN (mismo ecommerce) | S2S access |
 | POST /discount-config | STORE_ADMIN | configurar su ecommerce |
 | GET /discount-config | STORE_ADMIN / SUPER_ADMIN | leer configuración |
-| POST(/GET) /seasonal-rules | STORE_ADMIN | gestionar reglas |
-| POST(/GET) /product-rules | STORE_ADMIN | gestionar reglas |
-| POST(/GET) /customer-tiers | STORE_ADMIN | gestionar tiers |
+| POST(/GET/PUT/DELETE) /rules?type=SEASONAL/PRODUCT/CLASSIFICATION | STORE_ADMIN | gestionar reglas unificadas |
+| POST(/GET/PUT/DELETE) /customer-tiers | STORE_ADMIN | gestionar tiers de clasificación |
 | GET /roles | SUPER_ADMIN | consultar roles |
 | POST /roles/{id}/permissions | SUPER_ADMIN | asignar permisos |
 | GET /audit-logs | SUPER_ADMIN / AUDITOR | auditoría (si existe rol) |
@@ -680,23 +672,28 @@ DiscountApplicationLogResponse       { id, ecommerceId, externalOrderId, origina
   - [ ] Añadir validación de `max_discount_cap > 0`
   - [ ] Implementar versionado de configuración
 
-- [ ] **REVISAR SeasonalRuleController**
-  - [ ] Validar `start_date < end_date`
-  - [ ] Validar `discount_percentage` entre 0-100
-  - [ ] Implementar soft delete (is_active = false)
-  - [ ] Asegurar multi-tenancy (ecommerce_id del token)
+- [ ] **REFACTOR RuleController (Unificado — HU-05, HU-06, HU-07)**
+  - [ ] Implementar POST/GET/PUT/DELETE /api/v1/rules con parámetro `type` (SEASONAL|PRODUCT|CLASSIFICATION)
+  - [ ] Validar `start_date < end_date` para rules con type=SEASONAL
+  - [ ] Validar `discount_percentage` entre 0-100 para todos los types
+  - [ ] Validar unicidad (ecommerce_id, productType, is_active) para type=PRODUCT
+  - [ ] Validar unicidad de seasonality (start_date, end_date, is_active) para type=SEASONAL
+  - [ ] Implementar soft delete (is_active = false) para todos los types
+  - [ ] Asegurar multi-tenancy (ecommerce_id extraído del JWT token)
+  - [ ] Implementar filtros por type en GET /api/v1/rules?type=SEASONAL|PRODUCT|CLASSIFICATION
 
-- [ ] **REVISAR ProductRuleController**
-  - [ ] Validar `discount_percentage` entre 0-100
-  - [ ] Validar unicidad (ecommerce_id, product_type, is_active)
-  - [ ] Implementar soft delete
-  - [ ] Añadir filtros de búsqueda (active, product_type)
-
-- [ ] **REVISAR ClassificationAdminController**
-  - [ ] Validar `hierarchy_level` único por ecommerce y metric_type
+- [ ] **CREAR CustomerTierController (HU-07 — Tiers y Classification Rules)**
+  - [ ] POST /api/v1/customer-tiers — crear tier
+  - [ ] GET /api/v1/customer-tiers — listar con paginación
+  - [ ] GET /api/v1/customer-tiers/{tierId} — detalle + classificationRules anidadas
+  - [ ] PUT /api/v1/customer-tiers/{tierId} — actualizar tier
+  - [ ] DELETE /api/v1/customer-tiers/{tierId} — soft delete
+  - [ ] POST /api/v1/customer-tiers/{tierId}/classification-rules — crear rule anidada
+  - [ ] PUT /api/v1/customer-tiers/{tierId}/classification-rules/{ruleId} — actualizar rule
+  - [ ] DELETE /api/v1/customer-tiers/{tierId}/classification-rules/{ruleId} — eliminar rule
+  - [ ] Validar `hierarchy_level` único por ecommerce
   - [ ] Validar `metric_type` en enum (total_spent, order_count, loyalty_points, custom)
-  - [ ] Validar `min_value` < `max_value` (si ambos provistos)
-  - [ ] Implementar soft delete para tiers y rules
+  - [ ] Validar `min_value` < `max_value` en classification_rules
 
 - [ ] **CREAR RoleController** (NUEVO)
   - [ ] GET `/api/v1/roles` — listar todos los roles

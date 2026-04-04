@@ -6,26 +6,23 @@ import java.util.UUID;
 
 /**
  * DTO para actualización de usuario.
- * SPEC-002 HU-03.3: Actualizar datos de usuario estándar
- * SPEC-005 HU-02.3: Modificación tenant-scoped y propia contraseña
+ * SPEC-002 HU-01.3: Actualizar datos de usuario estándar
  * 
- * Campos opcionales para STORE_ADMIN:
+ * Campos opcionales para actualizar:
  * - username: 3-50 caracteres, único globalmente
  * - email: RFC 5322, único globalmente
  * - password: mínimo 12 caracteres
+ * - ecommerceId: UUID del ecommerce (solo SUPER_ADMIN)
+ * - active: boolean (solo SUPER_ADMIN)
  * 
- * Campos opcionales SOLO para SUPER_ADMIN:
- * - ecommerceId: UUID del ecommerce (valida que existe)
- * - active: boolean para activar/desactivar usuario
+ * Campos PROHIBIDOS (inmutables):
+ * - roleId: NUNCA se puede cambiar via API (CRITERIO-1.4)
+ *   Si se intenta enviar, retorna HTTP 400 Bad Request
  * 
- * Restricciones:
- * - role: NUNCA se puede cambiar via API
- * - STORE_USER editando su perfil: NO puede cambiar ecommerceId
- * - STORE_USER editando su perfil: NO puede cambiar active
- * 
- * CRITERIO-2.3.1: SUPER_ADMIN actualiza credenciales
- * CRITERIO-2.3.1B: STORE_ADMIN actualiza usuarios de su ecommerce
- * CRITERIO-2.3.1C: Usuario cambia su propia contraseña
+ * Restricciones por rol:
+ * - STORE_ADMIN editando otros: NO puede cambiar ecommerceId
+ * - STORE_ADMIN editando otros: NO puede cambiar active
+ * - STORE_USER editando su perfil: NO puede cambiar ecommerceId o active
  */
 public record UserUpdateRequest(
     @Size(min = 3, max = 50, message = "El username debe tener entre 3 y 50 caracteres")
@@ -37,9 +34,12 @@ public record UserUpdateRequest(
     @Size(min = 12, message = "La contraseña debe tener mínimo 12 caracteres")
     String password,
     
-    // SPEC-005: Nuevos campos para SUPER_ADMIN
+    // Campos solo SUPER_ADMIN
     UUID ecommerceId,
     
-    Boolean active
+    Boolean active,
+    
+    // CRITERIO-1.4: Campo que siempre debe ser nulo (es inmutable)
+    UUID roleId
 ) {
 }
