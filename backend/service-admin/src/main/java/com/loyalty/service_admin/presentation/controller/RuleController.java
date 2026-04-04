@@ -5,6 +5,7 @@ import com.loyalty.service_admin.application.dto.rules.RuleCreateRequest;
 import com.loyalty.service_admin.application.dto.rules.RuleCustomerTierDTO;
 import com.loyalty.service_admin.application.dto.rules.RuleResponse;
 import com.loyalty.service_admin.application.dto.rules.RuleResponseWithTiers;
+import com.loyalty.service_admin.application.dto.rules.RuleAttributeMetadataDTO;
 import com.loyalty.service_admin.application.service.RuleService;
 import com.loyalty.service_admin.infrastructure.security.SecurityContextHelper;
 import jakarta.validation.Valid;
@@ -175,5 +176,28 @@ public class RuleController {
 
         List<RuleCustomerTierDTO> tiers = ruleService.getRuleAssignedTiers(ecommerceId, ruleId);
         return ResponseEntity.ok(tiers);
+    }
+
+    /**
+     * Helper Endpoint: Get available attributes for a discount type
+     * GET /api/v1/rules/attributes?discountTypeId={uuid}
+     * 
+     * Use this to know what attributes to send in the 'attributes' field
+     * when creating a rule POST /api/v1/rules
+     * 
+     * Example response:
+     * [
+     *   { "id": "uuid", "attributeName": "product_type", "attributeType": "VARCHAR", "isRequired": true },
+     *   { "id": "uuid", "attributeName": "min_purchase", "attributeType": "NUMERIC", "isRequired": false }
+     * ]
+     */
+    @GetMapping("/attributes")
+    @PreAuthorize("hasRole('STORE_ADMIN')")
+    public ResponseEntity<List<RuleAttributeMetadataDTO>> getAvailableAttributes(
+            @RequestParam UUID discountTypeId
+    ) {
+        log.info("Fetching available attributes for discount type: {}", discountTypeId);
+        List<RuleAttributeMetadataDTO> attributes = ruleService.getAvailableAttributesForDiscountType(discountTypeId);
+        return ResponseEntity.ok(attributes);
     }
 }

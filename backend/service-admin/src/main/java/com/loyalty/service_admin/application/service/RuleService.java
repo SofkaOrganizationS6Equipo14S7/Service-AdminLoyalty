@@ -5,6 +5,7 @@ import com.loyalty.service_admin.application.dto.rules.RuleCreateRequest;
 import com.loyalty.service_admin.application.dto.rules.RuleResponse;
 import com.loyalty.service_admin.application.dto.rules.RuleResponseWithTiers;
 import com.loyalty.service_admin.application.dto.rules.RuleCustomerTierDTO;
+import com.loyalty.service_admin.application.dto.rules.RuleAttributeMetadataDTO;
 import com.loyalty.service_admin.domain.entity.*;
 import com.loyalty.service_admin.domain.repository.*;
 import com.loyalty.service_admin.infrastructure.exception.BadRequestException;
@@ -123,15 +124,37 @@ public class RuleService {
 
     /**
      * Save or update attribute values for a rule
+     * Validates that attribute names match exactly what's in the database
      */
     private void saveAttributeValues(UUID ruleId, UUID discountTypeId, Map<String, String> attributes) {
+        // Get all valid attributes for this discount type
+        List<RuleAttributeEntity> validAttributes = ruleAttributeRepository
+                .findByDiscountTypeIdOrderByAttributeNameAsc(discountTypeId);
+
+        // Validate all provided attribute names exist
+        for (String attributeName : attributes.keySet()) {
+            boolean attributeExists = validAttributes.stream()
+                    .anyMatch(attr -> attr.getAttributeName().equalsIgnoreCase(attributeName));
+
+            if (!attributeExists) {
+                String validNames = validAttributes.stream()
+                        .map(RuleAttributeEntity::getAttributeName)
+                        .collect(Collectors.joining(", "));
+                throw new BadRequestException(
+                        String.format("Invalid attribute '%s' for discount type. Valid attributes: %s", 
+                                attributeName, validNames)
+                );
+            }
+        }
+
+        // Save attribute values
         for (Map.Entry<String, String> entry : attributes.entrySet()) {
             String attributeName = entry.getKey();
             String value = entry.getValue();
 
             RuleAttributeEntity attribute = ruleAttributeRepository
                     .findByDiscountTypeIdAndAttributeName(discountTypeId, attributeName)
-                    .orElseThrow(() -> new BadRequestException("Invalid attribute: " + attributeName));
+                    .orElseThrow(() -> new BadRequestException("Attribute not found: " + attributeName));
 
             ruleAttributeValueRepository.findByRuleIdAndAttributeId(ruleId, attribute.getId())
                     .ifPresentOrElse(
@@ -240,6 +263,22 @@ public class RuleService {
                 rule.getCreatedAt(),
                 rule.getUpdatedAt()
         );
+    }
+
+    /**
+     * Get available attributes for a discount type
+     */
+    public List<RuleAttributeMetadataDTO> getAvailableAttributesForDiscountType(UUID discountTypeId) {
+        log.debug("Fetching available attributes for discount type: {}", discountTypeId);
+        return ruleAttributeRepository.findByDiscountTypeIdOrderByAttributeNameAsc(discountTypeId).stream()
+                .map(attr -> new RuleAttributeMetadataDTO(
+                        attr.getId(),
+                        attr.getAttributeName(),
+                        attr.getAttributeType(),
+                        attr.getIsRequired(),
+                        attr.getDescription()
+                ))
+                .collect(Collectors.toList());
     }
 
     /**

@@ -2,6 +2,8 @@ package com.loyalty.service_admin.domain.repository;
 
 import com.loyalty.service_admin.domain.entity.RuleAttributeEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -17,12 +19,14 @@ public interface RuleAttributeRepository extends JpaRepository<RuleAttributeEnti
     List<RuleAttributeEntity> findByDiscountTypeIdOrderByAttributeNameAsc(UUID discountTypeId);
 
     /**
-     * Find attribute by name and discount type
+     * Find attribute by name and discount type (case-insensitive)
      */
-    Optional<RuleAttributeEntity> findByDiscountTypeIdAndAttributeName(UUID discountTypeId, String attributeName);
+    @Query("SELECT ra FROM RuleAttributeEntity ra WHERE ra.discountTypeId = :discountTypeId AND LOWER(ra.attributeName) = LOWER(:attributeName)")
+    Optional<RuleAttributeEntity> findByDiscountTypeIdAndAttributeName(@Param("discountTypeId") UUID discountTypeId, @Param("attributeName") String attributeName);
 
     /**
-     * Check if attribute exists
+     * Check if attribute exists (case-insensitive)
      */
-    boolean existsByDiscountTypeIdAndAttributeName(UUID discountTypeId, String attributeName);
+    @Query("SELECT CASE WHEN COUNT(ra) > 0 THEN true ELSE false END FROM RuleAttributeEntity ra WHERE ra.discountTypeId = :discountTypeId AND LOWER(ra.attributeName) = LOWER(:attributeName)")
+    boolean existsByDiscountTypeIdAndAttributeName(@Param("discountTypeId") UUID discountTypeId, @Param("attributeName") String attributeName);
 }
