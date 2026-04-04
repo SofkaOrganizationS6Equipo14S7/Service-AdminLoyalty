@@ -79,7 +79,8 @@ CREATE TABLE IF NOT EXISTS api_key (
 CREATE TABLE IF NOT EXISTS discount_types (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     code VARCHAR(50) UNIQUE NOT NULL,
-    display_name VARCHAR(150)
+    display_name VARCHAR(150),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS discount_settings (

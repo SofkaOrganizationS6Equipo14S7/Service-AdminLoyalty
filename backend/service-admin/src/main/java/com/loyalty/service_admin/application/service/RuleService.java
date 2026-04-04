@@ -6,11 +6,12 @@ import com.loyalty.service_admin.application.dto.rules.RuleResponse;
 import com.loyalty.service_admin.application.dto.rules.RuleResponseWithTiers;
 import com.loyalty.service_admin.application.dto.rules.RuleCustomerTierDTO;
 import com.loyalty.service_admin.application.dto.rules.RuleAttributeMetadataDTO;
+import com.loyalty.service_admin.application.dto.discount.DiscountTypeDTO;
+import com.loyalty.service_admin.application.dto.discount.DiscountPriorityDTO;
 import com.loyalty.service_admin.domain.entity.*;
 import com.loyalty.service_admin.domain.repository.*;
 import com.loyalty.service_admin.infrastructure.exception.BadRequestException;
 import com.loyalty.service_admin.infrastructure.exception.ResourceNotFoundException;
-import com.loyalty.service_admin.domain.repository.DiscountLimitPriorityRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -34,10 +35,8 @@ public class RuleService {
     private final DiscountLimitPriorityRepository discountLimitPriorityRepository;
     private final RuleCustomerTierRepository ruleCustomerTierRepository;
     private final CustomerTierRepository customerTierRepository;
+    private final DiscountTypeRepository discountTypeRepository;
 
-    /**
-     * Create a new rule with attributes
-     */
     public RuleResponse createRule(UUID ecommerceId, RuleCreateRequest request) {
         log.debug("Creating rule for ecommerce: {}", ecommerceId);
 
@@ -45,7 +44,6 @@ public class RuleService {
         DiscountPriorityEntity priority = discountLimitPriorityRepository.findById(priorityId)
                 .orElseThrow(() -> new ResourceNotFoundException("Discount priority not found: " + priorityId));
 
-        // Create rule entity
         RuleEntity rule = RuleEntity.builder()
                 .ecommerceId(ecommerceId)
                 .discountPriorityId(priorityId)
@@ -60,7 +58,6 @@ public class RuleService {
         RuleEntity savedRule = ruleRepository.save(rule);
         log.info("Rule created with id: {}", savedRule.getId());
 
-        // Save attribute values
         saveAttributeValues(savedRule.getId(), priority.getDiscountTypeId(), request.attributes());
 
         return toResponse(savedRule);
@@ -75,9 +72,6 @@ public class RuleService {
         return toResponse(rule);
     }
 
-    /**
-     * List rules for an ecommerce with pagination
-     */
     public Page<RuleResponse> listRules(UUID ecommerceId, Boolean isActive, Pageable pageable) {
         Page<RuleEntity> rules;
         if (isActive != null && isActive) {
@@ -95,16 +89,21 @@ public class RuleService {
         RuleEntity rule = ruleRepository.findByIdAndEcommerceId(ruleId, ecommerceId)
                 .orElseThrow(() -> new ResourceNotFoundException("Rule not found: " + ruleId));
 
+        UUID priorityId = UUID.fromString(request.discountPriorityId());
+        DiscountPriorityEntity priority = discountLimitPriorityRepository.findById(priorityId)
+                .orElseThrow(() -> new ResourceNotFoundException("Discount priority not found: " + priorityId));
+
         rule.setName(request.name());
         rule.setDescription(request.description());
         rule.setDiscountPercentage(request.discountPercentage());
+        rule.setDiscountPriorityId(priorityId);
         rule.setUpdatedAt(Instant.now());
 
         RuleEntity updated = ruleRepository.save(rule);
 
         // Update attribute values
         ruleAttributeValueRepository.deleteByRuleId(ruleId);
-        saveAttributeValues(ruleId, rule.getDiscountPriorityId(), request.attributes());
+        saveAttributeValues(ruleId, priority.getDiscountTypeId(), request.attributes());
 
         return toResponse(updated);
     }
@@ -263,6 +262,43 @@ public class RuleService {
                 rule.getCreatedAt(),
                 rule.getUpdatedAt()
         );
+    }
+
+    public List<DiscountTypeDTO> getAllDiscountTypes() {
+        log.debug("Fetching all discount types");
+        return discountTypeRepository.findAll().stream()
+                .map(dt -> new DiscountTypeDTO(
+                        dt.getId(),
+                        dt.getCode(),
+                        dt.getDisplayName(),
+                        dt.getCreatedAt()
+                ))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get discount priorities for a specific discount type
+     */
+    public List<DiscountPriorityDTO> getDiscountPrioritiesByType(UUID discountTypeId) {
+        log.debug("Fetching discount priorities for type: {}", discountTypeId);
+        
+        // Verify type exists
+        discountTypeRepository.findById(discountTypeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Discount type not found: " + discountTypeId));
+        
+        // Get priorities for this type from discount_settings
+        // Note: priorities are linked through discount_settings
+        return discountLimitPriorityRepository.findAll().stream()
+                .filter(priority -> priority.getDiscountTypeId().equals(discountTypeId))
+                .map(priority -> new DiscountPriorityDTO(
+                        priority.getId(),
+                        priority.getDiscountTypeId(),
+                        priority.getPriorityLevel(),
+                        priority.getIsActive(),
+                        priority.getCreatedAt(),
+                        priority.getUpdatedAt()
+                ))
+                .collect(Collectors.toList());
     }
 
     /**
