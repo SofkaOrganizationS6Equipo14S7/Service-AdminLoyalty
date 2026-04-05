@@ -24,7 +24,7 @@ class DiscountCalculationServiceV2Test {
     private final DiscountCalculationServiceV2 service = new DiscountCalculationServiceV2(cacheService, classificationEngine);
 
     private static final ClassifyResponseV1 DEFAULT_CLASSIFICATION =
-            new ClassifyResponseV1(null, "UNCLASSIFIED", 0, "No matching tier", Instant.now());
+            new ClassifyResponseV1(null, "UNCLASSIFIED", 0, null, List.of(), Instant.now());
 
     @Test
     void shouldApplyCapByPriority() {

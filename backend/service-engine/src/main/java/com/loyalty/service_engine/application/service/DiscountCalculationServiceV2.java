@@ -40,7 +40,7 @@ public class DiscountCalculationServiceV2 {
     }
 
     public DiscountCalculateResponseV2 calculate(DiscountCalculateRequestV2 request) {
-        log.debug("Calculating discounts for ecommerce: {} with totalSpent: {}, orderCount: {}, loyaltyPoints: {}",
+        log.debug("Calculating discounts for ecommerce: {} with totalSpent: {}, orderCount: {}, membershipDays: {}",
                 request.ecommerceId(), request.totalSpent(), request.orderCount(), request.loyaltyPoints());
 
         validateRequest(request);
@@ -49,7 +49,7 @@ public class DiscountCalculationServiceV2 {
 
         // Clasificar cliente automáticamente usando métricas proporcionadas
         ClassifyResponseV1 classification = classifyCustomer(request);
-        log.debug("Customer classified as: tier={}, level={}", classification.tierName(), classification.tierLevel());
+        log.debug("Customer classified as: tier={}, level={}", classification.tierName(), classification.hierarchyLevel());
 
         Map<String, EngineDiscountConfiguration.PriorityRule> priorityRuleByType = new HashMap<>();
         for (EngineDiscountConfiguration.PriorityRule rule : config.priority()) {
@@ -106,8 +106,8 @@ public class DiscountCalculationServiceV2 {
         DiscountCalculateResponseV2.ClassificationInfo classificationInfo = new DiscountCalculateResponseV2.ClassificationInfo(
                 classification.tierUid(),
                 classification.tierName(),
-                classification.tierLevel(),
-                classification.classificationReason()
+                classification.hierarchyLevel(),
+                "Tier classification based on customer metrics"
         );
 
         return new DiscountCalculateResponseV2(
@@ -128,22 +128,26 @@ public class DiscountCalculationServiceV2 {
      * Clasifica el cliente automáticamente usando el ClassificationEngine.
      * Crea un ClassifyRequestV1 con las métricas proporcionadas y lo envía al engine.
      * 
-     * @param request DTO con métricas del cliente (totalSpent, orderCount, loyaltyPoints)
+     * @param request DTO con métricas del cliente (totalSpent, orderCount, membershipDays)
      * @return ClassifyResponseV1 con el tier asignado
      * @throws ServiceUnavailableException si el motor de clasificación no está disponible
      */
     private ClassifyResponseV1 classifyCustomer(DiscountCalculateRequestV2 request) {
         try {
+            // Mapear loyaltyPoints a membershipDays (temporal mapping for backward compatibility)
+            Integer membershipDays = request.loyaltyPoints() != null ? request.loyaltyPoints() : 0;
+            
             ClassifyRequestV1 classificationRequest = new ClassifyRequestV1(
                     request.totalSpent(),
                     request.orderCount(),
-                    request.loyaltyPoints()
+                    membershipDays,
+                    null  // lastPurchaseDate optional
             );
-            log.debug("Classifying customer with metrics: totalSpent={}, orderCount={}, loyaltyPoints={}",
-                    request.totalSpent(), request.orderCount(), request.loyaltyPoints());
+            log.debug("Classifying customer with metrics: totalSpent={}, orderCount={}, membershipDays={}",
+                    request.totalSpent(), request.orderCount(), membershipDays);
             
             ClassifyResponseV1 response = classificationEngine.classify(classificationRequest);
-            log.info("Classification successful: tier={}, level={}", response.tierName(), response.tierLevel());
+            log.info("Classification successful: tier={}, level={}", response.tierName(), response.hierarchyLevel());
             return response;
         } catch (ServiceUnavailableException e) {
             log.warn("Classification engine unavailable. Returning default tier (no classification).", e);

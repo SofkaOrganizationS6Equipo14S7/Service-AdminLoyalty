@@ -75,6 +75,13 @@ public class ClassificationResult {
     }
 
     /**
+     * Get hierarchy level if classified.
+     */
+    public Optional<Integer> getHierarchyLevel() {
+        return Optional.ofNullable(hierarchyLevel);
+    }
+
+    /**
      * Get criteria met (list of rule names that matched).
      */
     public List<String> getCriteriaMet() {
