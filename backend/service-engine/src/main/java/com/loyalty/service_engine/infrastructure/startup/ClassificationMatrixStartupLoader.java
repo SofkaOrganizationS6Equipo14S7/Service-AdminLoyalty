@@ -158,11 +158,3 @@ public class ClassificationMatrixStartupLoader {
         );
     }
 }
-
-        } catch (Exception e) {
-            log.error("❌ CRITICAL: ClassificationMatrix startup loader failed — cache empty", e);
-            // Don't rethrow: Engine will use lazy-load fallback on first request
-            // This allows graceful degradation if DB is temporarily unavailable
-        }
-    }
-}

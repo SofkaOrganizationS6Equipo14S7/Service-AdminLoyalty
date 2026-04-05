@@ -172,10 +172,3 @@ public class ClassificationRuleEventConsumer {
         boolean isActive
     ) {}
 }
-            log.info("Rule soft-deleted in replica");
-        });
-
-        cacheService.invalidate();
-        log.info("Cache invalidated");
-    }
-}
