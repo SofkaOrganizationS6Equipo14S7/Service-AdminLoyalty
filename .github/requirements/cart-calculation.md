@@ -1,12 +1,10 @@
-# HU-11: Cálculo de Carrito con Descuentos Aplicados
-
-## Historia de Usuario
+## HU-11: Cálculo de Carrito con Descuentos Aplicados
 
 Como ecommerce, quiero enviar el carrito y recibir el precio final con descuentos aplicados, para mostrarle al usuario final en el checkout.
 
-## Criterios de Aceptación
+### Criterios de Aceptación
 
-### Scenario: Cálculo exitoso de precio final
+#### Scenario: Cálculo exitoso de precio final
 **Given** el ecommerce está autorizado para consumir el servicio  
 **And** el carrito contiene ítems válidos con cantidades y precios válidos  
 **And** existen reglas de descuento vigentes aplicables  
@@ -19,7 +17,7 @@ Como ecommerce, quiero enviar el carrito y recibir el precio final con descuento
 **And** el descuento total no supera el tope máximo vigente  
 **And** el precio final refleja ambas restricciones de negocio
 
-### Scenario: Carrito sin descuentos aplicables
+#### Scenario: Carrito sin descuentos aplicables
 **Given** el ecommerce está autorizado para consumir el servicio  
 **And** el carrito es válido  
 **And** no existen descuentos aplicables para ese carrito  
@@ -27,13 +25,13 @@ Como ecommerce, quiero enviar el carrito y recibir el precio final con descuento
 **Then** el precio final es igual al subtotal del carrito  
 **And** la respuesta indica que no hubo descuentos aplicados
 
-### Scenario: Rechazo por carrito inválido
+#### Scenario: Rechazo por carrito inválido
 **Given** el servicio requiere estructura mínima y datos válidos de carrito  
 **When** el ecommerce envía un carrito con datos incompletos o inconsistentes  
 **Then** la solicitud es rechazada  
 **And** no se retorna precio final hasta contar con un carrito válido
 
-## Notas Técnicas (Constraints)
+### Notas Técnicas (Constraints)
 
 - **Stack:** Java 21 + Spring Boot 3.x.
 - **Auth:** API Key en header para consumo del Engine Service.

@@ -1,18 +1,16 @@
-# HU-13: Trazabilidad de Cambios de Reglas (Auditoría)
-
-## Historia de Usuario
+## HU-13: Trazabilidad de Cambios de Reglas (Auditoría)
 
 Como super admin, quiero ver el registro de los cambios de las reglas de descuento de todos los ecommerce, para identificar que usuarios realizaron modificaciones y en que momentos.
 
-## Criterios de Aceptación
+### Criterios de Aceptación
 
-### Scenario: Trazabilidad de modificaciones por el Super Admin
+#### Scenario: Trazabilidad de modificaciones por el Super Admin
 **Given** que soy un Super Admin y accedo al panel global de auditoría  
 **When** consulto el historial de cambios de un ecommerce específico  
 **Then** el sistema debe mostrar una tabla cronológica con: usuario que realizó el cambio, fecha/hora, regla afectada, valor anterior y valor nuevo  
 **And** debe permitir filtrar por tipo de regla Temporada, Producto o Fidelidad
 
-## Notas Técnicas (Constraints)
+### Notas Técnicas (Constraints)
 
 - **Stack:** Java 21 + Spring Boot 3.x.
 - **Auth:** JWT con rol SUPER_ADMIN para acceso global.
