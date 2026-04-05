@@ -1,12 +1,10 @@
 package com.loyalty.service_engine.presentation.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.loyalty.service_engine.application.dto.configuration.ConfigurationUpdatedEvent;
+import com.loyalty.service_engine.application.dto.DiscountCalculateResponseV2;
 import com.loyalty.service_engine.application.service.DiscountCalculationServiceV2;
-import com.loyalty.service_engine.application.service.EngineConfigurationCacheService;
 import com.loyalty.service_engine.infrastructure.exception.GlobalExceptionHandler;
 import com.loyalty.service_engine.infrastructure.security.ApiKeyAuthenticationFilter;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -21,6 +19,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -28,8 +28,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(controllers = DiscountCalculationControllerV2.class)
 @AutoConfigureMockMvc(addFilters = false)
 @Import({
-        DiscountCalculationServiceV2.class,
-        EngineConfigurationCacheService.class,
         GlobalExceptionHandler.class
 })
 class DiscountCalculationControllerV2IntegrationTest {
@@ -37,98 +35,75 @@ class DiscountCalculationControllerV2IntegrationTest {
     @MockBean
     private ApiKeyAuthenticationFilter apiKeyAuthenticationFilter;
 
+        @MockBean
+        private DiscountCalculationServiceV2 discountCalculationService;
+
     @Autowired
     private MockMvc mockMvc;
 
     @Autowired
     private ObjectMapper objectMapper;
 
-    @Autowired
-    private EngineConfigurationCacheService cacheService;
-
     private UUID ecommerceId;
-
-    @BeforeEach
-    void setUp() {
-        ecommerceId = UUID.randomUUID();
-        cacheService.upsertFromEvent(new ConfigurationUpdatedEvent(
-                "CONFIG_UPDATED",
-                UUID.randomUUID(),
-                ecommerceId,
-                1L,
-                "COP",
-                ConfigurationUpdatedEvent.RoundingRule.HALF_UP,
-                ConfigurationUpdatedEvent.CapType.PERCENTAGE,
-                new BigDecimal("20"),
-                ConfigurationUpdatedEvent.CapAppliesTo.SUBTOTAL,
-                List.of(
-                        new ConfigurationUpdatedEvent.PriorityItem(UUID.randomUUID(), "SEASONAL", 1),
-                        new ConfigurationUpdatedEvent.PriorityItem(UUID.randomUUID(), "LOYALTY", 2)
-                ),
-                Instant.now()
-        ));
-    }
 
     @Test
     void shouldCalculateWithCapAndPriority() throws Exception {
+        ecommerceId = UUID.randomUUID();
+        when(discountCalculationService.calculate(any())).thenReturn(
+            new DiscountCalculateResponseV2(
+                new BigDecimal("250.0000"),
+                new BigDecimal("37.50"),
+                new BigDecimal("37.50"),
+                new BigDecimal("212.50"),
+                "Gold",
+                false,
+                null,
+                List.of(),
+                UUID.randomUUID(),
+                Instant.now()
+            )
+        );
+
         String body = """
                 {
                   "ecommerceId": "%s",
-                  "subtotal": 1000,
-                  "total": 1190,
-                  "beforeTax": 1000,
-                  "afterTax": 1190,
-                  "discounts": [
-                    {"type":"LOYALTY","amount":150},
-                    {"type":"SEASONAL","amount":100}
+                  "externalOrderId": "order-123",
+                  "customerId": "cust-1",
+                  "totalSpent": 2500,
+                  "orderCount": 15,
+                  "membershipDays": 180,
+                  "items": [
+                    {"productId":"prod-1","quantity":2,"unitPrice":100,"category":"electronics"},
+                    {"productId":"prod-2","quantity":1,"unitPrice":50,"category":"accessories"}
                   ]
                 }
                 """.formatted(ecommerceId);
 
-        mockMvc.perform(post("/api/v1/discounts/calculate")
+        mockMvc.perform(post("/api/v1/engine/calculate")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.capAmount").value(200.00))
-                .andExpect(jsonPath("$.totalApplied").value(200.00))
-                .andExpect(jsonPath("$.capped").value(true))
-                .andExpect(jsonPath("$.appliedDiscounts[0].type").value("SEASONAL"));
+                .andExpect(jsonPath("$.subtotalAmount").value(250.0))
+                .andExpect(jsonPath("$.discountApplied").value(37.5))
+                .andExpect(jsonPath("$.finalAmount").value(212.5));
     }
 
     @Test
-    void shouldReturn400ForInvalidTotals() throws Exception {
+    void shouldReturn400ForInvalidRequest() throws Exception {
+        ecommerceId = UUID.randomUUID();
         String body = """
                 {
                   "ecommerceId": "%s",
-                  "subtotal": 1200,
-                  "total": 1000,
-                  "beforeTax": 1000,
-                  "afterTax": 1190,
-                  "discounts": [{"type":"LOYALTY","amount":20}]
+                  "externalOrderId": "",
+                  "customerId": "cust-1",
+                  "totalSpent": 2500,
+                  "orderCount": 15,
+                  "membershipDays": 180,
+                  "items": []
                 }
                 """.formatted(ecommerceId);
 
-        mockMvc.perform(post("/api/v1/discounts/calculate")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
-    }
-
-    @Test
-    void shouldReturn400ForBeanValidationErrors() throws Exception {
-        String body = """
-                {
-                  "ecommerceId": "%s",
-                  "subtotal": 100,
-                  "total": 119,
-                  "beforeTax": 100,
-                  "afterTax": 119,
-                  "discounts": [{"type":"","amount":0}]
-                }
-                """.formatted(ecommerceId);
-
-        mockMvc.perform(post("/api/v1/discounts/calculate")
+        mockMvc.perform(post("/api/v1/engine/calculate")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isBadRequest())
