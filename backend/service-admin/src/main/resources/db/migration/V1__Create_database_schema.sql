@@ -99,7 +99,6 @@ CREATE TABLE IF NOT EXISTS discount_settings (
 CREATE TABLE IF NOT EXISTS discount_priorities (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     discount_setting_id UUID NOT NULL REFERENCES discount_settings(id) ON DELETE CASCADE,
-    discount_type_id UUID NOT NULL REFERENCES discount_types(id),
     priority_level INTEGER NOT NULL CHECK (priority_level > 0),
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,

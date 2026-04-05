@@ -34,7 +34,6 @@ public class CustomerTierService {
 
         CustomerTierEntity entity = CustomerTierEntity.builder()
             .ecommerceId(request.ecommerceId())
-            .discountTypeId(request.discountTypeId())
             .name(request.name())
             .discountPercentage(request.discountPercentage())
             .hierarchyLevel(request.hierarchyLevel())
@@ -86,7 +85,6 @@ public class CustomerTierService {
         return new CustomerTierResponse(
             entity.getId(),
             entity.getEcommerceId(),
-            entity.getDiscountTypeId(),
             entity.getName(),
             entity.getDiscountPercentage(),
             entity.getHierarchyLevel(),

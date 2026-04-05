@@ -13,9 +13,6 @@ public record CustomerTierCreateRequest(
     @NotNull(message = "ecommerceId is required")
     UUID ecommerceId,
 
-    @NotNull(message = "discountTypeId is required")
-    UUID discountTypeId,
-
     @NotBlank(message = "Tier name is required")
     String name,
 
