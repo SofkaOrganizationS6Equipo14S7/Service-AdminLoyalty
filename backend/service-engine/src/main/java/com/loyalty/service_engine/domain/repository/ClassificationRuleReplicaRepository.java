@@ -10,33 +10,46 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Repository for ClassificationRuleReplicaEntity.
- * Read-only access to replicated rules from service-admin.
- * Used for Cold Start and caché population.
+ * Repository for ClassificationRuleReplicaEntity (engine_rules table).
+ * Read-only access to replicated classification rules from service-admin.
+ * Used for Cold Start and classification cache population.
+ * Filters by discount_type_code = "CLASSIFICATION".
  */
 @Repository
 public interface ClassificationRuleReplicaRepository extends JpaRepository<ClassificationRuleReplicaEntity, UUID> {
 
     /**
-     * Find all active rules for a specific tier, ordered by priority ascending.
+     * Find all active classification rules for an ecommerce, ordered by priority.
      */
-    List<ClassificationRuleReplicaEntity> findByTierUidAndIsActiveTrueOrderByPriorityAsc(UUID tierUid);
+    List<ClassificationRuleReplicaEntity> findByEcommerceIdAndDiscountTypeCodeAndIsActiveTrueOrderByPriorityLevelAsc(
+        UUID ecommerceId, String discountTypeCode
+    );
 
     /**
-     * Find all active rules, ordered by priority.
+     * Find all classification rules for an ecommerce (active and inactive), ordered by priority.
      */
-    List<ClassificationRuleReplicaEntity> findByIsActiveTrueOrderByPriorityAsc();
+    List<ClassificationRuleReplicaEntity> findByEcommerceIdAndDiscountTypeCodeOrderByPriorityLevelAsc(
+        UUID ecommerceId, String discountTypeCode
+    );
 
     /**
-     * Find all rules for a specific metric type and active status, ordered by priority.
-     */
-    List<ClassificationRuleReplicaEntity> findByMetricTypeAndIsActiveTrueOrderByPriorityAsc(String metricType);
-
-    /**
-     * Find all rules grouped by tier for bulk loading into caché.
+     * Find all active classification rules for bulk loading into cache.
+     * Assumes you call with discountTypeCode = "CLASSIFICATION".
      */
     @Query("SELECT r FROM ClassificationRuleReplicaEntity r " +
-           "WHERE r.isActive = true " +
-           "ORDER BY r.tierUid ASC, r.priority ASC")
-    List<ClassificationRuleReplicaEntity> findAllActiveRulesForCache();
+           "WHERE r.ecommerceId = :ecommerceId " +
+           "AND r.discountTypeCode = :discountTypeCode " +
+           "AND r.isActive = true " +
+           "ORDER BY r.priorityLevel ASC")
+    List<ClassificationRuleReplicaEntity> findActiveClassificationRulesForCache(
+        @Param("ecommerceId") UUID ecommerceId,
+        @Param("discountTypeCode") String discountTypeCode
+    );
+
+    /**
+     * Find all rules by ecommerce and discount type code for initialization.
+     */
+    List<ClassificationRuleReplicaEntity> findByEcommerceIdAndDiscountTypeCode(
+        UUID ecommerceId, String discountTypeCode
+    );
 }
