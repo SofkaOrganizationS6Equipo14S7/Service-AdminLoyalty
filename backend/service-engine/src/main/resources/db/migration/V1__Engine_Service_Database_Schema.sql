@@ -27,10 +27,6 @@ CREATE TABLE IF NOT EXISTS engine_api_keys (
 CREATE INDEX IF NOT EXISTS idx_api_keys_ecommerce ON engine_api_keys(ecommerce_id);
 CREATE INDEX IF NOT EXISTS idx_api_keys_active ON engine_api_keys(is_active);
 
-COMMENT ON TABLE engine_api_keys IS 'Replica of admin.api_key for fast validation. Synchronized via RabbitMQ.';
-COMMENT ON COLUMN engine_api_keys.hashed_key IS 'Primary key: hashed API key for validation';
-COMMENT ON COLUMN engine_api_keys.ecommerce_id IS 'Tenant identifier';
-
 -- ==========================================
 -- 2. DISCOUNT SETTINGS (Configuration)
 -- ==========================================
@@ -50,11 +46,6 @@ CREATE TABLE IF NOT EXISTS engine_discount_settings (
 );
 
 CREATE INDEX IF NOT EXISTS idx_discount_settings_active ON engine_discount_settings(is_active);
-
-COMMENT ON TABLE engine_discount_settings IS 'Replica of admin.discount_settings. Global configuration per ecommerce.';
-COMMENT ON COLUMN engine_discount_settings.max_discount_cap IS 'Maximum discount allowed per transaction';
-COMMENT ON COLUMN engine_discount_settings.allow_stacking IS 'Whether multiple rules can stack their discounts';
-COMMENT ON COLUMN engine_discount_settings.rounding_rule IS 'How to round final amounts (ROUND_HALF_UP, ROUND_DOWN, etc)';
 
 -- ==========================================
 -- 3. DISCOUNT PRIORITIES (Evaluation Order)
@@ -79,10 +70,6 @@ CREATE INDEX IF NOT EXISTS idx_discount_priorities_ecommerce ON engine_discount_
 CREATE INDEX IF NOT EXISTS idx_discount_priorities_type ON engine_discount_priorities(discount_type_code);
 CREATE INDEX IF NOT EXISTS idx_discount_priorities_level ON engine_discount_priorities(ecommerce_id, priority_level);
 
-COMMENT ON TABLE engine_discount_priorities IS 'Defines evaluation order for discount types (1=first, 2=second, etc).';
-COMMENT ON COLUMN engine_discount_priorities.discount_type_code IS 'FIDELITY | SEASONAL | PRODUCT | CLASSIFICATION';
-COMMENT ON COLUMN engine_discount_priorities.priority_level IS 'Lower number = evaluated first';
-
 -- ==========================================
 -- 4. CUSTOMER TIERS (Fidelity Levels)
 -- ==========================================
@@ -106,9 +93,6 @@ CREATE TABLE IF NOT EXISTS engine_customer_tiers (
 CREATE INDEX IF NOT EXISTS idx_customer_tiers_ecommerce ON engine_customer_tiers(ecommerce_id);
 CREATE INDEX IF NOT EXISTS idx_customer_tiers_active ON engine_customer_tiers(is_active);
 CREATE INDEX IF NOT EXISTS idx_customer_tiers_hierarchy ON engine_customer_tiers(ecommerce_id, hierarchy_level);
-
-COMMENT ON TABLE engine_customer_tiers IS 'Replica of admin.customer_tiers. Customer fidelity levels (Bronze, Silver, Gold, Platinum).';
-COMMENT ON COLUMN engine_customer_tiers.hierarchy_level IS 'Ordering for tier classification (1=lowest, 4=highest)';
 
 -- ==========================================
 -- 5. ENGINE RULES (Consolidated Discount Rules)
@@ -141,13 +125,6 @@ CREATE INDEX IF NOT EXISTS idx_engine_rules_priority ON engine_rules(ecommerce_i
 CREATE INDEX IF NOT EXISTS idx_engine_rules_active ON engine_rules(is_active);
 CREATE INDEX IF NOT EXISTS idx_engine_rules_ecommerce_active ON engine_rules(ecommerce_id, is_active);
 
-COMMENT ON TABLE engine_rules IS 'Consolidated rules for all discount types. Replicated from admin.rules. Criteria stored as JSONB for dynamic evaluation.';
-COMMENT ON COLUMN engine_rules.discount_type_code IS 'FIDELITY | SEASONAL | PRODUCT | CLASSIFICATION';
-COMMENT ON COLUMN engine_rules.discount_type IS 'PERCENTAGE | FIXED_AMOUNT (determines how discount_value is interpreted)';
-COMMENT ON COLUMN engine_rules.applied_with IS 'INDIVIDUAL | CUMULATIVE | EXCLUSIVE (how to combine with other rules)';
-COMMENT ON COLUMN engine_rules.logic_conditions IS 'JSON structure: {"field_name": {"type": "NUMERIC|STRING|ARRAY|DATE_RANGE", "value": ...}}';
-COMMENT ON COLUMN engine_rules.priority_level IS 'Order of evaluation per ecommerce. Lower = evaluated first.';
-
 -- ==========================================
 -- 6. TRANSACTION LOGS (HU-12: Discount History)
 -- ==========================================
@@ -161,15 +138,14 @@ CREATE TABLE IF NOT EXISTS transaction_logs (
     discount_applied DECIMAL(12,2) NOT NULL,
     final_amount DECIMAL(12,2) NOT NULL,
     was_capped BOOLEAN NOT NULL DEFAULT FALSE,
-    status VARCHAR(20) NOT NULL DEFAULT 'SUCCESS',
-    error_message TEXT,
+    cap_reason VARCHAR(100),
     applied_rules_json JSONB NOT NULL,
-    priority_evaluation_json JSONB,
     customer_tier VARCHAR(100),
     client_metrics_json JSONB,
+    status VARCHAR(20) NOT NULL DEFAULT 'SUCCESS',
+    priority_evaluation_json JSONB,
     calculated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    expires_at TIMESTAMP WITH TIME ZONE GENERATED ALWAYS AS (created_at + INTERVAL '7 days') STORED,
     
     CONSTRAINT ck_amounts CHECK (subtotal_amount >= 0),
     CONSTRAINT ck_discount_calculated CHECK (discount_calculated >= 0),
@@ -182,14 +158,6 @@ CREATE INDEX IF NOT EXISTS idx_transaction_logs_created ON transaction_logs(crea
 CREATE INDEX IF NOT EXISTS idx_transaction_logs_ecommerce_created ON transaction_logs(ecommerce_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_transaction_logs_status ON transaction_logs(status);
 CREATE INDEX IF NOT EXISTS idx_transaction_logs_was_capped ON transaction_logs(was_capped);
-CREATE INDEX IF NOT EXISTS idx_transaction_logs_expires ON transaction_logs(expires_at);
-
-COMMENT ON TABLE transaction_logs IS 'Transaction history (HU-12). No PII stored. Auto-expires after 7 days.';
-COMMENT ON COLUMN transaction_logs.external_order_id IS 'Reference to external order system (no customer PII)';
-COMMENT ON COLUMN transaction_logs.was_capped IS 'TRUE if discount_applied < discount_calculated (hit max cap)';
-COMMENT ON COLUMN transaction_logs.status IS 'SUCCESS | PARTIALLY_APPLIED | REJECTED';
-COMMENT ON COLUMN transaction_logs.applied_rules_json IS 'Array of rules that were evaluated and their results';
-COMMENT ON COLUMN transaction_logs.expires_at IS 'Auto-generated: created_at + 7 days (for retention compliance)';
 
 -- ==========================================
 -- DATA INTEGRITY VIEWS (Optional, for Admin)

@@ -26,6 +26,14 @@ public class RabbitMQConfigEngine {
     public Queue discountConfigQueue() {
         return new Queue("discount.config.queue", true);
     }
+
+    /**
+     * Cola para recibir eventos de actualización de prioridades.
+     */
+    @Bean
+    public Queue discountPriorityQueue() {
+        return new Queue("discount.priority.queue", true);
+    }
     
     /**
      * Exchange al cual se vincula la cola.
@@ -46,6 +54,18 @@ public class RabbitMQConfigEngine {
             .bind(discountConfigQueue)
             .to(discountExchange)
             .with("discount.config.updated");
+    }
+
+    /**
+     * Binding: discount.priority.queue escucha mensajes con routing key
+     * "discount.priority.updated".
+     */
+    @Bean
+    public Binding discountPriorityBinding(Queue discountPriorityQueue, DirectExchange discountExchange) {
+        return BindingBuilder
+            .bind(discountPriorityQueue)
+            .to(discountExchange)
+            .with("discount.priority.updated");
     }
     
     /**

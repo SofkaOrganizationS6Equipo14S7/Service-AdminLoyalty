@@ -3,10 +3,11 @@ package com.loyalty.service_engine.application.service;
 import com.loyalty.service_engine.application.dto.AppliedRuleDetail;
 import com.loyalty.service_engine.application.dto.ClassifyRequestV1;
 import com.loyalty.service_engine.application.dto.ClassificationResult;
+import com.loyalty.service_engine.application.dto.ClassificationRuleDTO;
 import com.loyalty.service_engine.application.dto.DiscountCalculateRequestV2;
 import com.loyalty.service_engine.application.dto.DiscountCalculateResponseV2;
-import com.loyalty.service_engine.domain.entity.DiscountConfigEntity;
-import com.loyalty.service_engine.domain.repository.DiscountConfigRepository;
+import com.loyalty.service_engine.domain.entity.EngineDiscountSettingsEntity;
+import com.loyalty.service_engine.domain.repository.EngineDiscountSettingsRepository;
 import com.loyalty.service_engine.infrastructure.exception.InvalidCartException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,10 +34,10 @@ import java.util.stream.Collectors;
 public class DiscountCalculationServiceV2 {
 
     private final FidelityClassificationService fidelityClassificationService;
-    private final DiscountPriorityEvaluator discountPriorityEvaluator;
+    private final ClassificationMatrixCaffeineCacheService cacheService;
     private final DiscountCappingEngine discountCappingEngine;
     private final TransactionLogWriter transactionLogWriter;
-    private final DiscountConfigRepository discountConfigRepository;
+    private final EngineDiscountSettingsRepository engineDiscountSettingsRepository;
 
     @Transactional
     public DiscountCalculateResponseV2 calculate(DiscountCalculateRequestV2 request) {
@@ -47,12 +48,23 @@ public class DiscountCalculationServiceV2 {
         BigDecimal subtotal = calculateSubtotal(request);
 
         String customerTier = classifyCustomer(request);
-        List<AppliedRuleDetail> evaluatedRules = discountPriorityEvaluator.evaluateByPriority(
-            request,
-            subtotal,
-            customerTier,
-            request.ecommerceId()
-        );
+        
+        // Obtener reglas de clasificación activas desde cache
+        List<AppliedRuleDetail> evaluatedRules = cacheService.getRules(request.ecommerceId())
+            .orElse(List.of())
+            .stream()
+            .filter(ClassificationRuleDTO::isActive)
+            .map(rule -> new AppliedRuleDetail(
+                rule.id(),
+                rule.name(),
+                rule.discountTypeCode(),
+                rule.discountType(),
+                rule.appliedWith(),
+                null,
+                calculateRuleDiscountFromDTO(rule, subtotal),
+                rule.priorityLevel()
+            ))
+            .collect(Collectors.toList());
 
         List<AppliedRuleDetail> selectedRules = applyStackingPolicy(request.ecommerceId(), evaluatedRules);
         BigDecimal discountCalculated = selectedRules.stream()
@@ -175,9 +187,19 @@ public class DiscountCalculationServiceV2 {
         return sortedRules;
     }
 
+    private BigDecimal calculateRuleDiscountFromDTO(ClassificationRuleDTO rule, BigDecimal subtotal) {
+        if (rule == null || rule.discountValue() == null) {
+            return BigDecimal.ZERO;
+        }
+        if ("PERCENTAGE".equals(rule.discountType())) {
+            return subtotal.multiply(rule.discountValue()).divide(BigDecimal.valueOf(100), 4, java.math.RoundingMode.HALF_UP);
+        }
+        return rule.discountValue().min(subtotal);
+    }
+
     private BigDecimal resolveMaxDiscountCap(UUID ecommerceId) {
-        return discountConfigRepository.findByEcommerceIdAndIsActiveTrue(ecommerceId)
-            .map(DiscountConfigEntity::getMaxDiscountLimit)
+        return engineDiscountSettingsRepository.findByEcommerceIdAndIsActiveTrue(ecommerceId)
+            .map(EngineDiscountSettingsEntity::getMaxDiscountLimit)
             .filter(limit -> limit.signum() > 0)
             .orElse(null);
     }
