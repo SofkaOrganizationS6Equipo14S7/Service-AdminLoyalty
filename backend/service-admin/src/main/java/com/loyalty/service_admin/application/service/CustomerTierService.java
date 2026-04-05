@@ -29,7 +29,8 @@ public class CustomerTierService {
         log.info("Creating customer tier: ecommerceId={}, name={}, hierarchyLevel={}", 
             request.ecommerceId(), request.name(), request.hierarchyLevel());
 
-        if (repository.existsByEcommerceIdAndName(request.ecommerceId(), request.name())) {
+        // Validar unicidad solo contra tiers ACTIVOS
+        if (repository.existsByEcommerceIdAndNameAndIsActiveTrue(request.ecommerceId(), request.name())) {
             throw new BadRequestException("Tier with name '" + request.name() + "' already exists for this ecommerce");
         }
 
@@ -106,16 +107,16 @@ public class CustomerTierService {
         CustomerTierEntity entity = repository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Customer tier not found: " + id));
 
-        // Validar unicidad de nombre si cambió (para el mismo ecommerce)
+        // Validar unicidad de nombre si cambió (solo contra tiers ACTIVOS del mismo ecommerce)
         if (!entity.getName().equals(request.name()) && 
-            repository.existsByEcommerceIdAndName(entity.getEcommerceId(), request.name())) {
+            repository.existsByEcommerceIdAndNameAndIsActiveTrue(entity.getEcommerceId(), request.name())) {
             throw new BadRequestException("Tier with name '" + request.name() + "' already exists for this ecommerce");
         }
 
         entity.setName(request.name());
         entity.setDiscountPercentage(request.discountPercentage());
         entity.setHierarchyLevel(request.hierarchyLevel());
-        entity.setIsActive(request.isActive());
+        // NOTE: isActive is NOT updated here - use activate() or delete() endpoints instead
 
         CustomerTierEntity updated = repository.save(entity);
         log.info("Customer tier updated: id={}", id);
