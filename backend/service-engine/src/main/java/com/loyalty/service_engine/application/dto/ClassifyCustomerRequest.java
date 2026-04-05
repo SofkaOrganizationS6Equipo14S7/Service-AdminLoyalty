@@ -16,7 +16,7 @@ import java.time.Instant;
  * - membershipDays: days since account creation
  * - lastPurchaseDate: optional, for recency-based rules
  */
-public record ClassifyRequestV1(
+public record ClassifyCustomerRequest(
     @NotNull(message = "Total spent is required")
     @DecimalMin(value = "0", inclusive = true, message = "Total spent must be non-negative")
     BigDecimal totalSpent,
