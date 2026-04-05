@@ -35,4 +35,9 @@ public interface RuleCustomerTierRepository extends JpaRepository<RuleCustomerTi
      * Delete all tier links for a rule
      */
     void deleteByRuleId(UUID ruleId);
+
+    /**
+     * Delete specific rule-tier relationship
+     */
+    void deleteByRuleIdAndCustomerTierId(UUID ruleId, UUID customerTierId);
 }

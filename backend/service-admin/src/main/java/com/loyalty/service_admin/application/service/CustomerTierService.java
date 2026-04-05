@@ -8,6 +8,8 @@ import com.loyalty.service_admin.infrastructure.exception.BadRequestException;
 import com.loyalty.service_admin.infrastructure.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -69,6 +71,15 @@ public class CustomerTierService {
         entity.setIsActive(false);
         repository.save(entity);
         log.info("Customer tier soft-deleted: id={}", id);
+    }
+
+    /**
+     * CRITERIO-7.5: Listar customer tiers con paginación
+     */
+    @Transactional(readOnly = true)
+    public Page<CustomerTierResponse> listPaginated(Pageable pageable) {
+        return repository.findAll(pageable)
+            .map(this::mapToResponse);
     }
 
     private CustomerTierResponse mapToResponse(CustomerTierEntity entity) {

@@ -218,6 +218,24 @@ public class RuleService {
     }
 
     /**
+     * Delete a specific customer tier from a rule (HU-07 CRITERIO-7.3)
+     */
+    public void deleteCustomerTierFromRule(UUID ecommerceId, UUID ruleId, UUID tierId) {
+        RuleEntity rule = ruleRepository.findByIdAndEcommerceId(ruleId, ecommerceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Rule not found: " + ruleId));
+
+        // Verify tier exists
+        if (!ruleCustomerTierRepository.existsByRuleIdAndCustomerTierId(ruleId, tierId)) {
+            throw new ResourceNotFoundException(
+                "Customer tier " + tierId + " is not assigned to rule " + ruleId
+            );
+        }
+
+        ruleCustomerTierRepository.deleteByRuleIdAndCustomerTierId(ruleId, tierId);
+        log.info("Deleted tier {} from rule {}", tierId, ruleId);
+    }
+
+    /**
      * Convert entity to response DTO with tiers
      */
     private RuleResponseWithTiers toResponseWithTiers(RuleEntity rule) {

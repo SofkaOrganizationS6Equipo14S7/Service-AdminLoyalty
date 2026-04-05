@@ -173,5 +173,27 @@ public class RuleController {
         List<RuleCustomerTierDTO> tiers = ruleService.getRuleAssignedTiers(ecommerceId, ruleId);
         return ResponseEntity.ok(tiers);
     }
+
+    /**
+     * HU-07 CRITERIO-7.3: Eliminar tier de una rule
+     * DELETE /api/v1/rules/{ruleId}/tiers/{tierId}
+     */
+    @DeleteMapping("/{ruleId}/tiers/{tierId}")
+    public ResponseEntity<Void> deleteCustomerTierFromRule(
+            @PathVariable UUID ruleId,
+            @PathVariable UUID tierId
+    ) {
+        UUID ecommerceId = securityContextHelper.getCurrentUserEcommerceId();
+        log.info("Deleting tier {} from rule: {}", tierId, ruleId);
+
+        if (ecommerceId == null) {
+            throw new AuthorizationException(
+                "El Usuario no puede eliminar tiers porque no tiene un ecommerceId asignado."
+            );
+        }
+
+        ruleService.deleteCustomerTierFromRule(ecommerceId, ruleId, tierId);
+        return ResponseEntity.noContent().build();
+    }
 }
 
