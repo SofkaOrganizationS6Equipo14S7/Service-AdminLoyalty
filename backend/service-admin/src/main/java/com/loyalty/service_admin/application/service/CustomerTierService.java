@@ -1,6 +1,7 @@
 package com.loyalty.service_admin.application.service;
 
 import com.loyalty.service_admin.application.dto.customertier.CustomerTierCreateRequest;
+import com.loyalty.service_admin.application.dto.customertier.CustomerTierUpdateRequest;
 import com.loyalty.service_admin.application.dto.customertier.CustomerTierResponse;
 import com.loyalty.service_admin.domain.entity.CustomerTierEntity;
 import com.loyalty.service_admin.domain.repository.CustomerTierRepository;
@@ -97,16 +98,17 @@ public class CustomerTierService {
     }
 
     /**
-     * Actualizar un tier (puede ser para reactivarlo o cambiar otros campos)
+     * Actualizar un tier (name, discountPercentage, hierarchyLevel)
+     * No permite cambiar ecommerceId ni isActive
      */
     @Transactional
-    public CustomerTierResponse update(UUID id, CustomerTierCreateRequest request) {
+    public CustomerTierResponse update(UUID id, CustomerTierUpdateRequest request) {
         CustomerTierEntity entity = repository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Customer tier not found: " + id));
 
         // Validar unicidad de nombre si cambió (para el mismo ecommerce)
         if (!entity.getName().equals(request.name()) && 
-            repository.existsByEcommerceIdAndName(request.ecommerceId(), request.name())) {
+            repository.existsByEcommerceIdAndName(entity.getEcommerceId(), request.name())) {
             throw new BadRequestException("Tier with name '" + request.name() + "' already exists for this ecommerce");
         }
 

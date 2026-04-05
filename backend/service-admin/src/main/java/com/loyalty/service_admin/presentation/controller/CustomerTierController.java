@@ -1,6 +1,7 @@
 package com.loyalty.service_admin.presentation.controller;
 
 import com.loyalty.service_admin.application.dto.customertier.CustomerTierCreateRequest;
+import com.loyalty.service_admin.application.dto.customertier.CustomerTierUpdateRequest;
 import com.loyalty.service_admin.application.dto.customertier.CustomerTierResponse;
 import com.loyalty.service_admin.application.service.CustomerTierService;
 import jakarta.validation.Valid;
@@ -81,7 +82,7 @@ public class CustomerTierController {
     @PutMapping("/{tierId}")
     public ResponseEntity<CustomerTierResponse> updateCustomerTier(
             @PathVariable UUID tierId,
-            @Valid @RequestBody CustomerTierCreateRequest request
+            @Valid @RequestBody CustomerTierUpdateRequest request
     ) {
         log.info("PUT /api/v1/customer-tiers/{} - Updating tier", tierId);
         
