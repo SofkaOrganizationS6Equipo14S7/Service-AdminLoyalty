@@ -19,7 +19,6 @@ public record CustomerTierUpdateRequest(
 
     @NotNull(message = "hierarchyLevel is required")
     @Min(value = 1, message = "hierarchyLevel must be >= 1")
-    Integer hierarchyLevel,
-
+    Integer hierarchyLevel
 ) {
 }

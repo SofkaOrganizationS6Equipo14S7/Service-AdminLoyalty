@@ -8,6 +8,9 @@ import com.loyalty.service_admin.application.dto.rules.RuleResponseWithTiers;
 import com.loyalty.service_admin.application.dto.rules.RuleAttributeMetadataDTO;
 import com.loyalty.service_admin.application.dto.discount.DiscountTypeDTO;
 import com.loyalty.service_admin.application.dto.discount.DiscountPriorityDTO;
+import com.loyalty.service_admin.application.dto.classificationrule.ClassificationRuleCreateRequest;
+import com.loyalty.service_admin.application.dto.classificationrule.ClassificationRuleUpdateRequest;
+import com.loyalty.service_admin.application.dto.classificationrule.ClassificationRuleResponse;
 import com.loyalty.service_admin.application.service.RuleService;
 import com.loyalty.service_admin.infrastructure.security.SecurityContextHelper;
 import jakarta.validation.Valid;
@@ -193,6 +196,100 @@ public class RuleController {
         }
 
         ruleService.deleteCustomerTierFromRule(ecommerceId, ruleId, tierId);
+        return ResponseEntity.noContent().build();
+    }
+
+    // ========== HU-07: NESTED ENDPOINTS FOR CLASSIFICATION RULES ==========
+
+    /**
+     * HU-07 CRITERIO-7.3, 7.4: Crear classification_rule para un customer_tier
+     * POST /api/v1/rules/customer-tiers/{tierId}
+     * 
+     * Request incluye: metricType, minValue, maxValue, priority
+     * Internamente crea un RuleEntity con type=CLASSIFICATION
+     */
+    @PostMapping("/customer-tiers/{tierId}")
+    public ResponseEntity<ClassificationRuleResponse> createClassificationRuleForTier(
+            @PathVariable UUID tierId,
+            @Valid @RequestBody ClassificationRuleCreateRequest request
+    ) {
+        UUID ecommerceId = securityContextHelper.getCurrentUserEcommerceId();
+        log.info("POST /api/v1/rules/customer-tiers/{} - Creating classification rule. metricType={}", 
+            tierId, request.metricType());
+
+        if (ecommerceId == null) {
+            throw new AuthorizationException(
+                "El Usuario no puede crear reglas porque no tiene un ecommerceId asignado."
+            );
+        }
+
+        ClassificationRuleResponse response = ruleService.createClassificationRuleForTier(ecommerceId, tierId, request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    /**
+     * HU-07 CRITERIO-7.6: Listar classification_rules de un tier
+     * GET /api/v1/rules/customer-tiers/{tierId}
+     */
+    @GetMapping("/customer-tiers/{tierId}")
+    public ResponseEntity<List<ClassificationRuleResponse>> listClassificationRulesForTier(
+            @PathVariable UUID tierId
+    ) {
+        UUID ecommerceId = securityContextHelper.getCurrentUserEcommerceId();
+        log.info("GET /api/v1/rules/customer-tiers/{} - Listing classification rules", tierId);
+
+        if (ecommerceId == null) {
+            throw new AuthorizationException(
+                "El Usuario no puede listar reglas porque no tiene un ecommerceId asignado."
+            );
+        }
+
+        List<ClassificationRuleResponse> response = ruleService.listClassificationRulesForTier(ecommerceId, tierId);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * HU-07 CRITERIO-7.7: Actualizar classification_rule
+     * PUT /api/v1/rules/customer-tiers/{tierId}/{ruleId}
+     */
+    @PutMapping("/customer-tiers/{tierId}/{ruleId}")
+    public ResponseEntity<ClassificationRuleResponse> updateClassificationRuleForTier(
+            @PathVariable UUID tierId,
+            @PathVariable UUID ruleId,
+            @Valid @RequestBody ClassificationRuleUpdateRequest request
+    ) {
+        UUID ecommerceId = securityContextHelper.getCurrentUserEcommerceId();
+        log.info("PUT /api/v1/rules/customer-tiers/{}/{} - Updating classification rule", tierId, ruleId);
+
+        if (ecommerceId == null) {
+            throw new AuthorizationException(
+                "El Usuario no puede actualizar reglas porque no tiene un ecommerceId asignado."
+            );
+        }
+
+        ClassificationRuleResponse response = ruleService.updateClassificationRuleForTier(ecommerceId, tierId, ruleId, request);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * HU-07 CRITERIO-7.8: Eliminar classification_rule (soft delete)
+     * DELETE /api/v1/rules/customer-tiers/{tierId}/{ruleId}
+     */
+    @DeleteMapping("/customer-tiers/{tierId}/{ruleId}")
+    public ResponseEntity<Void> deleteClassificationRuleForTier(
+            @PathVariable UUID tierId,
+            @PathVariable UUID ruleId
+    ) {
+        UUID ecommerceId = securityContextHelper.getCurrentUserEcommerceId();
+        log.info("DELETE /api/v1/rules/customer-tiers/{}/{} - Soft deleting classification rule", tierId, ruleId);
+
+        if (ecommerceId == null) {
+            throw new AuthorizationException(
+                "El Usuario no puede eliminar reglas porque no tiene un ecommerceId asignado."
+            );
+        }
+
+        ruleService.deleteClassificationRuleForTier(ecommerceId, tierId, ruleId);
         return ResponseEntity.noContent().build();
     }
 }

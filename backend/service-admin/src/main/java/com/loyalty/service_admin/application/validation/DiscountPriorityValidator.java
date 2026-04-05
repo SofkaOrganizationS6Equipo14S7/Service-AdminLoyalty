@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Validador para asegurar que las prioridades de descuentos son válidas.
@@ -52,9 +53,9 @@ public class DiscountPriorityValidator {
         }
 
         // Verificar que cada tipo de descuento sea único
-        Set<String> uniqueTypes = new HashSet<>();
+        Set<UUID> uniqueTypes = new HashSet<>();
         for (DiscountLimitPriorityRequest.PriorityEntry entry : request.priorities()) {
-            if (!uniqueTypes.add(entry.discountType())) {
+            if (!uniqueTypes.add(entry.discountTypeId())) {
                 throw new BadRequestException("No pueden haber tipos de descuento duplicados");
             }
         }
