@@ -68,14 +68,14 @@ public class DiscountConfigController {
 
     /**
      * CRITERIO-4.4: Obtener prioridades configuradas
-     * @param configId discount configuration identifier (UUID)
+     * @param discountSettingId discount configuration identifier (UUID)
      * @return HTTP 200 OK with DiscountLimitPriorityResponse
      */
     @GetMapping("/discount-priority")
     public ResponseEntity<DiscountLimitPriorityResponse> getPriorities(
-            @RequestParam UUID configId
+            @RequestParam UUID discountSettingId
     ) {
-        DiscountLimitPriorityResponse response = priorityService.getPriorities(configId);
+        DiscountLimitPriorityResponse response = priorityService.getPriorities(discountSettingId);
         return ResponseEntity.ok(response);
     }
 }

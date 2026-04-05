@@ -10,9 +10,9 @@ public record EcommerceCreateRequest(
     String name,
     
     @NotBlank(message = "El campo 'slug' es obligatorio")
-    @Size(min = 3, max = 255, message = "El slug debe tener entre 3 y 255 caracteres")
+    @Size(min = 3, max = 254, message = "El slug debe tener entre 3 y 254 caracteres")
     @Pattern(
-        regexp = "^[a-z0-9]([a-z0-9-]{0,253}[a-z0-9])?$",
+        regexp = "^[a-z0-9]([a-z0-9-]{0,252}[a-z0-9])?$",
         message = "El slug debe contener solo minúsculas, números y guiones. Debe empezar y terminar con letra o número"
     )
     String slug

@@ -278,8 +278,10 @@ public class UserService {
             );
         }
         
-        userRepository.delete(user);
-        log.info("Usuario eliminado: uid={}, username={}, ecommerce={}, actor={}", 
+        // CRITERIO-1.5: Soft delete - marcar isActive=false en lugar de eliminar físicamente
+        user.setIsActive(false);
+        userRepository.save(user);
+        log.info("Usuario desactivado (soft delete): uid={}, username={}, ecommerce={}, actor={}", 
                 user.getId(), user.getUsername(), user.getEcommerceId(), currentUserUid);
     }
     
