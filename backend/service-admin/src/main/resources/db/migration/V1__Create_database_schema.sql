@@ -153,7 +153,6 @@ CREATE TABLE IF NOT EXISTS rule_attribute_values (
 CREATE TABLE IF NOT EXISTS customer_tiers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     ecommerce_id UUID NOT NULL REFERENCES ecommerce(id) ON DELETE CASCADE,
-    discount_type_id UUID NOT NULL REFERENCES discount_types(id),
     name VARCHAR(100) NOT NULL,
     discount_percentage DECIMAL(5,2) NOT NULL,
     hierarchy_level INTEGER NOT NULL,
@@ -219,7 +218,6 @@ CREATE INDEX IF NOT EXISTS idx_rule_attribute_values_rule ON rule_attribute_valu
 CREATE INDEX IF NOT EXISTS idx_rule_attribute_values_attribute ON rule_attribute_values(attribute_id);
 
 CREATE INDEX IF NOT EXISTS idx_customer_tiers_ecommerce ON customer_tiers(ecommerce_id);
-CREATE INDEX IF NOT EXISTS idx_customer_tiers_type ON customer_tiers(discount_type_id);
 CREATE INDEX IF NOT EXISTS idx_customer_tiers_active ON customer_tiers(is_active);
 
 CREATE INDEX IF NOT EXISTS idx_discount_log_ecommerce ON discount_application_log(ecommerce_id);

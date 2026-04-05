@@ -41,14 +41,10 @@ public class DiscountConfigService {
     /**
      * Crea o actualiza la configuración de límite de descuentos.
      * Solo una configuración activa por ecommerce.
+     * CRITERIO-4.1, CRITERIO-4.5: Valida maxDiscountCap > 0
      */
     @Transactional
     public DiscountConfigResponse updateConfig(DiscountConfigCreateRequest request) {
-        // Validar maxDiscountLimit
-        if (request.maxDiscountLimit() == null || request.maxDiscountLimit().compareTo(java.math.BigDecimal.ZERO) <= 0) {
-            throw new BadRequestException("maxDiscountLimit debe ser un valor positivo mayor a cero");
-        }
-        
         // Validar currencyCode (ISO 4217)
         validateCurrencyCode(request.currencyCode());
         
@@ -65,7 +61,7 @@ public class DiscountConfigService {
         // Crear nueva config con todos los campos
         DiscountSettingsEntity newConfig = new DiscountSettingsEntity();
         newConfig.setEcommerceId(ecommerceId);
-        newConfig.setMaxDiscountCap(request.maxDiscountLimit());
+        newConfig.setMaxDiscountCap(request.maxDiscountCap());
         newConfig.setCurrencyCode(request.currencyCode() != null ? request.currencyCode().toUpperCase() : "USD");
         newConfig.setAllowStacking(request.allowStacking() != null ? request.allowStacking() : true);
         newConfig.setRoundingRule(request.roundingRule() != null ? request.roundingRule() : "ROUND_HALF_UP");
@@ -119,13 +115,16 @@ public class DiscountConfigService {
      */
     private DiscountConfigResponse toResponse(DiscountSettingsEntity entity) {
         return new DiscountConfigResponse(
-            entity.getId().toString(),
-            entity.getEcommerceId().toString(),
-            entity.getMaxDiscountCap().toPlainString(),
+            entity.getId(),
+            entity.getEcommerceId(),
+            entity.getMaxDiscountCap(),
             entity.getCurrencyCode(),
+            entity.getAllowStacking(),
+            entity.getRoundingRule(),
             entity.getIsActive(),
-            entity.getCreatedAt().atOffset(java.time.ZoneOffset.UTC),
-            entity.getUpdatedAt().atOffset(java.time.ZoneOffset.UTC)
+            entity.getVersion(),
+            entity.getCreatedAt(),
+            entity.getUpdatedAt()
         );
     }
 }

@@ -1,57 +1,105 @@
 package com.loyalty.service_engine.application.dto;
 
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
- * Result of fidelity classification for a client.
- * Supports 3-path logic:
- * 1. Exact match: client points fall within a range
- * 2. Fallthrough: client in gap, assign nearest lower level
- * 3. NONE: client does not qualify (points below minimum entry level)
+ * Result of customer loyalty tier classification.
+ * Supports deterministic classification based on customer metrics
+ * evaluated against JSONB logic_conditions.
+ *
+ * Classification Logic (3-path):
+ * 1. EXACT MATCH: Customer metrics match one tier's criteria
+ * 2. FALLTHROUGH: Customer metrics exceed a tier's criteria, assign next lower tier
+ * 3. NONE: Customer does not meet minimum criteria (not auto-assigned to lowest tier)
  */
 public class ClassificationResult {
-    public static final ClassificationResult NONE = new ClassificationResult(null);
+    public static final ClassificationResult NONE = new ClassificationResult(null, null, null, null, null, null);
 
-    private final FidelityRangeDTO range;
+    private final UUID tierUid;
+    private final String tierName;
+    private final Integer hierarchyLevel;
+    private final BigDecimal discountPercentage;
+    private final List<String> criteriaMetList;
+    private final Instant classifiedAt;
 
-    private ClassificationResult(FidelityRangeDTO range) {
-        this.range = range;
+    private ClassificationResult(UUID tierUid, String tierName, Integer hierarchyLevel,
+                               BigDecimal discountPercentage, List<String> criteriaMetList,
+                               Instant classifiedAt) {
+        this.tierUid = tierUid;
+        this.tierName = tierName;
+        this.hierarchyLevel = hierarchyLevel;
+        this.discountPercentage = discountPercentage;
+        this.criteriaMetList = criteriaMetList;
+        this.classifiedAt = classifiedAt;
     }
 
     /**
-     * Factory method to create a classified result.
-     * Returns NONE if range is null.
+     * Factory method to create a successful classification result.
      */
-    public static ClassificationResult of(FidelityRangeDTO range) {
-        return range != null ? new ClassificationResult(range) : NONE;
+    public static ClassificationResult of(UUID tierUid, String tierName, Integer hierarchyLevel,
+                                        BigDecimal discountPercentage, List<String> criteriaMetList) {
+        return new ClassificationResult(tierUid, tierName, hierarchyLevel, discountPercentage,
+            criteriaMetList, Instant.now());
     }
 
     /**
-     * Check if client is classified to a level.
+     * Check if client is classified to a tier.
      */
     public boolean isClassified() {
-        return range != null;
+        return tierUid != null;
     }
 
     /**
-     * Get the fidelity range if classified, or empty Optional if NONE.
+     * Get tier UID if classified, or empty Optional if NONE.
      */
-    public Optional<FidelityRangeDTO> asOptional() {
-        return Optional.ofNullable(range);
+    public Optional<UUID> getTierUid() {
+        return Optional.ofNullable(tierUid);
     }
 
     /**
-     * Get the range directly. May be null if NONE.
+     * Get tier name if classified.
      */
-    public FidelityRangeDTO getRange() {
-        return range;
+    public Optional<String> getTierName() {
+        return Optional.ofNullable(tierName);
+    }
+
+    /**
+     * Get discount percentage if classified.
+     */
+    public Optional<BigDecimal> getDiscountPercentage() {
+        return Optional.ofNullable(discountPercentage);
+    }
+
+    /**
+     * Get hierarchy level if classified.
+     */
+    public Optional<Integer> getHierarchyLevel() {
+        return Optional.ofNullable(hierarchyLevel);
+    }
+
+    /**
+     * Get criteria met (list of rule names that matched).
+     */
+    public List<String> getCriteriaMet() {
+        return criteriaMetList != null ? criteriaMetList : List.of();
+    }
+
+    /**
+     * Get classification timestamp.
+     */
+    public Instant getClassifiedAt() {
+        return classifiedAt;
     }
 
     @Override
     public String toString() {
-        return isClassified() 
-            ? "ClassificationResult(level=%s, points=%d-%d)".formatted(
-                range.name(), range.minPoints(), range.maxPoints())
+        return isClassified()
+            ? String.format("ClassificationResult(tier=%s, level=%d, discount=%s%%)",
+                tierName, hierarchyLevel, discountPercentage)
             : "ClassificationResult(NONE)";
     }
 }

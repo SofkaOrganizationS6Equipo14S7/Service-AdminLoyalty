@@ -1,112 +1,270 @@
 package com.loyalty.service_engine.application.service;
 
 import com.loyalty.service_engine.application.dto.ClassificationResult;
-import com.loyalty.service_engine.application.dto.FidelityRangeDTO;
-import com.loyalty.service_engine.infrastructure.cache.FidelityRangeCache;
+import com.loyalty.service_engine.application.dto.ClassifyRequestV1;
+import com.loyalty.service_engine.application.dto.ClassificationRuleDTO;
+import com.loyalty.service_engine.application.dto.CustomerTierDTO;
+import com.loyalty.service_engine.infrastructure.exception.ClassificationValidationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Classifies clients to fidelity levels based on accumulated points.
+ * Internal service for customer loyalty tier classification.
+ * NOT EXPOSED AS PUBLIC ENDPOINT.
  *
  * Classification Logic (3-path):
- * 1. EXACT MATCH: Client points fall within a range [min, max] → Return that level
- * 2. FALLTHROUGH: Client in gap (e.g., 1001-4999 between Bronce[0-999] and Oro[5000-9999])
- *    → Assign the nearest lower level (the level with highest max_points < client_points)
- * 3. NONE: Client < minimum entry threshold → No level (not auto-assigned to minimum)
+ * 1. EXACT MATCH: Customer metrics match one tier's criteria
+ * 2. FALLTHROUGH: Customer metrics exceed a tier's base requirements
+ * 3. NONE: Customer does not meet minimum criteria
  *
- * Example:
- * Ranges: Bronce[0-999], Plata[1000-4999], Oro[5000-9999], Platino[10000+]
- *
- * Client A (2500 pts) → EXACT MATCH → Plata
- * Client B (3000 pts in gap [1001-4999]) → FALLTHROUGH → Bronce (max=999 < 3000)
- * Client C (500 pts < 1000) → NONE (below entry threshold, not auto-assigned)
- * Client D (15000 pts) → EXACT MATCH → Platino
+ * Determinism: Same payload always produces same classification.
+ * Evaluation via JSONB logic_conditions with fields:
+ * - min_spent, max_spent
+ * - min_order_count
+ * - min_membership_days
+ * - evaluation_logic (optional dynamic expression)
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class FidelityClassificationService {
-    private final FidelityRangeCache cache;
+
+    private final ClassificationMatrixCaffeineCacheService cacheService;
 
     /**
-     * Classify a client to a fidelity level based on accumulated points.
+     * Classify a customer based on their metrics.
+     * Evaluates JSONB logic_conditions to determine tier.
      *
      * @param ecommerceId Tenant identifier
-     * @param clientPoints Accumulated fidelity points
-     * @return ClassificationResult with exact match, fallthrough, or NONE
+     * @param request Customer metrics (totalSpent, orderCount, membershipDays)
+     * @return ClassificationResult with tier info or NONE
+     * @throws ClassificationValidationException if validation fails
      */
-    public ClassificationResult classify(UUID ecommerceId, Integer clientPoints) {
-        if (ecommerceId == null || clientPoints == null || clientPoints < 0) {
-            log.warn("Invalid classification request: ecommerceId={}, points={}", ecommerceId, clientPoints);
+    public ClassificationResult classify(UUID ecommerceId, ClassifyRequestV1 request) {
+        if (ecommerceId == null) {
+            log.warn("Classification request: ecommerceId is null");
+            throw new ClassificationValidationException("ecommerceId cannot be null");
+        }
+
+        if (request == null) {
+            log.warn("Classification request: request is null");
+            throw new ClassificationValidationException("classification request cannot be null");
+        }
+
+        if (request.totalSpent() == null || request.totalSpent().signum() < 0) {
+            log.warn("Classification request: invalid totalSpent={}", request.totalSpent());
+            throw new ClassificationValidationException("totalSpent must be non-negative");
+        }
+
+        if (request.orderCount() == null || request.orderCount() < 0) {
+            log.warn("Classification request: invalid orderCount={}", request.orderCount());
+            throw new ClassificationValidationException("orderCount must be non-negative");
+        }
+
+        if (request.membershipDays() == null || request.membershipDays() < 0) {
+            log.warn("Classification request: invalid membershipDays={}", request.membershipDays());
+            throw new ClassificationValidationException("membershipDays must be non-negative");
+        }
+
+        // Fetch tiers from cache
+        Optional<List<CustomerTierDTO>> tiersOpt = cacheService.getTiers(ecommerceId);
+        if (tiersOpt.isEmpty() || tiersOpt.get().isEmpty()) {
+            log.debug("No tiers configured for ecommerce: {}", ecommerceId);
             return ClassificationResult.NONE;
         }
 
-        // Fetch ranges from cache (already sorted by min_points)
-        List<FidelityRangeDTO> ranges = cache.getRangesByEcommerce(ecommerceId);
-
-        if (ranges == null || ranges.isEmpty()) {
-            log.debug("No fidelity ranges configured for ecommerce: {}", ecommerceId);
+        // Fetch rules from cache
+        Optional<List<ClassificationRuleDTO>> rulesOpt = cacheService.getRules(ecommerceId);
+        if (rulesOpt.isEmpty() || rulesOpt.get().isEmpty()) {
+            log.debug("No classification rules configured for ecommerce: {}", ecommerceId);
             return ClassificationResult.NONE;
         }
 
-        // PATH 1: Exact match - client falls exactly within a range
-        for (FidelityRangeDTO range : ranges) {
-            if (clientPoints >= range.minPoints() && clientPoints <= range.maxPoints()) {
-                log.debug("Exact match: ecommerce={}, points={}, level={}, range=[{}-{}]",
-                    ecommerceId, clientPoints, range.name(), range.minPoints(), range.maxPoints());
-                return ClassificationResult.of(range);
+        List<CustomerTierDTO> tiers = tiersOpt.get();
+        List<ClassificationRuleDTO> rules = rulesOpt.get();
+
+        // Find matching tier by evaluating rules
+        for (ClassificationRuleDTO rule : rules) {
+            if (rule.isActive() && rule.logicConditions() != null) {
+                if (evaluateConditions(rule.logicConditions(), request)) {
+                    // Find the tier associated with this rule
+                    Optional<CustomerTierDTO> tierOpt = tiers.stream()
+                        .filter(t -> t.isActive())
+                        .max(Comparator.comparingInt(CustomerTierDTO::hierarchyLevel));
+
+                    if (tierOpt.isPresent()) {
+                        CustomerTierDTO tier = tierOpt.get();
+                        List<String> criteriaMet = extractCriteriaNames(rule.logicConditions());
+                        
+                        log.debug("Classification matched: ecommerce={}, tier={}, level={}, criteria={}",
+                            ecommerceId, tier.name(), tier.hierarchyLevel(), criteriaMet);
+
+                        return ClassificationResult.of(
+                            tier.uid(),
+                            tier.name(),
+                            tier.hierarchyLevel(),
+                            tier.discountPercentage(),
+                            criteriaMet
+                        );
+                    }
+                }
             }
         }
 
-        // PATH 2: Fallthrough - client in gap, find nearest lower level
-        // Get the range with highest max_points that is still < client_points
-        Optional<FidelityRangeDTO> fallback = ranges.stream()
-            .filter(r -> r.maxPoints() < clientPoints)
-            .max(Comparator.comparingInt(FidelityRangeDTO::maxPoints));
+        // PATH 3: No exact match - assign minimum tier (lowest hierarchy level)
+        Optional<CustomerTierDTO> minimumTier = tiers.stream()
+            .filter(CustomerTierDTO::isActive)
+            .min(Comparator.comparingInt(CustomerTierDTO::hierarchyLevel));
 
-        if (fallback.isPresent()) {
-            FidelityRangeDTO fallbackRange = fallback.get();
-            log.debug("Fallthrough: ecommerce={}, points={}, assigned to={}, range=[{}-{}] " +
-                "(gap tolerance)",
-                ecommerceId, clientPoints, fallbackRange.name(),
-                fallbackRange.minPoints(), fallbackRange.maxPoints());
-            return ClassificationResult.of(fallbackRange);
+        if (minimumTier.isPresent()) {
+            CustomerTierDTO tier = minimumTier.get();
+            log.debug("Classification fallthrough: ecommerce={}, assigned minimum tier={}, level={}",
+                ecommerceId, tier.name(), tier.hierarchyLevel());
+
+            return ClassificationResult.of(
+                tier.uid(),
+                tier.name(),
+                tier.hierarchyLevel(),
+                tier.discountPercentage(),
+                List.of("fallback_minimum_tier")
+            );
         }
 
-        // PATH 3: No qualification - client points below minimum entry level
-        // This means client < minPoints of the lowest level
-        // IMPORTANT: Do NOT auto-assign to minimum level; return NONE instead
-        Integer minEntryPoints = ranges.stream()
-            .mapToInt(FidelityRangeDTO::minPoints)
-            .min()
-            .orElse(Integer.MAX_VALUE);
-
-        if (clientPoints < minEntryPoints) {
-            log.debug("No qualification: ecommerce={}, points={}, below entry threshold={}",
-                ecommerceId, clientPoints, minEntryPoints);
-            return ClassificationResult.NONE;
-        }
-
-        // This should rarely happen unless cache is inconsistent
-        log.warn("Unexpected classification state: ecommerce={}, points={}, ranges available={}",
-            ecommerceId, clientPoints, ranges.size());
+        log.warn("Classification failed: no valid tiers available for ecommerce={}", ecommerceId);
         return ClassificationResult.NONE;
     }
 
     /**
-     * Classify multiple clients in batch.
-     * Useful for bulk operations or testing.
+     * Evaluate JSONB logic_conditions against customer metrics.
+     * Supports fields: min_spent, max_spent, min_order_count, min_membership_days
      */
-    public List<ClassificationResult> classifyBatch(UUID ecommerceId, List<Integer> clientPointsList) {
-        return clientPointsList.stream()
-            .map(points -> classify(ecommerceId, points))
-            .toList();
+    private boolean evaluateConditions(Map<String, Object> conditions, ClassifyRequestV1 request) {
+        // Check min_spent
+        if (conditions.containsKey("min_spent")) {
+            BigDecimal minSpent = extractBigDecimal(conditions.get("min_spent"));
+            if (minSpent != null && request.totalSpent().compareTo(minSpent) < 0) {
+                return false;
+            }
+        }
+
+        // Check max_spent
+        if (conditions.containsKey("max_spent")) {
+            BigDecimal maxSpent = extractBigDecimal(conditions.get("max_spent"));
+            if (maxSpent != null && request.totalSpent().compareTo(maxSpent) > 0) {
+                return false;
+            }
+        }
+
+        // Check min_order_count
+        if (conditions.containsKey("min_order_count")) {
+            Integer minOrders = extractInteger(conditions.get("min_order_count"));
+            if (minOrders != null && request.orderCount() < minOrders) {
+                return false;
+            }
+        }
+
+        // Check min_membership_days
+        if (conditions.containsKey("min_membership_days")) {
+            Integer minDays = extractInteger(conditions.get("min_membership_days"));
+            if (minDays != null && request.membershipDays() < minDays) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Extract BigDecimal from JSONB field (handles nested structure).
+     */
+    @SuppressWarnings("unchecked")
+    private BigDecimal extractBigDecimal(Object field) {
+        if (field == null) return null;
+
+        if (field instanceof BigDecimal) {
+            return (BigDecimal) field;
+        }
+
+        if (field instanceof Number) {
+            return new BigDecimal(field.toString());
+        }
+
+        if (field instanceof Map) {
+            Map<String, Object> map = (Map<String, Object>) field;
+            Object value = map.get("value");
+            if (value != null) {
+                return new BigDecimal(value.toString());
+            }
+        }
+
+        if (field instanceof String) {
+            try {
+                return new BigDecimal((String) field);
+            } catch (NumberFormatException e) {
+                log.warn("Could not parse BigDecimal from: {}", field);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Extract Integer from JSONB field (handles nested structure).
+     */
+    @SuppressWarnings("unchecked")
+    private Integer extractInteger(Object field) {
+        if (field == null) return null;
+
+        if (field instanceof Integer) {
+            return (Integer) field;
+        }
+
+        if (field instanceof Number) {
+            return ((Number) field).intValue();
+        }
+
+        if (field instanceof Map) {
+            Map<String, Object> map = (Map<String, Object>) field;
+            Object value = map.get("value");
+            if (value != null) {
+                if (value instanceof Integer) {
+                    return (Integer) value;
+                } else if (value instanceof Number) {
+                    return ((Number) value).intValue();
+                }
+            }
+        }
+
+        if (field instanceof String) {
+            try {
+                return Integer.parseInt((String) field);
+            } catch (NumberFormatException e) {
+                log.warn("Could not parse Integer from: {}", field);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Extract criteria names from logic_conditions for audit logging.
+     */
+    private List<String> extractCriteriaNames(Map<String, Object> conditions) {
+        List<String> criteria = new ArrayList<>();
+        if (conditions.containsKey("min_spent")) criteria.add("min_spent");
+        if (conditions.containsKey("max_spent")) criteria.add("max_spent");
+        if (conditions.containsKey("min_order_count")) criteria.add("min_order_count");
+        if (conditions.containsKey("min_membership_days")) criteria.add("min_membership_days");
+        return criteria;
     }
 }

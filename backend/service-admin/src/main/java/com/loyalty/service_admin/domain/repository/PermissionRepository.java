@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Repositorio para la entidad Permission.
@@ -12,6 +13,6 @@ import java.util.Optional;
  * - findByCode(): obtener permiso por código único
  */
 @Repository
-public interface PermissionRepository extends JpaRepository<PermissionEntity, Long> {
+public interface PermissionRepository extends JpaRepository<PermissionEntity, UUID> {
     Optional<PermissionEntity> findByCode(String code);
 }

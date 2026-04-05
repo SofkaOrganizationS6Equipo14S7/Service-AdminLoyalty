@@ -90,7 +90,9 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private boolean requiresApiKey(String path) {
-        return "/api/v1/discount/calculate".equals(path) || "/api/v1/discounts/calculate".equals(path);
+        return "/api/v1/discount/calculate".equals(path)
+            || "/api/v1/discounts/calculate".equals(path)
+            || "/api/v1/engine/calculate".equals(path);
     }
     
     /**

@@ -108,33 +108,18 @@ public class AuthService {
         }
     }
     
-    /**
-     * Logout del usuario.
-     * 
-     * v1: Valida el token ANTES de disparar el log (para identificar usuario)
-     * Si token válido: registra logout exitoso con usuario identificado
-     * Si token inválido: registra warning pero NO lanza excepción (responde 204 igual)
-     * 
-     * v2 (future): Token será añadido a blacklist en caché (Redis/Caffeine)
-     * 
-     * @param token token JWT del usuario que cierra sesión
-     */
     public void logout(String token) {
         log.debug("Logout realizado...");
         
         try {
-            // Validar y extraer username del token
             if (jwtProvider.validateToken(token)) {
                 String username = jwtProvider.getUsernameFromToken(token);
                 log.info("Logout exitoso para usuario: {}", username);
-                // TODO: En v2, agregar token a blacklist
             } else {
                 log.warn("Logout con token inválido");
-                // No relanzar excepción, logout siempre devuelve 204
             }
         } catch (Exception e) {
             log.warn("Logout con token inválido: {}", e.getMessage());
-            // No relanzar excepción, logout siempre devuelve 204 (stateless)
         }
     }
 }

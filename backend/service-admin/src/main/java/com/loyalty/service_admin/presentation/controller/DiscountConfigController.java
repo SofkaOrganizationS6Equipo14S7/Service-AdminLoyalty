@@ -42,15 +42,15 @@ public class DiscountConfigController {
     }
 
     /**
-     * @param ecommerceId ecommerce identifier
+     * CRITERIO-4.2: Obtener configuración activa de descuentos
+     * @param ecommerceId ecommerce identifier (UUID)
      * @return HTTP 200 OK with active DiscountConfigResponse
      */
     @GetMapping("/discount-config")
     public ResponseEntity<DiscountConfigResponse> getDiscountConfig(
-            @RequestParam String ecommerceId
+            @RequestParam UUID ecommerceId
     ) {
-        UUID ecommerceUuid = UUID.fromString(ecommerceId);
-        DiscountConfigResponse response = discountConfigService.getActiveConfig(ecommerceUuid);
+        DiscountConfigResponse response = discountConfigService.getActiveConfig(ecommerceId);
         return ResponseEntity.ok(response);
     }
 
@@ -67,14 +67,15 @@ public class DiscountConfigController {
     }
 
     /**
-     * @param configId discount configuration identifier
+     * CRITERIO-4.4: Obtener prioridades configuradas
+     * @param discountSettingId discount configuration identifier (UUID)
      * @return HTTP 200 OK with DiscountLimitPriorityResponse
      */
     @GetMapping("/discount-priority")
     public ResponseEntity<DiscountLimitPriorityResponse> getPriorities(
-            @RequestParam String configId
+            @RequestParam UUID discountSettingId
     ) {
-        DiscountLimitPriorityResponse response = priorityService.getPriorities(configId);
+        DiscountLimitPriorityResponse response = priorityService.getPriorities(discountSettingId);
         return ResponseEntity.ok(response);
     }
 }

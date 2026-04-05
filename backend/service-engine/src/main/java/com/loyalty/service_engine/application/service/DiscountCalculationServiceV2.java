@@ -1,24 +1,28 @@
 package com.loyalty.service_engine.application.service;
 
+import com.loyalty.service_engine.application.dto.AppliedRuleDetail;
 import com.loyalty.service_engine.application.dto.ClassifyRequestV1;
-import com.loyalty.service_engine.application.dto.ClassifyResponseV1;
-import com.loyalty.service_engine.application.dto.calculate.DiscountCalculateRequestV2;
-import com.loyalty.service_engine.application.dto.calculate.DiscountCalculateResponseV2;
-import com.loyalty.service_engine.application.dto.configuration.ConfigurationUpdatedEvent;
-import com.loyalty.service_engine.domain.model.EngineDiscountConfiguration;
-import com.loyalty.service_engine.infrastructure.exception.BadRequestException;
-import com.loyalty.service_engine.infrastructure.exception.ServiceUnavailableException;
+import com.loyalty.service_engine.application.dto.ClassificationResult;
+import com.loyalty.service_engine.application.dto.ClassificationRuleDTO;
+import com.loyalty.service_engine.application.dto.DiscountCalculateRequestV2;
+import com.loyalty.service_engine.application.dto.DiscountCalculateResponseV2;
+import com.loyalty.service_engine.domain.entity.EngineDiscountSettingsEntity;
+import com.loyalty.service_engine.domain.repository.EngineDiscountSettingsRepository;
+import com.loyalty.service_engine.infrastructure.exception.InvalidCartException;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Servicio de cálculo de descuentos con clasificación automática de fidelidad.
@@ -26,176 +30,190 @@ import java.util.Map;
  */
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class DiscountCalculationServiceV2 {
 
-    private final EngineConfigurationCacheService configurationCacheService;
-    private final ClassificationEngine classificationEngine;
+    private final FidelityClassificationService fidelityClassificationService;
+    private final ClassificationMatrixCaffeineCacheService cacheService;
+    private final DiscountCappingEngine discountCappingEngine;
+    private final TransactionLogWriter transactionLogWriter;
+    private final EngineDiscountSettingsRepository engineDiscountSettingsRepository;
 
-    public DiscountCalculationServiceV2(
-            EngineConfigurationCacheService configurationCacheService,
-            ClassificationEngine classificationEngine
-    ) {
-        this.configurationCacheService = configurationCacheService;
-        this.classificationEngine = classificationEngine;
-    }
-
+    @Transactional
     public DiscountCalculateResponseV2 calculate(DiscountCalculateRequestV2 request) {
-        log.debug("Calculating discounts for ecommerce: {} with totalSpent: {}, orderCount: {}, loyaltyPoints: {}",
-                request.ecommerceId(), request.totalSpent(), request.orderCount(), request.loyaltyPoints());
+        log.info("Starting cart calculation: ecommerceId={}, externalOrderId={}",
+            request.ecommerceId(), request.externalOrderId());
 
         validateRequest(request);
-        EngineDiscountConfiguration config = configurationCacheService.get(request.ecommerceId())
-                .orElseGet(() -> configurationCacheService.defaultFor(request.ecommerceId()));
+        BigDecimal subtotal = calculateSubtotal(request);
 
-        // Clasificar cliente automáticamente usando métricas proporcionadas
-        ClassifyResponseV1 classification = classifyCustomer(request);
-        log.debug("Customer classified as: tier={}, level={}", classification.tierName(), classification.tierLevel());
+        String customerTier = classifyCustomer(request);
+        
+        // Obtener reglas de clasificación activas desde cache
+        List<AppliedRuleDetail> evaluatedRules = cacheService.getRules(request.ecommerceId())
+            .orElse(List.of())
+            .stream()
+            .filter(ClassificationRuleDTO::isActive)
+            .map(rule -> new AppliedRuleDetail(
+                rule.id(),
+                rule.name(),
+                rule.discountTypeCode(),
+                rule.discountType(),
+                rule.appliedWith(),
+                null,
+                calculateRuleDiscountFromDTO(rule, subtotal),
+                rule.priorityLevel()
+            ))
+            .collect(Collectors.toList());
 
-        Map<String, EngineDiscountConfiguration.PriorityRule> priorityRuleByType = new HashMap<>();
-        for (EngineDiscountConfiguration.PriorityRule rule : config.priority()) {
-            priorityRuleByType.put(rule.type().toUpperCase(Locale.ROOT), rule);
-        }
+        List<AppliedRuleDetail> selectedRules = applyStackingPolicy(request.ecommerceId(), evaluatedRules);
+        BigDecimal discountCalculated = selectedRules.stream()
+            .map(AppliedRuleDetail::discountAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        List<RankedDiscount> ranked = request.discounts().stream()
-                .map(item -> {
-                    String normalized = item.type().trim().toUpperCase(Locale.ROOT);
-                    EngineDiscountConfiguration.PriorityRule rule = priorityRuleByType.get(normalized);
-                    return rule == null ? null : new RankedDiscount(normalized, item.amount(), rule.order(), rule.priorityId().toString());
-                })
-                .filter(java.util.Objects::nonNull)
-                .sorted(Comparator
-                        .comparingInt(RankedDiscount::order)
-                        .thenComparing(RankedDiscount::priorityId))
-                .toList();
+        BigDecimal maxCap = resolveMaxDiscountCap(request.ecommerceId());
+        DiscountCappingEngine.CapResult capResult = discountCappingEngine.applyCap(discountCalculated, maxCap);
 
-        BigDecimal requested = ranked.stream()
-                .map(RankedDiscount::amount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal discountApplied = capResult.appliedDiscount().min(subtotal);
+        boolean wasCapped = capResult.wasCapped() || capResult.appliedDiscount().compareTo(subtotal) > 0;
+        String capReason = capResult.appliedDiscount().compareTo(subtotal) > 0
+            ? "subtotal_limit"
+            : capResult.capReason();
 
-        BigDecimal capAmount = computeCapAmount(config, request);
-        BigDecimal remaining = capAmount;
-        boolean capped;
-        java.util.List<DiscountCalculateResponseV2.AppliedDiscount> applied = new java.util.ArrayList<>();
-        for (RankedDiscount item : ranked) {
-            BigDecimal appliedAmount;
-            if (remaining == null) {
-                appliedAmount = applyRounding(item.amount(), config.roundingRule());
-            } else if (remaining.signum() <= 0) {
-                appliedAmount = BigDecimal.ZERO;
-            } else {
-                appliedAmount = applyRounding(item.amount().min(remaining), config.roundingRule());
-                remaining = remaining.subtract(appliedAmount);
-            }
-            applied.add(new DiscountCalculateResponseV2.AppliedDiscount(item.type(), item.amount(), appliedAmount, item.order()));
-        }
+        BigDecimal discountCalculatedRounded = applyRounding(discountCalculated);
+        BigDecimal discountAppliedRounded = applyRounding(discountApplied);
+        BigDecimal finalAmount = applyRounding(subtotal.subtract(discountAppliedRounded));
 
-        BigDecimal totalApplied = applied.stream()
-                .map(DiscountCalculateResponseV2.AppliedDiscount::appliedAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        if (capAmount != null && totalApplied.compareTo(capAmount) > 0) {
-            totalApplied = capAmount;
-            capped = true;
-        } else if (capAmount != null) {
-            capped = requested.compareTo(capAmount) > 0;
-        } else {
-            capped = false;
-        }
-
-        // Crear objeto de clasificación para incluir en la respuesta
-        DiscountCalculateResponseV2.ClassificationInfo classificationInfo = new DiscountCalculateResponseV2.ClassificationInfo(
-                classification.tierUid(),
-                classification.tierName(),
-                classification.tierLevel(),
-                classification.classificationReason()
+        DiscountCalculateResponseV2 draft = new DiscountCalculateResponseV2(
+            subtotal,
+            discountCalculatedRounded,
+            discountAppliedRounded,
+            finalAmount,
+            customerTier,
+            wasCapped,
+            capReason,
+            selectedRules,
+            null,
+            Instant.now()
         );
 
+        UUID transactionId = transactionLogWriter.writeLog(request, draft);
         return new DiscountCalculateResponseV2(
-                request.ecommerceId(),
-                config.currency(),
-                config.roundingRule().name(),
-                applyRounding(requested, config.roundingRule()),
-                capAmount == null ? null : applyRounding(capAmount, config.roundingRule()),
-                applyRounding(totalApplied, config.roundingRule()),
-                capped,
-                applied,
-                classificationInfo,
-                Instant.now()
+            draft.subtotalAmount(),
+            draft.discountCalculated(),
+            draft.discountApplied(),
+            draft.finalAmount(),
+            draft.customerTier(),
+            draft.wasCapped(),
+            draft.capReason(),
+            draft.appliedRules(),
+            transactionId,
+            draft.calculatedAt()
         );
     }
 
     /**
-     * Clasifica el cliente automáticamente usando el ClassificationEngine.
-     * Crea un ClassifyRequestV1 con las métricas proporcionadas y lo envía al engine.
-     * 
-     * @param request DTO con métricas del cliente (totalSpent, orderCount, loyaltyPoints)
-     * @return ClassifyResponseV1 con el tier asignado
-     * @throws ServiceUnavailableException si el motor de clasificación no está disponible
+     * Clasifica cliente usando el servicio determinístico por ecommerce.
      */
-    private ClassifyResponseV1 classifyCustomer(DiscountCalculateRequestV2 request) {
+    private String classifyCustomer(DiscountCalculateRequestV2 request) {
         try {
             ClassifyRequestV1 classificationRequest = new ClassifyRequestV1(
-                    request.totalSpent(),
-                    request.orderCount(),
-                    request.loyaltyPoints()
+                request.totalSpent(),
+                request.orderCount(),
+                request.membershipDays(),
+                null
             );
-            log.debug("Classifying customer with metrics: totalSpent={}, orderCount={}, loyaltyPoints={}",
-                    request.totalSpent(), request.orderCount(), request.loyaltyPoints());
-            
-            ClassifyResponseV1 response = classificationEngine.classify(classificationRequest);
-            log.info("Classification successful: tier={}, level={}", response.tierName(), response.tierLevel());
-            return response;
-        } catch (ServiceUnavailableException e) {
-            log.warn("Classification engine unavailable. Returning default tier (no classification).", e);
-            throw e; // Fallar rápido si el motor no está disponible
+            ClassificationResult classification = fidelityClassificationService.classify(
+                request.ecommerceId(),
+                classificationRequest
+            );
+            return classification.getTierName().orElse("UNCLASSIFIED");
         } catch (Exception e) {
-            log.error("Unexpected error during classification. Returning default tier.", e);
-            throw new ServiceUnavailableException("Classification service temporarily unavailable: " + e.getMessage());
+            log.warn("Customer classification unavailable for ecommerceId={}. Fallback tier used.",
+                request.ecommerceId(), e);
+            return "UNCLASSIFIED";
         }
     }
 
     private void validateRequest(DiscountCalculateRequestV2 request) {
-        if (request.subtotal().compareTo(request.total()) > 0) {
-            throw new BadRequestException("subtotal cannot be greater than total");
+        if (request.items() == null || request.items().isEmpty()) {
+            throw new InvalidCartException("Carrito sin items");
         }
-        if (request.beforeTax().compareTo(request.afterTax()) > 0) {
-            throw new BadRequestException("beforeTax cannot be greater than afterTax");
-        }
-        for (DiscountCalculateRequestV2.DiscountCandidate discount : request.discounts()) {
-            if (discount.type() == null || discount.type().isBlank()) {
-                throw new BadRequestException("discount type is required");
+        for (var item : request.items()) {
+            if (item.quantity() == null || item.quantity() <= 0) {
+                throw new InvalidCartException("Carrito con quantity invalida");
             }
-            if (discount.amount() == null || discount.amount().signum() <= 0) {
-                throw new BadRequestException("discount amount must be greater than zero");
+            if (item.unitPrice() == null || item.unitPrice().signum() < 0) {
+                throw new InvalidCartException("Carrito con unit_price invalido");
             }
         }
     }
 
-    private BigDecimal computeCapAmount(EngineDiscountConfiguration config, DiscountCalculateRequestV2 request) {
-        if (config.capType() == null || config.capValue() == null || config.capAppliesTo() == null) {
-            return null;
-        }
-        BigDecimal base = switch (config.capAppliesTo()) {
-            case SUBTOTAL -> request.subtotal();
-            case TOTAL -> request.total();
-            case BEFORE_TAX -> request.beforeTax();
-            case AFTER_TAX -> request.afterTax();
-        };
-        if (config.capType() == ConfigurationUpdatedEvent.CapType.PERCENTAGE) {
-            return base.multiply(config.capValue()).divide(new BigDecimal("100"), 6, RoundingMode.HALF_UP);
-        }
-        return null;
+    private BigDecimal calculateSubtotal(DiscountCalculateRequestV2 request) {
+        BigDecimal subtotal = request.items().stream()
+            .map(item -> item.unitPrice().multiply(BigDecimal.valueOf(item.quantity())))
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return subtotal.setScale(4, RoundingMode.HALF_UP);
     }
 
-    private BigDecimal applyRounding(BigDecimal value, ConfigurationUpdatedEvent.RoundingRule rule) {
-        RoundingMode mode = switch (rule) {
-            case HALF_UP -> RoundingMode.HALF_UP;
-            case DOWN -> RoundingMode.DOWN;
-            case UP -> RoundingMode.UP;
-        };
-        return value.setScale(2, mode);
+    private List<AppliedRuleDetail> applyStackingPolicy(UUID ecommerceId, List<AppliedRuleDetail> rules) {
+        if (rules == null || rules.isEmpty()) {
+            return List.of();
+        }
+
+        List<AppliedRuleDetail> sortedRules = rules.stream()
+            .sorted(Comparator.comparing(AppliedRuleDetail::priorityLevel, Comparator.nullsLast(Integer::compareTo)))
+            .collect(Collectors.toCollection(ArrayList::new));
+
+        List<AppliedRuleDetail> exclusiveRules = sortedRules.stream()
+            .filter(rule -> "EXCLUSIVE".equals(normalize(rule.appliedWith())))
+            .toList();
+
+        if (!exclusiveRules.isEmpty()) {
+            AppliedRuleDetail highestExclusive = exclusiveRules.stream()
+                .max(Comparator.comparing(AppliedRuleDetail::discountAmount))
+                .orElse(exclusiveRules.get(0));
+            return List.of(highestExclusive);
+        }
+
+        boolean allowStacking = resolveAllowStacking(ecommerceId);
+        if (!allowStacking) {
+            AppliedRuleDetail highestRule = sortedRules.stream()
+                .max(Comparator.comparing(AppliedRuleDetail::discountAmount))
+                .orElse(sortedRules.get(0));
+            return List.of(highestRule);
+        }
+
+        return sortedRules;
     }
 
-    private record RankedDiscount(String type, BigDecimal amount, int order, String priorityId) {
+    private BigDecimal calculateRuleDiscountFromDTO(ClassificationRuleDTO rule, BigDecimal subtotal) {
+        if (rule == null || rule.discountValue() == null) {
+            return BigDecimal.ZERO;
+        }
+        if ("PERCENTAGE".equals(rule.discountType())) {
+            return subtotal.multiply(rule.discountValue()).divide(BigDecimal.valueOf(100), 4, java.math.RoundingMode.HALF_UP);
+        }
+        return rule.discountValue().min(subtotal);
+    }
+
+    private BigDecimal resolveMaxDiscountCap(UUID ecommerceId) {
+        return engineDiscountSettingsRepository.findByEcommerceIdAndIsActiveTrue(ecommerceId)
+            .map(EngineDiscountSettingsEntity::getMaxDiscountLimit)
+            .filter(limit -> limit.signum() > 0)
+            .orElse(null);
+    }
+
+    private boolean resolveAllowStacking(UUID ecommerceId) {
+        // Mientras allow_stacking no esté replicado en entidad, se usa default TRUE.
+        return true;
+    }
+
+    private BigDecimal applyRounding(BigDecimal value) {
+        return discountCappingEngine.applyRounding(value, DiscountCappingEngine.RoundingRule.ROUND_HALF_UP);
+    }
+
+    private String normalize(String value) {
+        return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }
 }

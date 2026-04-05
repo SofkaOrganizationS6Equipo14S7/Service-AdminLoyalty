@@ -12,11 +12,15 @@ import java.util.UUID;
 /**
  * Repositorio para la entidad RolePermission.
  * Queries:
- * - findByRoleName(): obtener todos los permisos de un rol
+ * - findByRoleId(): obtener todos los permisos de un rol por ID
+ * - findByRoleName(): obtener todos los permisos de un rol por nombre
  * - findPermissionCodesByRoleName(): obtener códigos de permisos de un rol (optimizado, sin cargar entidad completa)
  */
 @Repository
 public interface RolePermissionRepository extends JpaRepository<RolePermissionEntity, UUID> {
+    
+    @Query("SELECT rp FROM RolePermissionEntity rp WHERE rp.role.id = :roleId")
+    List<RolePermissionEntity> findByRoleId(UUID roleId);
     
     @Query("SELECT rp FROM RolePermissionEntity rp WHERE rp.role.name = :roleName")
     List<RolePermissionEntity> findByRoleName(String roleName);

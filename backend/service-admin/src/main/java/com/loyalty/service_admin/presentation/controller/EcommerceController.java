@@ -82,7 +82,7 @@ public class EcommerceController {
      * @param request status update data
      * @return HTTP 200 OK with updated EcommerceResponse
      */
-    @PutMapping("/{uid}")
+    @PutMapping("/{uid}/status")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<EcommerceResponse> updateEcommerceStatus(
             @PathVariable UUID uid,

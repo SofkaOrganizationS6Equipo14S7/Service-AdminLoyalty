@@ -66,11 +66,10 @@ ON CONFLICT DO NOTHING;
 -- 3. CUSTOMER TIERS
 -- ==========================================
 
-INSERT INTO customer_tiers (id, ecommerce_id, discount_type_id, name, discount_percentage, hierarchy_level, is_active) 
+INSERT INTO customer_tiers (id, ecommerce_id, name, discount_percentage, hierarchy_level, is_active) 
 SELECT 
     '550e8400-e29b-41d4-a716-446655440200'::UUID,
     '550e8400-e29b-41d4-a716-446655440000'::UUID,
-    dt.id,
     'Gold',
     10.00,
     1,
@@ -78,11 +77,10 @@ SELECT
 FROM discount_types dt WHERE dt.code = 'FIDELITY'
 ON CONFLICT DO NOTHING;
 
-INSERT INTO customer_tiers (id, ecommerce_id, discount_type_id, name, discount_percentage, hierarchy_level, is_active) 
+INSERT INTO customer_tiers (id, ecommerce_id, name, discount_percentage, hierarchy_level, is_active) 
 SELECT 
     '550e8400-e29b-41d4-a716-446655440201'::UUID,
     '550e8400-e29b-41d4-a716-446655440000'::UUID,
-    dt.id,
     'Silver',
     5.00,
     2,
@@ -90,11 +88,10 @@ SELECT
 FROM discount_types dt WHERE dt.code = 'FIDELITY'
 ON CONFLICT DO NOTHING;
 
-INSERT INTO customer_tiers (id, ecommerce_id, discount_type_id, name, discount_percentage, hierarchy_level, is_active) 
+INSERT INTO customer_tiers (id, ecommerce_id, name, discount_percentage, hierarchy_level, is_active) 
 SELECT 
     '550e8400-e29b-41d4-a716-446655440202'::UUID,
     '550e8400-e29b-41d4-a716-446655440000'::UUID,
-    dt.id,
     'Bronze',
     2.00,
     3,
