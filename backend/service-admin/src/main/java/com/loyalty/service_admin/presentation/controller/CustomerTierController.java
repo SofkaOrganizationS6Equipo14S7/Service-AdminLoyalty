@@ -77,4 +77,14 @@ public class CustomerTierController {
         customerTierService.delete(tierId);
         return ResponseEntity.noContent().build();
     }
+
+    @PutMapping("/{tierId}/activate")
+    public ResponseEntity<CustomerTierResponse> activateCustomerTier(
+            @PathVariable UUID tierId
+    ) {
+        log.info("PUT /api/v1/customer-tiers/{}/activate - Reactivating tier", tierId);
+        
+        CustomerTierResponse response = customerTierService.activate(tierId);
+        return ResponseEntity.ok(response);
+    }
 }

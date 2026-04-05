@@ -21,6 +21,5 @@ public record CustomerTierUpdateRequest(
     @Min(value = 1, message = "hierarchyLevel must be >= 1")
     Integer hierarchyLevel,
 
-    Boolean isActive
 ) {
 }
