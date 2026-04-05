@@ -74,11 +74,65 @@ public class CustomerTierService {
 
     /**
      * CRITERIO-7.5: Listar customer tiers con paginación
+     * Opcional: filtrar por isActive si se especifica
      */
     @Transactional(readOnly = true)
-    public Page<CustomerTierResponse> listPaginated(Pageable pageable) {
-        return repository.findAll(pageable)
-            .map(this::mapToResponse);
+    public Page<CustomerTierResponse> listPaginated(Pageable pageable, Boolean isActive) {
+        Page<CustomerTierEntity> page = repository.findAll(pageable);
+        
+        if (isActive != null) {
+            // Filter in memory  
+            var filtered = page.getContent().stream()
+                    .filter(tier -> tier.getIsActive().equals(isActive))
+                    .map(this::mapToResponse)
+                    .toList();
+            return new org.springframework.data.domain.PageImpl<>(
+                    filtered, 
+                    pageable, 
+                    page.getTotalElements()
+            );
+        }
+        
+        return page.map(this::mapToResponse);
+    }
+
+    /**
+     * Actualizar un tier (puede ser para reactivarlo o cambiar otros campos)
+     */
+    @Transactional
+    public CustomerTierResponse update(UUID id, CustomerTierCreateRequest request) {
+        CustomerTierEntity entity = repository.findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("Customer tier not found: " + id));
+
+        // Validar unicidad de nombre si cambió (para el mismo ecommerce)
+        if (!entity.getName().equals(request.name()) && 
+            repository.existsByEcommerceIdAndName(request.ecommerceId(), request.name())) {
+            throw new BadRequestException("Tier with name '" + request.name() + "' already exists for this ecommerce");
+        }
+
+        entity.setName(request.name());
+        entity.setDiscountPercentage(request.discountPercentage());
+        entity.setHierarchyLevel(request.hierarchyLevel());
+
+        CustomerTierEntity updated = repository.save(entity);
+        log.info("Customer tier updated: id={}", id);
+
+        return mapToResponse(updated);
+    }
+
+    /**
+     * Activar un tier (revertir soft delete)
+     */
+    @Transactional
+    public CustomerTierResponse activate(UUID id) {
+        CustomerTierEntity entity = repository.findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("Customer tier not found: " + id));
+
+        entity.setIsActive(true);
+        CustomerTierEntity updated = repository.save(entity);
+        log.info("Customer tier activated: id={}", id);
+
+        return mapToResponse(updated);
     }
 
     private CustomerTierResponse mapToResponse(CustomerTierEntity entity) {

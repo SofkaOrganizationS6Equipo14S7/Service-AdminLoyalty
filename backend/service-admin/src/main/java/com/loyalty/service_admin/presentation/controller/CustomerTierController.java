@@ -44,15 +44,18 @@ public class CustomerTierController {
 
     /**
      * CRITERIO-7.5: Listar customer tiers con paginación
-     * GET /api/v1/customer-tiers?page=0&size=20
+     * GET /api/v1/customer-tiers?page=0&size=20&isActive=true (opcional filtro)
      * @return HTTP 200 OK con Page<CustomerTierResponse>
      */
     @GetMapping
-    public ResponseEntity<Page<CustomerTierResponse>> listCustomerTiers(Pageable pageable) {
-        log.info("GET /api/v1/customer-tiers - Listing tiers with pagination: page={}, size={}", 
-            pageable.getPageNumber(), pageable.getPageSize());
+    public ResponseEntity<Page<CustomerTierResponse>> listCustomerTiers(
+            Pageable pageable,
+            @RequestParam(required = false) Boolean isActive
+    ) {
+        log.info("GET /api/v1/customer-tiers - Listing tiers with pagination: page={}, size={}, isActive={}", 
+            pageable.getPageNumber(), pageable.getPageSize(), isActive);
         
-        Page<CustomerTierResponse> response = customerTierService.listPaginated(pageable);
+        Page<CustomerTierResponse> response = customerTierService.listPaginated(pageable, isActive);
         return ResponseEntity.ok(response);
     }
 
@@ -70,7 +73,36 @@ public class CustomerTierController {
         CustomerTierResponse response = customerTierService.getById(tierId);
         return ResponseEntity.ok(response);
     }
+    /**
+     * Actualizar customer tier (name, discountPercentage, hierarchyLevel)
+     * PUT /api/v1/customer-tiers/{tierId}
+     * @return HTTP 200 OK con CustomerTierResponse actualizado
+     */
+    @PutMapping("/{tierId}")
+    public ResponseEntity<CustomerTierResponse> updateCustomerTier(
+            @PathVariable UUID tierId,
+            @Valid @RequestBody CustomerTierCreateRequest request
+    ) {
+        log.info("PUT /api/v1/customer-tiers/{} - Updating tier", tierId);
+        
+        CustomerTierResponse response = customerTierService.update(tierId, request);
+        return ResponseEntity.ok(response);
+    }
 
+    /**
+     * Activar customer tier (revertir soft delete)
+     * PUT /api/v1/customer-tiers/{tierId}/activate
+     * @return HTTP 200 OK con CustomerTierResponse reactivado
+     */
+    @PutMapping("/{tierId}/activate")
+    public ResponseEntity<CustomerTierResponse> activateCustomerTier(
+            @PathVariable UUID tierId
+    ) {
+        log.info("PUT /api/v1/customer-tiers/{}/activate - Activating tier", tierId);
+        
+        CustomerTierResponse response = customerTierService.activate(tierId);
+        return ResponseEntity.ok(response);
+    }
     /**
      * CRITERIO-7.8: Eliminar tier (soft delete con isActive=false)
      * DELETE /api/v1/customer-tiers/{tierId}
