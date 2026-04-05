@@ -8,10 +8,6 @@ import jakarta.validation.constraints.NotNull;
 
 import java.math.BigDecimal;
 
-/**
- * DTO para actualizar un customer tier.
- * No permite cambiar ecommerceId ni isActive (use DELETE o /activate endpoints para eso).
- */
 public record CustomerTierUpdateRequest(
     @NotBlank(message = "Tier name is required")
     String name,
@@ -23,6 +19,8 @@ public record CustomerTierUpdateRequest(
 
     @NotNull(message = "hierarchyLevel is required")
     @Min(value = 1, message = "hierarchyLevel must be >= 1")
-    Integer hierarchyLevel
+    Integer hierarchyLevel,
+
+    Boolean isActive
 ) {
 }

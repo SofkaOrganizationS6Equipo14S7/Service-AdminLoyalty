@@ -115,6 +115,7 @@ public class CustomerTierService {
         entity.setName(request.name());
         entity.setDiscountPercentage(request.discountPercentage());
         entity.setHierarchyLevel(request.hierarchyLevel());
+        entity.setIsActive(request.isActive());
 
         CustomerTierEntity updated = repository.save(entity);
         log.info("Customer tier updated: id={}", id);
