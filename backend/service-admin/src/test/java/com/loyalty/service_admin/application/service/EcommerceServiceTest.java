@@ -5,6 +5,7 @@ import com.loyalty.service_admin.application.dto.ecommerce.EcommerceResponse;
 import com.loyalty.service_admin.application.dto.ecommerce.EcommerceUpdateStatusRequest;
 import com.loyalty.service_admin.application.port.out.EcommercePersistencePort;
 import com.loyalty.service_admin.application.port.out.EcommerceEventPort;
+import com.loyalty.service_admin.application.port.out.ApiKeyEventPort;
 import com.loyalty.service_admin.domain.entity.EcommerceEntity;
 import com.loyalty.service_admin.domain.entity.UserEntity;
 import com.loyalty.service_admin.domain.entity.ApiKeyEntity;
@@ -47,6 +48,9 @@ class EcommerceServiceTest {
     
     @Mock
     private EcommerceEventPort eventPort;
+    
+    @Mock
+    private ApiKeyEventPort apiKeyEventPort;
     
     @InjectMocks
     private EcommerceService ecommerceService;
@@ -282,6 +286,7 @@ class EcommerceServiceTest {
         when(persistencePort.findUsersByEcommerceId(testEcommerceId)).thenReturn(new ArrayList<>());
         when(persistencePort.findApiKeysByEcommerceId(testEcommerceId)).thenReturn(apiKeys);
         doNothing().when(persistencePort).deactivateApiKeys(any());
+        doNothing().when(apiKeyEventPort).publishApiKeyDeleted(any());
         doNothing().when(eventPort).publishEcommerceStatusChanged(testEcommerceId, "INACTIVE");
         
         // Act
