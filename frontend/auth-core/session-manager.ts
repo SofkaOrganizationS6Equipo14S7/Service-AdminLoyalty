@@ -118,6 +118,15 @@ export class SessionManager {
     return user;
   }
 
+  public setToken(token: string): void {
+    this.storage.setToken(token);
+    this.state = {
+      ...this.state,
+      token,
+    };
+    this.emit();
+  }
+
   public getApiClient() {
     return this.client;
   }
@@ -136,4 +145,3 @@ export class SessionManager {
     this.listeners.forEach((listener) => listener(snapshot));
   }
 }
-

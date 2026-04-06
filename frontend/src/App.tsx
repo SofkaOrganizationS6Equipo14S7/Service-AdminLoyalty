@@ -3,6 +3,7 @@ import { DashboardPage } from "./views/DashboardPage";
 import { LoginPage } from "./views/LoginPage";
 import { RequireAuth } from "./session/RequireAuth";
 import { RequireRole } from "./session/RequireRole";
+import { ProfilePage } from "./views/ProfilePage";
 import { UsersPage } from "./views/UsersPage";
 
 export function App() {
@@ -14,6 +15,14 @@ export function App() {
         element={
           <RequireAuth>
             <DashboardPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <RequireAuth>
+            <ProfilePage />
           </RequireAuth>
         }
       />

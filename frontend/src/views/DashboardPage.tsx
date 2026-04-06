@@ -34,6 +34,9 @@ export function DashboardPage() {
           </li>
         </ul>
         <div className="row">
+          <Link className="linkBtn" to="/profile">
+            Mi perfil
+          </Link>
           <Link className="linkBtn" to="/users">
             Ir a gestión de usuarios
           </Link>
