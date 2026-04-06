@@ -77,3 +77,28 @@ export interface ChangePasswordRequestDto {
   confirmPassword: string;
 }
 
+export interface PageResponseDto<T> {
+  content: T[];
+  totalElements: number;
+  totalPages: number;
+  size: number;
+  number: number;
+}
+
+export interface EcommerceResponseDto {
+  uid: UUID;
+  name: string;
+  slug: string;
+  status: "ACTIVE" | "INACTIVE" | string;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+}
+
+export interface EcommerceCreateRequestDto {
+  name: string;
+  slug: string;
+}
+
+export interface EcommerceUpdateStatusRequestDto {
+  status: "ACTIVE" | "INACTIVE";
+}
