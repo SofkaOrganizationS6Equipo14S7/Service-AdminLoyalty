@@ -1,9 +1,9 @@
 ---
 id: SPEC-015
-status: APPROVED
+status: IMPLEMENTED
 feature: ecommerce-onboarding-hexagonal-refactor
 created: 2026-04-05
-updated: 2026-04-05
+updated: 2026-04-06
 author: spec-generator
 version: "1.0"
 related-specs: ["ecommerce-onboarding.md", "hexagonal-architecture.md"]
