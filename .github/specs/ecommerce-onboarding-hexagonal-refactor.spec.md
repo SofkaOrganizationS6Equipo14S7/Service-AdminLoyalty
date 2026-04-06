@@ -1,6 +1,6 @@
 ---
 id: SPEC-015
-status: IMPLEMENTED
+status: TESTED
 feature: ecommerce-onboarding-hexagonal-refactor
 created: 2026-04-05
 updated: 2026-04-06
