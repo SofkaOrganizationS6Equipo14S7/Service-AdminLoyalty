@@ -1,6 +1,8 @@
 package com.loyalty.service_admin.domain.repository;
 
 import com.loyalty.service_admin.domain.entity.UserEntity;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -31,6 +33,16 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID> {
      * @return Lista de usuarios del ecommerce
      */
     List<UserEntity> findByEcommerceId(UUID ecommerceId);
+    
+    /**
+     * Busca todos los usuarios de un ecommerce específico con paginación.
+     * Utilizado en listado con soporte para paginación.
+     * 
+     * @param ecommerceId UUID del ecommerce
+     * @param pageable información de paginación
+     * @return Page de usuarios del ecommerce
+     */
+    Page<UserEntity> findByEcommerceId(UUID ecommerceId, Pageable pageable);
     
     /**
      * Busca usuarios por roleId y ecommerce específicos.
