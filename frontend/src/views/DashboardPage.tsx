@@ -50,9 +50,14 @@ export function DashboardPage() {
             Rules + Customer Tiers
           </Link>
           {user?.roleName === "SUPER_ADMIN" ? (
-            <Link className="linkBtn" to="/ecommerces">
-              Gestionar ecommerces
-            </Link>
+            <>
+              <Link className="linkBtn" to="/ecommerces">
+                Gestionar ecommerces
+              </Link>
+              <Link className="linkBtn" to="/roles-permissions">
+                Roles y permisos
+              </Link>
+            </>
           ) : null}
         </div>
       </div>
