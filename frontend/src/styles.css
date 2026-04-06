@@ -125,6 +125,30 @@ button {
   color: #166534;
 }
 
+.secretBox {
+  border: 1px dashed #0f766e;
+  background: #f0fdfa;
+  padding: 12px;
+  border-radius: 8px;
+  margin-top: 12px;
+}
+
+.secretBox code {
+  display: block;
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 10px;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+
+.listCard {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 10px;
+}
+
 @media (max-width: 900px) {
   .usersGrid {
     grid-template-columns: 1fr;

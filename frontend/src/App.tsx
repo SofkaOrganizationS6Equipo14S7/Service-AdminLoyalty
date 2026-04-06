@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from "react-router-dom";
+import { ApiKeysPage } from "./views/ApiKeysPage";
 import { DashboardPage } from "./views/DashboardPage";
 import { EcommercesPage } from "./views/EcommercesPage";
 import { LoginPage } from "./views/LoginPage";
@@ -43,6 +44,16 @@ export function App() {
           <RequireAuth>
             <RequireRole roles={["SUPER_ADMIN"]}>
               <EcommercesPage />
+            </RequireRole>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/api-keys"
+        element={
+          <RequireAuth>
+            <RequireRole roles={["SUPER_ADMIN", "STORE_ADMIN"]}>
+              <ApiKeysPage />
             </RequireRole>
           </RequireAuth>
         }
