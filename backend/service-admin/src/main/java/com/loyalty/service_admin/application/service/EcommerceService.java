@@ -1,5 +1,6 @@
 package com.loyalty.service_admin.application.service;
 
+import com.loyalty.service_admin.application.dto.apikey.ApiKeyEventPayload;
 import com.loyalty.service_admin.application.dto.ecommerce.EcommerceCreateRequest;
 import com.loyalty.service_admin.application.dto.ecommerce.EcommerceResponse;
 import com.loyalty.service_admin.application.dto.ecommerce.EcommerceUpdateStatusRequest;
@@ -13,6 +14,7 @@ import com.loyalty.service_admin.domain.model.ecommerce.EcommerceStatus;
 import com.loyalty.service_admin.infrastructure.exception.BadRequestException;
 import com.loyalty.service_admin.infrastructure.exception.ConflictException;
 import com.loyalty.service_admin.infrastructure.exception.EcommerceNotFoundException;
+import com.loyalty.service_admin.infrastructure.rabbitmq.ApiKeyEventPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -21,6 +23,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -31,6 +34,7 @@ public class EcommerceService implements EcommerceUseCase {
     
     private final EcommercePersistencePort persistencePort;
     private final EcommerceEventPort eventPort;
+    private final ApiKeyEventPublisher apiKeyEventPublisher;
     
     /**
      * @param request EcommerceCreateRequest (name, slug)
@@ -195,10 +199,22 @@ public class EcommerceService implements EcommerceUseCase {
             log.info("Usuarios inactivados (cascada): count={}, ecommerceId={}", users.size(), ecommerceId);
         }
         
-        // 2. Desactivar API Keys vinculadas
+        // 2. Desactivar API Keys vinculadas y publicar eventos
         List<ApiKeyEntity> apiKeys = persistencePort.findApiKeysByEcommerceId(ecommerceId);
         if (!apiKeys.isEmpty()) {
             persistencePort.deactivateApiKeys(apiKeys);
+            
+            for (ApiKeyEntity apiKey : apiKeys) {
+                ApiKeyEventPayload event = new ApiKeyEventPayload(
+                    "API_KEY_DELETED",
+                    apiKey.getId().toString(),
+                    apiKey.getHashedKey(),
+                    ecommerceId.toString(),
+                    Instant.now()
+                );
+                apiKeyEventPublisher.publishApiKeyDeleted(event);
+            }
+            
             log.info("API Keys desactivadas (cascada): count={}, ecommerceId={}", apiKeys.size(), ecommerceId);
         }
         
