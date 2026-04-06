@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useMemo } from "react";
 import { useAuth } from "../session/AuthProvider";
 
@@ -32,8 +33,12 @@ export function DashboardPage() {
             <strong>Email:</strong> {user?.email}
           </li>
         </ul>
+        <div className="row">
+          <Link className="linkBtn" to="/users">
+            Ir a gestión de usuarios
+          </Link>
+        </div>
       </div>
     </div>
   );
 }
-
