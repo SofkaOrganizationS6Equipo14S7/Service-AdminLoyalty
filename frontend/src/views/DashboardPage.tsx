@@ -43,6 +43,9 @@ export function DashboardPage() {
           <Link className="linkBtn" to="/api-keys">
             Gestionar API Keys
           </Link>
+          <Link className="linkBtn" to="/discount-setup">
+            Configuración descuentos
+          </Link>
           {user?.roleName === "SUPER_ADMIN" ? (
             <Link className="linkBtn" to="/ecommerces">
               Gestionar ecommerces

@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { ApiKeysPage } from "./views/ApiKeysPage";
+import { DiscountSetupPage } from "./views/DiscountSetupPage";
 import { DashboardPage } from "./views/DashboardPage";
 import { EcommercesPage } from "./views/EcommercesPage";
 import { LoginPage } from "./views/LoginPage";
@@ -54,6 +55,16 @@ export function App() {
           <RequireAuth>
             <RequireRole roles={["SUPER_ADMIN", "STORE_ADMIN"]}>
               <ApiKeysPage />
+            </RequireRole>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/discount-setup"
+        element={
+          <RequireAuth>
+            <RequireRole roles={["ADMIN", "SUPER_ADMIN", "STORE_ADMIN"]}>
+              <DiscountSetupPage />
             </RequireRole>
           </RequireAuth>
         }
