@@ -2,12 +2,6 @@ package com.loyalty.service_admin.application.port.out;
 
 import java.util.UUID;
 
-/**
- * Puerto de salida para operaciones JWT.
- * 
- * Abstrae generación, validación y parsing de tokens JWT.
- * Implementación: JwtTokenAdapter (infrastructure/security/)
- */
 public interface JwtPort {
 
     /**

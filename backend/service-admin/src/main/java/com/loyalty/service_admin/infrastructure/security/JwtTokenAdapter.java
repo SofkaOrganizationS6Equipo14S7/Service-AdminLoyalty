@@ -8,13 +8,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.UUID;
 
-/**
- * Adapter de JWT para JwtPort.
- * 
- * Implementa operaciones de JWT delegando al JwtProvider.
- * Reduce el acoplamiento: AuthServiceImpl solo conoce el puerto, no JwtProvider.
- * Maneja excepciones de JWT y las convierte en UnauthorizedException.
- */
 @Component
 @RequiredArgsConstructor
 @Slf4j

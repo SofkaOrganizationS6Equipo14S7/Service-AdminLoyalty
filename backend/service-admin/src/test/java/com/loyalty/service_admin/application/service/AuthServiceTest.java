@@ -33,8 +33,8 @@ import static org.mockito.Mockito.when;
  * Verifica que la lógica de login, logout y getCurrentUser sea correcta.
  */
 @ExtendWith(MockitoExtension.class)
-@DisplayName("AuthServiceImpl Unit Tests (TDD)")
-class AuthServiceImplTest {
+@DisplayName("AuthService Unit Tests (TDD)")
+class AuthServiceTest {
 
     @Mock
     private AuthPersistencePort authPersistencePort;
@@ -43,7 +43,7 @@ class AuthServiceImplTest {
     private JwtPort jwtPort;
 
     @InjectMocks
-    private AuthServiceImpl authService;
+    private AuthService authService;
 
     private UserEntity testUser;
     private RoleEntity testRole;

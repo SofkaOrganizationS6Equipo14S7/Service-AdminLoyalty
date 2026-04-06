@@ -32,12 +32,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-/**
- * Unit Tests para AuthController (TDD)
- * 
- * Mockea AuthUseCase para aislar el controller de la lógica de negocio.
- * Verifica que el controller delega correctamente a los puertos y maneja respuestas HTTP.
- */
 @WebMvcTest(controllers = {AuthController.class})
 @AutoConfigureMockMvc(addFilters = false)
 @DisplayName("AuthController Unit Tests (TDD)")
@@ -62,18 +56,12 @@ class AuthControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    /**
-     * Mock del puerto de entrada (AuthUseCase)
-     * En implementación, será inyectado como AuthServiceImpl
-     */
     @MockBean
     private AuthUseCase authUseCase;
 
-    // ==================== Tests de LOGIN ====================
-
     /**
-     * CRITERIO-6.1: Controllers test for POST /api/v1/auth/login success
-     * 
+     * Controllers test for POST /api/v1/auth/login success
+     *
      * Escenario: Login exitoso con credenciales válidas
      * - Request: LoginRequest(username="admin", password="password123")
      * - Mock: authUseCase.login() retorna LoginResponse válido
@@ -82,10 +70,9 @@ class AuthControllerTest {
     @Test
     @DisplayName("testLoginSuccess_ValidCredentials_Returns200WithToken")
     void testLoginSuccess_ValidCredentials_Returns200WithToken() throws Exception {
-        // Arrange
         LoginRequest request = new LoginRequest("admin", "password123");
         LoginResponse response = new LoginResponse(
-            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...", // JWT token mock
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
             "Bearer",
             "admin",
             "SUPER_ADMIN"
@@ -93,7 +80,6 @@ class AuthControllerTest {
         
         when(authUseCase.login(any(LoginRequest.class))).thenReturn(response);
 
-        // Act & Assert
         mockMvc.perform(post("/api/v1/auth/login")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(request)))
@@ -105,7 +91,7 @@ class AuthControllerTest {
     }
 
     /**
-     * CRITERIO-6.2: Controllers test for POST /api/v1/auth/login unauthorized
+     * Controllers test for POST /api/v1/auth/login unauthorized
      * 
      * Escenario: Login falla con credenciales inválidas
      * - Request: LoginRequest con password incorrecto
@@ -115,13 +101,11 @@ class AuthControllerTest {
     @Test
     @DisplayName("testLoginFail_InvalidCredentials_Returns401")
     void testLoginFail_InvalidCredentials_Returns401() throws Exception {
-        // Arrange
         LoginRequest request = new LoginRequest("admin", "wrongpassword");
         
         when(authUseCase.login(any(LoginRequest.class)))
             .thenThrow(new UnauthorizedException("Credenciales inválidas"));
 
-        // Act & Assert
         mockMvc.perform(post("/api/v1/auth/login")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(request)))
@@ -137,13 +121,11 @@ class AuthControllerTest {
     @Test
     @DisplayName("testLoginFail_UserNotFound_Returns401")
     void testLoginFail_UserNotFound_Returns401() throws Exception {
-        // Arrange
         LoginRequest request = new LoginRequest("nonexistent", "password123");
         
         when(authUseCase.login(any(LoginRequest.class)))
             .thenThrow(new UnauthorizedException("Credenciales inválidas"));
 
-        // Act & Assert
         mockMvc.perform(post("/api/v1/auth/login")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(request)))
@@ -158,10 +140,8 @@ class AuthControllerTest {
     @Test
     @DisplayName("testLoginFail_MissingUsername_Returns400")
     void testLoginFail_MissingUsername_Returns400() throws Exception {
-        // Arrange: username vacío
         LoginRequest request = new LoginRequest("", "password123");
 
-        // Act & Assert
         mockMvc.perform(post("/api/v1/auth/login")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(request)))
@@ -176,17 +156,13 @@ class AuthControllerTest {
     @Test
     @DisplayName("testLoginFail_MissingPassword_Returns400")
     void testLoginFail_MissingPassword_Returns400() throws Exception {
-        // Arrange: password vacío
         LoginRequest request = new LoginRequest("admin", "");
 
-        // Act & Assert
         mockMvc.perform(post("/api/v1/auth/login")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
     }
-
-    // ==================== Tests de LOGOUT ====================
 
     /**
      * Escenario: Logout exitoso con token válido
@@ -197,12 +173,10 @@ class AuthControllerTest {
     @Test
     @DisplayName("testLogout_ValidToken_Returns204")
     void testLogout_ValidToken_Returns204() throws Exception {
-        // Arrange
         String validToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...";
         
         doNothing().when(authUseCase).logout(anyString());
 
-        // Act & Assert
         mockMvc.perform(post("/api/v1/auth/logout")
                     .header("Authorization", "Bearer " + validToken))
                 .andExpect(status().isNoContent());
@@ -216,18 +190,14 @@ class AuthControllerTest {
     @Test
     @DisplayName("testLogout_NoToken_Returns204")
     void testLogout_NoToken_Returns204() throws Exception {
-        // Arrange: no hay Authorization header
         doNothing().when(authUseCase).logout(anyString());
 
-        // Act & Assert
         mockMvc.perform(post("/api/v1/auth/logout"))
                 .andExpect(status().isNoContent());
     }
 
-    // ==================== Tests de GET CURRENT USER ====================
-
     /**
-     * CRITERIO-6.3: Controllers test for GET /api/v1/auth/me success
+     * Controllers test for GET /api/v1/auth/me success
      * 
      * Escenario: GetCurrentUser exitoso con token válido
      * - Request: GET /api/v1/auth/me con Authorization header
@@ -237,27 +207,25 @@ class AuthControllerTest {
     @Test
     @DisplayName("testGetCurrentUser_ValidToken_Returns200WithUser")
     void testGetCurrentUser_ValidToken_Returns200WithUser() throws Exception {
-        // Arrange
         String validToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...";
         UUID userId = UUID.randomUUID();
         UUID roleId = UUID.randomUUID();
         UUID ecommerceId = UUID.randomUUID();
         
         UserResponse userResponse = new UserResponse(
-            userId,                    // id
-            "admin",                   // username
-            roleId,                    // roleId
-            "SUPER_ADMIN",             // role
-            "admin@loyalty.com",       // email
-            ecommerceId,               // ecommerceId
-            true,                      // isActive
-            Instant.now().minusSeconds(3600),  // createdAt
-            Instant.now()              // updatedAt
+            userId,
+            "admin",
+            roleId,
+            "SUPER_ADMIN",
+            "admin@loyalty.com",
+            ecommerceId,
+            true,
+            Instant.now().minusSeconds(3600),
+            Instant.now()
         );
         
         when(authUseCase.getCurrentUser(anyString())).thenReturn(userResponse);
 
-        // Act & Assert
         mockMvc.perform(get("/api/v1/auth/me")
                     .header("Authorization", "Bearer " + validToken))
                 .andExpect(status().isOk())
@@ -276,13 +244,11 @@ class AuthControllerTest {
     @Test
     @DisplayName("testGetCurrentUser_InvalidToken_Returns401")
     void testGetCurrentUser_InvalidToken_Returns401() throws Exception {
-        // Arrange
         String invalidToken = "invalid-token";
         
         when(authUseCase.getCurrentUser(anyString()))
             .thenThrow(new UnauthorizedException("Token no válido o expirado"));
 
-        // Act & Assert
         mockMvc.perform(get("/api/v1/auth/me")
                     .header("Authorization", "Bearer " + invalidToken))
                 .andExpect(status().isUnauthorized());
@@ -297,13 +263,11 @@ class AuthControllerTest {
     @Test
     @DisplayName("testGetCurrentUser_ExpiredToken_Returns401")
     void testGetCurrentUser_ExpiredToken_Returns401() throws Exception {
-        // Arrange
         String expiredToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.expired...";
         
         when(authUseCase.getCurrentUser(anyString()))
             .thenThrow(new UnauthorizedException("Token no válido o expirado"));
 
-        // Act & Assert
         mockMvc.perform(get("/api/v1/auth/me")
                     .header("Authorization", "Bearer " + expiredToken))
                 .andExpect(status().isUnauthorized());
@@ -317,7 +281,6 @@ class AuthControllerTest {
     @Test
     @DisplayName("testGetCurrentUser_NoAuthHeader_Returns401")
     void testGetCurrentUser_NoAuthHeader_Returns401() throws Exception {
-        // Act & Assert
         mockMvc.perform(get("/api/v1/auth/me"))
                 .andExpect(status().isUnauthorized());
     }
@@ -331,13 +294,11 @@ class AuthControllerTest {
     @Test
     @DisplayName("testGetCurrentUser_InactiveUser_Returns401")
     void testGetCurrentUser_InactiveUser_Returns401() throws Exception {
-        // Arrange
         String validToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...";
         
         when(authUseCase.getCurrentUser(anyString()))
             .thenThrow(new UnauthorizedException("Usuario desactivado"));
 
-        // Act & Assert
         mockMvc.perform(get("/api/v1/auth/me")
                     .header("Authorization", "Bearer " + validToken))
                 .andExpect(status().isUnauthorized());
