@@ -4,6 +4,7 @@ import { DiscountSetupPage } from "./views/DiscountSetupPage";
 import { DashboardPage } from "./views/DashboardPage";
 import { EcommercesPage } from "./views/EcommercesPage";
 import { LoginPage } from "./views/LoginPage";
+import { LogsPage } from "./views/LogsPage";
 import { RulesTiersPage } from "./views/RulesTiersPage";
 import { RolesPermissionsPage } from "./views/RolesPermissionsPage";
 import { RequireAuth } from "./session/RequireAuth";
@@ -87,6 +88,16 @@ export function App() {
           <RequireAuth>
             <RequireRole roles={["SUPER_ADMIN"]}>
               <RolesPermissionsPage />
+            </RequireRole>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/logs"
+        element={
+          <RequireAuth>
+            <RequireRole roles={["SUPER_ADMIN", "STORE_ADMIN", "ADMIN"]}>
+              <LogsPage />
             </RequireRole>
           </RequireAuth>
         }
