@@ -7,6 +7,7 @@ import com.loyalty.service_admin.application.dto.ecommerce.EcommerceUpdateStatus
 import com.loyalty.service_admin.application.port.in.EcommerceUseCase;
 import com.loyalty.service_admin.application.port.out.EcommercePersistencePort;
 import com.loyalty.service_admin.application.port.out.EcommerceEventPort;
+import com.loyalty.service_admin.application.port.out.ApiKeyEventPort;
 import com.loyalty.service_admin.domain.entity.EcommerceEntity;
 import com.loyalty.service_admin.domain.entity.UserEntity;
 import com.loyalty.service_admin.domain.entity.ApiKeyEntity;
@@ -14,7 +15,6 @@ import com.loyalty.service_admin.domain.model.ecommerce.EcommerceStatus;
 import com.loyalty.service_admin.infrastructure.exception.BadRequestException;
 import com.loyalty.service_admin.infrastructure.exception.ConflictException;
 import com.loyalty.service_admin.infrastructure.exception.EcommerceNotFoundException;
-import com.loyalty.service_admin.infrastructure.rabbitmq.ApiKeyEventPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -34,7 +34,7 @@ public class EcommerceService implements EcommerceUseCase {
     
     private final EcommercePersistencePort persistencePort;
     private final EcommerceEventPort eventPort;
-    private final ApiKeyEventPublisher apiKeyEventPublisher;
+    private final ApiKeyEventPort apiKeyEventPort;
     
     /**
      * @param request EcommerceCreateRequest (name, slug)
@@ -212,7 +212,7 @@ public class EcommerceService implements EcommerceUseCase {
                     ecommerceId.toString(),
                     Instant.now()
                 );
-                apiKeyEventPublisher.publishApiKeyDeleted(event);
+                apiKeyEventPort.publishApiKeyDeleted(event);
             }
             
             log.info("API Keys desactivadas (cascada): count={}, ecommerceId={}", apiKeys.size(), ecommerceId);
