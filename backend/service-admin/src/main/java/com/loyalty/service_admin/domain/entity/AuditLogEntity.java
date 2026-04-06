@@ -1,5 +1,6 @@
 package com.loyalty.service_admin.domain.entity;
 
+import com.loyalty.service_admin.infrastructure.persistence.JsonbConverter;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -39,10 +40,12 @@ public class AuditLogEntity {
     private UUID entityId;
     
     @Column(name = "old_value", columnDefinition = "jsonb")
-    private String oldValue;
+    @Convert(converter = JsonbConverter.class)
+    private Object oldValue;
     
     @Column(name = "new_value", columnDefinition = "jsonb")
-    private String newValue;
+    @Convert(converter = JsonbConverter.class)
+    private Object newValue;
     
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
