@@ -102,3 +102,21 @@ export interface EcommerceCreateRequestDto {
 export interface EcommerceUpdateStatusRequestDto {
   status: "ACTIVE" | "INACTIVE";
 }
+
+export interface ApiKeyCreatedResponseDto {
+  uid: UUID;
+  key: string;
+  expiresAt: ISODateTime;
+  ecommerceId: UUID;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+}
+
+export interface ApiKeyListResponseDto {
+  uid: UUID;
+  maskedKey: string;
+  expiresAt: ISODateTime;
+  isActive: boolean;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+}
