@@ -3,7 +3,7 @@ package com.loyalty.service_admin.presentation.controller;
 import com.loyalty.service_admin.application.dto.auth.LoginRequest;
 import com.loyalty.service_admin.application.dto.auth.LoginResponse;
 import com.loyalty.service_admin.application.dto.user.UserResponse;
-import com.loyalty.service_admin.application.service.AuthService;
+import com.loyalty.service_admin.application.port.in.AuthUseCase;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.*;
 @Slf4j
 public class AuthController {
     
-    private final AuthService authService;
+    private final AuthUseCase authUseCase;
     
     /**
      * @param request credentials (username, password)
@@ -25,7 +25,7 @@ public class AuthController {
      */
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
-        LoginResponse response = authService.login(request);
+        LoginResponse response = authUseCase.login(request);
         return ResponseEntity.ok(response);
     }
     
@@ -37,7 +37,7 @@ public class AuthController {
     public ResponseEntity<Void> logout(@RequestHeader(value = "Authorization", required = false) String authHeader) {
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7);
-            authService.logout(token);
+            authUseCase.logout(token);
         }
         return ResponseEntity.noContent().build();
     }
@@ -53,7 +53,7 @@ public class AuthController {
         }
         
         String token = authHeader.substring(7);
-        UserResponse user = authService.getCurrentUser(token);
+        UserResponse user = authUseCase.getCurrentUser(token);
         return ResponseEntity.ok(user);
     }
 }
