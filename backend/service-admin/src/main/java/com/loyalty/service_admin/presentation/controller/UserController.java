@@ -6,6 +6,7 @@ import com.loyalty.service_admin.application.dto.user.UserUpdateRequest;
 import com.loyalty.service_admin.application.dto.user.UpdateProfileRequest;
 import com.loyalty.service_admin.application.dto.auth.ChangePasswordRequest;
 import com.loyalty.service_admin.application.dto.auth.LoginResponse;
+import com.loyalty.service_admin.application.port.in.UserDeleteUseCase;
 import com.loyalty.service_admin.application.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,7 @@ import java.util.UUID;
 public class UserController {
     
     private final UserService userService;
+    private final UserDeleteUseCase userDeleteUseCase;
     
     /**
      * @param request user data (role, username, email, password, ecommerceId)
@@ -74,12 +76,31 @@ public class UserController {
     }
     
     /**
+     * Elimina permanentemente un usuario de forma física.
+     *
+     * HU-02.5: Hard Delete de Usuarios
+     * - Requiere autenticación (JWT válido)
+     * - Solo SUPER_ADMIN o STORE_ADMIN pueden eliminar usuarios
+     * - STORE_ADMIN solo puede eliminar usuarios de su ecommerce
+     * - No puede auto-eliminarse
+     *
+     * Respuestas:
+     * - 204 No Content: eliminación exitosa
+     * - 400 Bad Request: intento de auto-eliminación
+     * - 401 Unauthorized: token faltante/expirado
+     * - 403 Forbidden: rol insuficiente o ecommerce distinto
+     * - 404 Not Found: usuario no existe
+     *
      * @param uid user identifier
      * @return HTTP 204 No Content
+     * @throws com.loyalty.service_admin.infrastructure.exception.UnauthorizedException si token inválido
+     * @throws com.loyalty.service_admin.infrastructure.exception.BadRequestException si auto-eliminación
+     * @throws com.loyalty.service_admin.infrastructure.exception.AuthorizationException si sin permisos
+     * @throws com.loyalty.service_admin.infrastructure.exception.ResourceNotFoundException si no existe
      */
     @DeleteMapping("/{uid}")
     public ResponseEntity<Void> deleteUser(@PathVariable UUID uid) {
-        userService.deleteUser(uid);
+        userDeleteUseCase.hardDeleteUser(uid);
         return ResponseEntity.noContent().build();
     }
     
