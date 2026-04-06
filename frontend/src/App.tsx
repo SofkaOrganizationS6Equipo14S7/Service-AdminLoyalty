@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { DashboardPage } from "./views/DashboardPage";
+import { EcommercesPage } from "./views/EcommercesPage";
 import { LoginPage } from "./views/LoginPage";
 import { RequireAuth } from "./session/RequireAuth";
 import { RequireRole } from "./session/RequireRole";
@@ -32,6 +33,16 @@ export function App() {
           <RequireAuth>
             <RequireRole roles={["SUPER_ADMIN", "STORE_ADMIN"]}>
               <UsersPage />
+            </RequireRole>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/ecommerces"
+        element={
+          <RequireAuth>
+            <RequireRole roles={["SUPER_ADMIN"]}>
+              <EcommercesPage />
             </RequireRole>
           </RequireAuth>
         }

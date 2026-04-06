@@ -40,6 +40,11 @@ export function DashboardPage() {
           <Link className="linkBtn" to="/users">
             Ir a gestión de usuarios
           </Link>
+          {user?.roleName === "SUPER_ADMIN" ? (
+            <Link className="linkBtn" to="/ecommerces">
+              Gestionar ecommerces
+            </Link>
+          ) : null}
         </div>
       </div>
     </div>
