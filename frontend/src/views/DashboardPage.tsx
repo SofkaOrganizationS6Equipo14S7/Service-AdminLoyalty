@@ -46,6 +46,9 @@ export function DashboardPage() {
           <Link className="linkBtn" to="/discount-setup">
             Configuración descuentos
           </Link>
+          <Link className="linkBtn" to="/rules-tiers">
+            Rules + Customer Tiers
+          </Link>
           {user?.roleName === "SUPER_ADMIN" ? (
             <Link className="linkBtn" to="/ecommerces">
               Gestionar ecommerces

@@ -4,6 +4,7 @@ import { DiscountSetupPage } from "./views/DiscountSetupPage";
 import { DashboardPage } from "./views/DashboardPage";
 import { EcommercesPage } from "./views/EcommercesPage";
 import { LoginPage } from "./views/LoginPage";
+import { RulesTiersPage } from "./views/RulesTiersPage";
 import { RequireAuth } from "./session/RequireAuth";
 import { RequireRole } from "./session/RequireRole";
 import { ProfilePage } from "./views/ProfilePage";
@@ -65,6 +66,16 @@ export function App() {
           <RequireAuth>
             <RequireRole roles={["ADMIN", "SUPER_ADMIN", "STORE_ADMIN"]}>
               <DiscountSetupPage />
+            </RequireRole>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/rules-tiers"
+        element={
+          <RequireAuth>
+            <RequireRole roles={["SUPER_ADMIN", "STORE_ADMIN", "ADMIN"]}>
+              <RulesTiersPage />
             </RequireRole>
           </RequireAuth>
         }
