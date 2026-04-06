@@ -120,3 +120,88 @@ export interface ApiKeyListResponseDto {
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
 }
+
+export type RoundingRule = "HALF_UP" | "DOWN" | "UP";
+export type CapType = "PERCENTAGE";
+export type CapAppliesTo = "SUBTOTAL" | "TOTAL" | "BEFORE_TAX" | "AFTER_TAX";
+
+export interface ConfigurationCapRequestDto {
+  type: CapType;
+  value: number;
+  appliesTo: CapAppliesTo;
+}
+
+export interface ConfigurationPriorityRequestDto {
+  type: string;
+  order: number;
+}
+
+export interface ConfigurationCreateRequestDto {
+  ecommerceId: UUID;
+  currency: string;
+  roundingRule: RoundingRule;
+  cap: ConfigurationCapRequestDto;
+  priority: ConfigurationPriorityRequestDto[];
+}
+
+export interface ConfigurationPatchRequestDto {
+  currency?: string;
+  roundingRule?: RoundingRule;
+  cap?: ConfigurationCapRequestDto;
+  priority?: ConfigurationPriorityRequestDto[];
+}
+
+export interface ConfigurationWriteDataDto {
+  configId: UUID;
+  version: number;
+}
+
+export interface ApiResponseDto<T> {
+  success: boolean;
+  data: T;
+}
+
+export interface DiscountConfigCreateRequestDto {
+  ecommerceId: UUID;
+  maxDiscountCap: number;
+  currencyCode: string;
+  allowStacking?: boolean;
+  roundingRule?: string;
+}
+
+export interface DiscountConfigResponseDto {
+  uid: UUID;
+  ecommerceId: UUID;
+  maxDiscountCap: number;
+  currencyCode: string;
+  allowStacking: boolean;
+  roundingRule: string;
+  isActive: boolean;
+  version: number;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+}
+
+export interface DiscountLimitPriorityEntryRequestDto {
+  discountTypeId: UUID;
+  priorityLevel: number;
+}
+
+export interface DiscountLimitPriorityRequestDto {
+  discountSettingId: UUID;
+  priorities: DiscountLimitPriorityEntryRequestDto[];
+}
+
+export interface DiscountLimitPriorityEntryResponseDto {
+  discountTypeId: UUID;
+  priorityLevel: number;
+  createdAt: ISODateTime;
+}
+
+export interface DiscountLimitPriorityResponseDto {
+  uid: UUID;
+  discountSettingId: UUID;
+  priorities: DiscountLimitPriorityEntryResponseDto[];
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+}
