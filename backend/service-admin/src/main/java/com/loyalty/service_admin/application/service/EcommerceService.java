@@ -4,8 +4,12 @@ import com.loyalty.service_admin.application.dto.ecommerce.EcommerceCreateReques
 import com.loyalty.service_admin.application.dto.ecommerce.EcommerceResponse;
 import com.loyalty.service_admin.application.dto.ecommerce.EcommerceUpdateStatusRequest;
 import com.loyalty.service_admin.domain.entity.EcommerceEntity;
+import com.loyalty.service_admin.domain.entity.UserEntity;
+import com.loyalty.service_admin.domain.entity.ApiKeyEntity;
 import com.loyalty.service_admin.domain.model.ecommerce.EcommerceStatus;
 import com.loyalty.service_admin.domain.repository.EcommerceRepository;
+import com.loyalty.service_admin.domain.repository.UserRepository;
+import com.loyalty.service_admin.domain.repository.ApiKeyRepository;
 import com.loyalty.service_admin.infrastructure.exception.BadRequestException;
 import com.loyalty.service_admin.infrastructure.exception.ConflictException;
 import com.loyalty.service_admin.infrastructure.exception.EcommerceNotFoundException;
@@ -18,6 +22,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -26,6 +31,8 @@ import java.util.UUID;
 public class EcommerceService {
     
     private final EcommerceRepository ecommerceRepository;
+    private final UserRepository userRepository;
+    private final ApiKeyRepository apiKeyRepository;
     private final EcommerceEventPublisher eventPublisher;
     
     /**
@@ -53,6 +60,16 @@ public class EcommerceService {
         EcommerceEntity saved = ecommerceRepository.save(entity);
         log.info("Ecommerce creado exitosamente: uid={}, slug={}, status={}", 
                 saved.getId(), saved.getSlug(), saved.getStatus());
+        
+        // Publicar evento ECOMMERCE_CREATED
+        try {
+            eventPublisher.publishEcommerceCreated(saved.getId(), saved.getName(), saved.getSlug());
+            log.info("Evento de creación de ecommerce publicado: uid={}", saved.getId());
+        } catch (Exception e) {
+            log.error("Error al publicar evento RabbitMQ: uid={}, name={}, slug={}", 
+                    saved.getId(), saved.getName(), saved.getSlug(), e);
+            throw new RuntimeException("No se pudo publicar evento de creación de ecommerce", e);
+        }
         
         return toResponse(saved);
     }
@@ -145,6 +162,12 @@ public class EcommerceService {
         entity.setStatus(newStatus);
         EcommerceEntity updated = ecommerceRepository.save(entity);
         
+        // Cascada de acciones si cambia a INACTIVE
+        if (newStatus == EcommerceStatus.INACTIVE) {
+            log.info("Ecommerce cambiado a INACTIVE: uid={}. Ejecutando cascada de acciones.", uid);
+            executeCascadeActions(uid);
+        }
+        
         try {
             eventPublisher.publishEcommerceStatusChanged(entity.getId(), newStatus);
             log.info("Evento de cambio de status publicado: uid={}, newStatus={}", uid, newStatus);
@@ -157,6 +180,43 @@ public class EcommerceService {
                 uid, oldStatus, newStatus);
         
         return toResponse(updated);
+    }
+    
+    /**
+     * Ejecuta cascada de acciones cuando un ecommerce se inactiva:
+     * 1. Inactiva todos los usuarios vinculados
+     * 2. Desactiva todas las API Keys vinculadas
+     * 
+     * Nota: Se ejecuta dentro de la transacción del updateEcommerceStatus,
+     * por lo que si algo falla, todo hace rollback.
+     * 
+     * @param ecommerceId UUID del ecommerce que se inactivó
+     */
+    private void executeCascadeActions(UUID ecommerceId) {
+        // 1. Inactivar usuarios vinculados
+        List<UserEntity> users = userRepository.findByEcommerceId(ecommerceId);
+        if (!users.isEmpty()) {
+            users.forEach(user -> {
+                user.setIsActive(false);
+                log.debug("Usuario inactivado por cascada: uid={}, ecommerceId={}", user.getId(), ecommerceId);
+            });
+            userRepository.saveAll(users);
+            log.info("Usuarios inactivados (cascada): count={}, ecommerceId={}", users.size(), ecommerceId);
+        }
+        
+        // 2. Desactivar API Keys vinculadas
+        List<ApiKeyEntity> apiKeys = apiKeyRepository.findByEcommerceId(ecommerceId);
+        if (!apiKeys.isEmpty()) {
+            apiKeys.forEach(apiKey -> {
+                apiKey.setIsActive(false);
+                log.debug("API Key desactivada por cascada: uid={}, ecommerceId={}", apiKey.getId(), ecommerceId);
+            });
+            apiKeyRepository.saveAll(apiKeys);
+            log.info("API Keys desactivadas (cascada): count={}, ecommerceId={}", apiKeys.size(), ecommerceId);
+        }
+        
+        log.info("Cascada de acciones completada: ecommerceId={}, usersInactivated={}, apiKeysDeactivated={}", 
+                ecommerceId, users.size(), apiKeys.size());
     }
     
     /**
