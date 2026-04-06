@@ -293,3 +293,56 @@ export interface RuleAttributeMetadataDto {
   isRequired: boolean;
   description: string;
 }
+
+export interface RoleResponseDto {
+  id: UUID;
+  name: string;
+  isActive: boolean;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+}
+
+export interface PermissionResponseDto {
+  id: UUID;
+  code: string;
+  description: string;
+  module: string;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+}
+
+export interface RoleWithPermissionsResponseDto {
+  id: UUID;
+  name: string;
+  isActive: boolean;
+  permissions: PermissionResponseDto[];
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+}
+
+export interface RolePermissionsAssignRequestDto {
+  permissionIds: UUID[];
+}
+
+export interface AuditLogResponseDto {
+  id: UUID;
+  userId: UUID;
+  ecommerceId: UUID;
+  action: string;
+  entityName: string;
+  entityId: UUID;
+  oldValue: unknown;
+  newValue: unknown;
+  createdAt: ISODateTime;
+}
+
+export interface DiscountApplicationLogResponseDto {
+  id: UUID;
+  ecommerceId: UUID;
+  externalOrderId: string;
+  originalAmount: number;
+  discountApplied: number;
+  finalAmount: number;
+  appliedRulesDetails: string;
+  createdAt: ISODateTime;
+}

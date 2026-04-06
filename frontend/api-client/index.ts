@@ -5,6 +5,7 @@ import { CustomerTiersApi } from "./customer-tiers-api";
 import { DiscountConfigApi } from "./discount-config-api";
 import { EcommerceApi } from "./ecommerce-api";
 import { HttpClient } from "./http-client";
+import { RolesApi } from "./roles-api";
 import { RulesApi } from "./rules-api";
 import { UsersApi } from "./users-api";
 import { ApiClientConfig } from "./types";
@@ -21,6 +22,7 @@ export interface ServiceAdminClient {
   discountConfig: DiscountConfigApi;
   customerTiers: CustomerTiersApi;
   rules: RulesApi;
+  roles: RolesApi;
 }
 
 export function createServiceAdminClient(config: ApiClientConfig): ServiceAdminClient {
@@ -34,5 +36,6 @@ export function createServiceAdminClient(config: ApiClientConfig): ServiceAdminC
     discountConfig: new DiscountConfigApi(http),
     customerTiers: new CustomerTiersApi(http),
     rules: new RulesApi(http),
+    roles: new RolesApi(http),
   };
 }
