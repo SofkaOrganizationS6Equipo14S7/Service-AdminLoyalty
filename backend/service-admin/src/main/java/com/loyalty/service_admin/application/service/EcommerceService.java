@@ -59,7 +59,6 @@ public class EcommerceService implements EcommerceUseCase {
         log.info("Ecommerce creado exitosamente: uid={}, slug={}, status={}", 
                 saved.getId(), saved.getSlug(), saved.getStatus());
         
-        // Publicar evento ECOMMERCE_CREATED
         try {
             eventPort.publishEcommerceCreated(saved.getId(), saved.getName(), saved.getSlug());
             log.info("Evento de creación de ecommerce publicado: uid={}", saved.getId());
@@ -185,12 +184,7 @@ public class EcommerceService implements EcommerceUseCase {
     
     /**
      * Ejecuta cascada de acciones cuando un ecommerce se inactiva:
-     * 1. Inactiva todos los usuarios vinculados
-     * 2. Desactiva todas las API Keys vinculadas
-     * 
-     * Nota: Se ejecuta dentro de la transacción del updateEcommerceStatus,
-     * por lo que si algo falla, todo hace rollback.
-     * 
+     *
      * @param ecommerceId UUID del ecommerce que se inactivó
      */
     private void executeCascadeActions(UUID ecommerceId) {

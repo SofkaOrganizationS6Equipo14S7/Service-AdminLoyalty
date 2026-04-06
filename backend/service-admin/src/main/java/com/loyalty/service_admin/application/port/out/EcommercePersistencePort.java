@@ -11,19 +11,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-/**
- * Puerto de Salida: Persistencia
- * 
- * Define operaciones de acceso a datos para Ecommerce.
- * Esta interfaz abstrae la implementación de persistencia (JPA, MongoDB, etc.),
- * permitiendo cambiar la BD sin modificar la lógica de negocio.
- * 
- * SPEC-015: Ecommerce Onboarding con Arquitectura Hexagonal
- * Implementado por: JpaEcommerceAdapter en infrastructure/persistence/jpa
- */
 public interface EcommercePersistencePort {
-    
-    // ==================== Operaciones CRUD en Ecommerce ====================
     
     /**
      * Persiste un ecommerce en la BD.
@@ -66,8 +54,6 @@ public interface EcommercePersistencePort {
      */
     boolean existsById(UUID id);
     
-    // ==================== Cascada: Usuarios ====================
-    
     /**
      * Obtiene todos los usuarios vinculados a un ecommerce.
      * 
@@ -79,15 +65,9 @@ public interface EcommercePersistencePort {
     /**
      * Inactiva múltiples usuarios de forma atómica.
      * 
-     * Marca todos como isActive=false y persiste en BD.
-     * Se ejecuta dentro de la transacción del updateEcommerceStatus,
-     * por lo que si falla, toda la tx rollback.
-     * 
      * @param users lista de usuarios a inactivar
      */
     void inactivateUsers(List<UserEntity> users);
-    
-    // ==================== Cascada: API Keys ====================
     
     /**
      * Obtiene todas las API Keys vinculadas a un ecommerce.
@@ -99,10 +79,6 @@ public interface EcommercePersistencePort {
     
     /**
      * Desactiva múltiples API Keys de forma atómica.
-     * 
-     * Marca todas como isActive=false y persiste en BD.
-     * Se ejecuta dentro de la transacción del updateEcommerceStatus,
-     * por lo que si falla, toda la tx rollback.
      * 
      * @param keys lista de API Keys a desactivar
      */

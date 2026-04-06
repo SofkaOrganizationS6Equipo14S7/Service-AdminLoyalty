@@ -19,18 +19,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-/**
- * Adaptador de Persistencia: JPA/Hibernate
- * 
- * Implementa el puerto EcommercePersistencePort usando Spring Data JPA.
- * Delegación pura a los repositories sin lógica de negocio adicional.
- * 
- * SPEC-015: Ecommerce Onboarding con Arquitectura Hexagonal
- * Hexagonal Architecture: Adapter pattern para persistencia
- * 
- * Si en el futuro necesitamos cambiar a MongoDB o cualquier otra BD,
- * solo crearemos un nuevo adaptador sin afectar la lógica de negocio.
- */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -41,7 +29,7 @@ public class JpaEcommerceAdapter implements EcommercePersistencePort {
     private final ApiKeyRepository apiKeyRepository;
     
     // ==================== Operaciones CRUD en Ecommerce ====================
-    
+
     @Override
     @Transactional
     public EcommerceEntity save(EcommerceEntity entity) {
@@ -80,7 +68,7 @@ public class JpaEcommerceAdapter implements EcommercePersistencePort {
     }
     
     // ==================== Cascada: Usuarios ====================
-    
+
     @Override
     @Transactional(readOnly = true)
     public List<UserEntity> findUsersByEcommerceId(UUID ecommerceId) {

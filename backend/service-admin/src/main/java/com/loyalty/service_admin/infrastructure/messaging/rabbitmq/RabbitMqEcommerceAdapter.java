@@ -8,18 +8,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.UUID;
 
-/**
- * Adaptador de Eventos: RabbitMQ
- * 
- * Implementa el puerto EcommerceEventPort usando RabbitMQ/Spring AMQP.
- * Delegación pura al EcommerceEventPublisher sin lógica adicional.
- * 
- * SPEC-015: Ecommerce Onboarding con Arquitectura Hexagonal
- * Hexagonal Architecture: Adapter pattern para eventos
- * 
- * Si en el futuro necesitamos cambiar a Kafka o Google Pub/Sub,
- * solo crearemos un nuevo adaptador sin afectar la lógica de negocio.
- */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -36,8 +24,7 @@ public class RabbitMqEcommerceAdapter implements EcommerceEventPort {
     @Override
     public void publishEcommerceStatusChanged(UUID ecommerceId, String newStatus) {
         log.debug("Delegando publicación de evento ECOMMERCE_STATUS_CHANGED al publisher");
-        // Convertir String a EcommerceStatus enum
-        com.loyalty.service_admin.domain.model.ecommerce.EcommerceStatus status = 
+        com.loyalty.service_admin.domain.model.ecommerce.EcommerceStatus status =
             com.loyalty.service_admin.domain.model.ecommerce.EcommerceStatus.valueOf(newStatus);
         eventPublisher.publishEcommerceStatusChanged(ecommerceId, status);
     }

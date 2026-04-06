@@ -7,17 +7,6 @@ import org.springframework.data.domain.Page;
 
 import java.util.UUID;
 
-/**
- * Puerto de Entrada: Define los casos de uso del feature Ecommerce.
- * 
- * Esta interfaz abstrae la implementación del servicio, permitiendo
- * múltiples implementaciones sin cambiar los controllers.
- * 
- * SPEC-015: Ecommerce Onboarding con Arquitectura Hexagonal
- * Hexagonal Architecture: Ports & Adapters
- * 
- * Los métodos representan operaciones de negocio que el controller necesita.
- */
 public interface EcommerceUseCase {
     
     /**
@@ -53,9 +42,6 @@ public interface EcommerceUseCase {
     
     /**
      * Actualiza el status de un ecommerce.
-     * 
-     * Si status cambia a INACTIVE: ejecuta cascada de acciones
-     * (inactiva usuarios, desactiva API Keys) de forma atómica.
      * 
      * @param uid identificador único
      * @param request con nuevo status
