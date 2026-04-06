@@ -1,9 +1,11 @@
 import { ApiKeysApi } from "./api-keys-api";
 import { AuthApi } from "./auth-api";
 import { ConfigurationApi } from "./configuration-api";
+import { CustomerTiersApi } from "./customer-tiers-api";
 import { DiscountConfigApi } from "./discount-config-api";
 import { EcommerceApi } from "./ecommerce-api";
 import { HttpClient } from "./http-client";
+import { RulesApi } from "./rules-api";
 import { UsersApi } from "./users-api";
 import { ApiClientConfig } from "./types";
 
@@ -17,6 +19,8 @@ export interface ServiceAdminClient {
   apiKeys: ApiKeysApi;
   configuration: ConfigurationApi;
   discountConfig: DiscountConfigApi;
+  customerTiers: CustomerTiersApi;
+  rules: RulesApi;
 }
 
 export function createServiceAdminClient(config: ApiClientConfig): ServiceAdminClient {
@@ -28,5 +32,7 @@ export function createServiceAdminClient(config: ApiClientConfig): ServiceAdminC
     apiKeys: new ApiKeysApi(http),
     configuration: new ConfigurationApi(http),
     discountConfig: new DiscountConfigApi(http),
+    customerTiers: new CustomerTiersApi(http),
+    rules: new RulesApi(http),
   };
 }

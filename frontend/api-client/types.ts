@@ -205,3 +205,91 @@ export interface DiscountLimitPriorityResponseDto {
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
 }
+
+export interface CustomerTierCreateRequestDto {
+  ecommerceId: UUID;
+  name: string;
+  discountPercentage: number;
+  hierarchyLevel: number;
+}
+
+export interface CustomerTierUpdateRequestDto {
+  name: string;
+  discountPercentage: number;
+  hierarchyLevel: number;
+}
+
+export interface CustomerTierResponseDto {
+  id: UUID;
+  ecommerceId: UUID;
+  name: string;
+  discountPercentage: number;
+  hierarchyLevel: number;
+  isActive: boolean;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+}
+
+export interface RuleCreateRequestDto {
+  name: string;
+  description?: string;
+  discountPercentage: number;
+  discountPriorityId: string;
+  attributes: Record<string, string>;
+}
+
+export interface RuleAttributeValueDto {
+  attributeId: UUID;
+  attributeName: string;
+  value: string;
+}
+
+export interface RuleResponseDto {
+  id: UUID;
+  ecommerceId: UUID;
+  discountPriorityId: UUID;
+  name: string;
+  description: string;
+  discountPercentage: number;
+  isActive: boolean;
+  attributes: RuleAttributeValueDto[];
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+}
+
+export interface RuleCustomerTierDto {
+  customerTierId: UUID;
+  customerTierName: string;
+}
+
+export interface RuleResponseWithTiersDto extends RuleResponseDto {
+  assignedTiers: RuleCustomerTierDto[];
+}
+
+export interface AssignCustomerTiersRequestDto {
+  customerTierIds: UUID[];
+}
+
+export interface DiscountTypeDto {
+  id: UUID;
+  code: string;
+  displayName: string;
+  createdAt: ISODateTime;
+}
+
+export interface DiscountPriorityDto {
+  id: UUID;
+  discountTypeId: UUID;
+  priorityLevel: number;
+  isActive: boolean;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+}
+
+export interface RuleAttributeMetadataDto {
+  id: UUID;
+  attributeName: string;
+  attributeType: string;
+  isRequired: boolean;
+  description: string;
+}
