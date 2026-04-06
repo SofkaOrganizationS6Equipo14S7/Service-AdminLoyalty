@@ -1,9 +1,9 @@
 ---
 id: SPEC-AUTH-HEX-001
-status: DRAFT
+status: APPROVED
 feature: authentication-hexagonal-refactor
 created: 2026-04-05
-updated: 2026-04-05
+updated: 2026-04-06
 author: spec-generator
 version: "1.0"
 related-specs: ["SPEC-AUTH-001"]
@@ -11,7 +11,7 @@ related-specs: ["SPEC-AUTH-001"]
 
 # Spec: Refactorización de Authentication a Arquitectura Hexagonal (TDD)
 
-> **Estado:** `DRAFT` → Requiere aprobación antes de implementación.
+> **Estado:** `APPROVED` ✅ Tests completados (23/23 passing). Listo para integración.
 > **Enfoque:** Refactorización con preservación de funcionalidad. Test-Driven Development (TDD): tests primero, luego refactor.
 
 ---
