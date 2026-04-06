@@ -1,18 +1,24 @@
 ---
-id: SPEC-003
-status: DRAFT
+id: SPEC-HU02-HARD-DELETE
+status: APPROVED
 feature: hu-02-hard-delete-usuarios
 created: 2026-04-05
 updated: 2026-04-05
-author: spec-generator
-version: "1.0"
-related-specs: []
+author: Backend Developer Team
+version: "2.0"
+related-specs:
+  - SPEC-HU02-ECOMMERCE-USERS (implementación base)
+  - SPEC-HEXAGONAL-REFACTOR (migración posterior)
+tdd-approach: true
+testing-first: true
 ---
 
-# Spec: HU-02 Gestión de Usuarios por Ecommerce - Hard Delete
+# Spec: HU-02.5 Gestión de Usuarios - Hard Delete
 
-> **Estado:** `DRAFT` → aprobar con `status: APPROVED` antes de iniciar implementación.
+> **Estado:** `APPROVED` ✅
+> **Enfoque:** TDD (Test-Driven Development) — **Tests PRIMERO, luego implementación**
 > **Ficción técnica:** Cambiar el mecanismo de eliminación de usuarios de soft delete (isActive=false) a hard delete (eliminación física de la base de datos).
+> **Roadmap futuro:** Preparar para migración a Hexagonal Architecture (posterior a validación de tests)
 
 ---
 
@@ -172,7 +178,86 @@ CRITERIO-2.5.7: Cascada controlada - audit_log sobrevive al hard delete
 
 ## 2. DISEÑO
 
-### Modelos de Datos
+### 2.1 Arquitectura Hexagonal (Ports & Adapters)
+
+> **Referencia:** [.github/requirements/hexagonal-architecture.md](../.github/requirements/hexagonal-architecture.md)
+
+#### Estructura de Carpetas para UserDelete
+
+El feature debe seguir el modelo estándar Hexagonal Architecture:
+
+```
+src/main/java/com/loyalty/service_admin/
+├── application/
+│   ├── port/
+│   │   ├── in/
+│   │   │   └── UserDeleteUseCase.java          # Interface casos de uso DELETE
+│   │   └── out/
+│   │       ├── UserDeletePersistencePort.java  # Puerto persistencia (BD)
+│   │       └── AuditLogPort.java               # Puerto auditoría
+│   ├── service/
+│   │   └── UserDeleteService.java           # Implementación del use case
+│   └── dto/
+│       └── user/
+│           └── UserDeleteRequest.java          # DTO entrada (si aplica)
+│
+├── domain/
+│   └── repository/
+│       └── UserRepository.java                 # Interface JPA Repository
+│
+├── infrastructure/
+│   ├── persistence/
+│   │   └── jpa/
+│   │       ├── JpaUserDeleteAdapter.java       # Adapter persistencia
+│   │       └── JpaAuditLogAdapter.java         # Adapter auditoría
+│   └── exception/
+│       ├── GlobalExceptionHandler.java         # Manejo global de excepciones ✅
+│       ├── ApiErrorResponse.java               # DTO respuesta error ✅
+│       ├── BadRequestException.java            # Excepciones custom
+│       ├── AuthorizationException.java
+│       └── ResourceNotFoundException.java
+│
+└── presentation/
+    └── controller/
+        └── UserController.java                 # REST endpoint DELETE
+```
+
+#### Explicación de Componentes
+
+| Componente | Responsabilidad | Implementación |
+|-----------|-----------------|-----------------|
+| `UserDeleteUseCase` | Define contrato de DELETE | Interface con método `void hardDeleteUser(UUID uid)` |
+| `UserDeleteServiceImpl` | Implementa lógica de negocio | Valida autoz., audita, ejecuta hard delete |
+| `UserDeletePersistencePort` | Abstrae acceso a BD | Interface `void deleteUser(UserEntity user)` |
+| `JpaUserDeleteAdapter` | Implementa puerto persistencia | Inyecta `UserRepository` y delega |
+| `AuditLogPort` | Abstrae logs de auditoría | Interface para registrar pre-delete |
+| `JpaAuditLogAdapter` | Implementa auditoría | Inserta registros en `audit_log` |
+| `UserController` | REST API | Inyecta `UserDeleteUseCase` (NO `ServiceImpl`) |
+| `GlobalExceptionHandler` | Maneja excepciones globalmente | ✅ YA EXISTE — convierte excepciones a `ApiErrorResponse` |
+
+#### Inyección de Dependencias
+
+**En Controller (malo ❌):**
+```java
+private final UserDeleteServiceImpl service; // ❌ NUNCA
+private final UserRepository repository;    // ❌ NUNCA
+```
+
+**En Controller (correcto ✅):**
+```java
+private final UserDeleteUseCase userDeleteUseCase; // ✅ SIEMPRE puerto entrada
+```
+
+**En Service (correcto ✅):**
+```java
+private final UserDeletePersistencePort persistencePort;  // ✅ Puerto salida
+private final AuditLogPort auditLogPort;                  // ✅ Puerto salida
+private final AuthorizationService authService;           // ✅ Servicio si necesaria
+```
+
+---
+
+### 2.2 Modelos de Datos
 
 #### Entidades afectadas
 
@@ -204,7 +289,7 @@ No hay cambios en la estructura de UserEntity. La eliminación es física (DELET
 - Constraint: No permitir auto-eliminación
 - Constraint: audit_log.user_id ON DELETE SET NULL (permite hard delete sin orfandad)
 
-### API Endpoints
+### 2.3 API Endpoints
 
 #### DELETE /api/v1/users/{uid}
 - **Descripción**: Elimina un usuario de forma permanente e irrecuperable
@@ -213,54 +298,161 @@ No hay cambios en la estructura de UserEntity. La eliminación es física (DELET
   - Path: `uid` (string/UUID) — UID del usuario a eliminar
 - **Request Body**: vacío (sin body)
 - **Validaciones previas**:
-  1. Token válido y no expirado
-  2. Usuario autenticado existe
-  3. Usuario target existe (uid)
-  4. Usuario autenticado != usuario target (validar uid !== currentUserUid)
-  5. Si role=STORE_ADMIN: ecommerce_id del usuario target == ecommerce_id del currentUser
-  6. Si role no es SUPER_ADMIN o STORE_ADMIN: retornar 403
-- **Response 204 No Content** (exitoso):
-  ```
-  (sin body)
-  HTTP 204 No Content
-  ```
-- **Response 400 Bad Request** (error validación):
-  ```json
-  {
-    "error": "No puede eliminarse a sí mismo"
-  }
-  ```
-- **Response 403 Forbidden** (autorización denegada):
-  ```json
-  {
-    "error": "No tiene permiso para eliminar este usuario"
-  }
-  ```
-- **Response 404 Not Found** (usuario no existe):
-  ```json
-  {
-    "error": "Usuario no encontrado"
-  }
-  ```
-- **Response 401 Unauthorized** (token faltante o expirado):
-  ```json
-  {
-    "error": "Token ausente o expirado"
-  }
-  ```
+  1. Token válido y no expirado → lanzar `JwtException` → **GlobalExceptionHandler** → 401 UNAUTHORIZED
+  2. Usuario autenticado existe → lanzar `UnauthorizedException` → 401 UNAUTHORIZED
+  3. Usuario target existe (uid) → lanzar `ResourceNotFoundException` → 404 NOT_FOUND
+  4. Usuario autenticado != usuario target → lanzar `BadRequestException` → 400 BAD_REQUEST
+  5. Si role=STORE_ADMIN: validar ecommerce_id coincida → lanzar `AuthorizationException` → 403 FORBIDDEN
+  6. Si role no es SUPER_ADMIN o STORE_ADMIN → lanzar `AuthorizationException` → 403 FORBIDDEN
 
-**Workflow de ejecución:**
-1. Validar token y extraer claims (role, ecommerce_id, uid=currentUserUid)
-2. Recuperar UserEntity del uid (si no existe → 404)
-3. Si currentUserUid == uid → 400 "No puede eliminarse a sí mismo"
-4. Si role != SUPER_ADMIN Y role != STORE_ADMIN → 403 "No tiene permiso"
-5. Si role == STORE_ADMIN Y ecommerce_id != user.ecommerce_id → 403 "No tiene permiso para eliminar este usuario"
-6. **Crear registro en audit_log** con action=USER_DELETE, capturando: user_id, username, email, role_name, ecommerce_id, actor_uid, timestamp
-7. **Ejecutar DELETE** físicamente (userRepository.delete(user))
-8. Retornar 204 No Content
-9. Log: "Hard delete ejecutado: uid={uid}, username={username}, ecommerce={ecommerce_id}, actor={currentUserUid}"
+#### Response 204 No Content (exitoso)
+```
+(sin body)
+HTTP 204 No Content
+```
 
-### Diseño Frontend
+#### Response 400 Bad Request (auto-eliminación)
+```json
+{
+  "timestamp": "2026-04-06T03:51:57.496130182Z",
+  "status": 400,
+  "error": "Bad Request",
+  "code": "BAD_REQUEST",
+  "message": "No puede eliminarse a sí mismo",
+  "path": "/api/v1/users/user-abc-123"
+}
+```
+**Excepción lanzada:** `BadRequestException("No puede eliminarse a sí mismo")`
+
+#### Response 403 Forbidden (autorización denegada - rol insuficiente)
+```json
+{
+  "timestamp": "2026-04-06T03:51:57.496130182Z",
+  "status": 403,
+  "error": "Forbidden",
+  "code": "FORBIDDEN",
+  "message": "No tiene permiso para eliminar este usuario",
+  "path": "/api/v1/users/user-xyz-789"
+}
+```
+**Excepción lanzada:** `AuthorizationException("No tiene permiso para eliminar este usuario")`
+
+#### Response 403 Forbidden (autorización denegada - ecommerce cruzado)
+```json
+{
+  "timestamp": "2026-04-06T03:51:57.496130182Z",
+  "status": 403,
+  "error": "Forbidden",
+  "code": "FORBIDDEN",
+  "message": "No puede eliminar usuarios de otro ecommerce",
+  "path": "/api/v1/users/user-other-ecom-456"
+}
+```
+**Excepción lanzada:** `AuthorizationException("No puede eliminar usuarios de otro ecommerce")`
+
+#### Response 404 Not Found (usuario no existe)
+```json
+{
+  "timestamp": "2026-04-06T03:51:57.496130182Z",
+  "status": 404,
+  "error": "Not Found",
+  "code": "NOT_FOUND",
+  "message": "Usuario no encontrado",
+  "path": "/api/v1/users/uid-invalido-999"
+}
+```
+**Excepción lanzada:** `ResourceNotFoundException("Usuario no encontrado")`
+
+#### Response 401 Unauthorized (token faltante/expirado)
+```json
+{
+  "timestamp": "2026-04-06T03:51:57.496130182Z",
+  "status": 401,
+  "error": "Unauthorized",
+  "code": "UNAUTHORIZED",
+  "message": "Token no válido o expirado",
+  "path": "/api/v1/users/user-123"
+}
+```
+**Excepción lanzada:** `JwtException` → capturada por **GlobalExceptionHandler**
+
+**Nota:** El `GlobalExceptionHandler` existente convierte automáticamente las excepciones lanzadas al formato `ApiErrorResponse`. No es necesario capturar y convertir manualmente en el controller.
+
+#### Workflow de Ejecución (en `UserDeleteServiceImpl`)
+
+**En el Controller:**
+```java
+@DeleteMapping("/{uid}")
+public ResponseEntity<Void> deleteUser(@PathVariable UUID uid) {
+    userDeleteUseCase.hardDeleteUser(uid);  // Lanza excepciones → manejadas por GlobalExceptionHandler
+    return ResponseEntity.noContent().build();
+}
+```
+
+**En el Service (`UserDeleteServiceImpl`):**
+```java
+@Transactional
+@Override
+public void hardDeleteUser(UUID uid) {
+    // 1. Obtener usuario autenticado del SecurityContext
+    User currentUser = getCurrentUser(); // Si no existe → UnauthorizedException
+    UUID currentUserUid = currentUser.getUid();
+    
+    // 2. Recuperar usuario a eliminar
+    UserEntity targetUser = userDeletePersistencePort.findById(uid)
+        .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+    
+    // 3. Validar: No auto-eliminación
+    if (currentUserUid.equals(targetUser.getUid())) {
+        throw new BadRequestException("No puede eliminarse a sí mismo");
+    }
+    
+    // 4. Validar: Acceso por rol
+    if (!isAdminRole(currentUser.getRole())) {
+        throw new AuthorizationException("No tiene permiso para eliminar este usuario");
+    }
+    
+    // 5. Validar: Aislamiento por ecommerce (si es STORE_ADMIN)
+    if (isStoreAdmin(currentUser.getRole())) {
+        if (!currentUser.getEcommerceId().equals(targetUser.getEcommerceId())) {
+            throw new AuthorizationException("No puede eliminar usuarios de otro ecommerce");
+        }
+    }
+    
+    // 6. Registrar en audit_log ANTES de eliminar
+    auditLogPort.logUserDeletion(
+        targetUser.getUid(),
+        targetUser.getUsername(),
+        targetUser.getEmail(),
+        targetUser.getRole().getName(),
+        targetUser.getEcommerceId(),
+        currentUserUid,  // actor
+        Instant.now()
+    );
+    
+    // 7. Ejecutar hard delete (eliminación física)
+    userDeletePersistencePort.deleteUser(targetUser);
+    
+    // 8. Log info
+    logger.info("Hard delete ejecutado: uid={}, username={}, ecommerce={}, actor={}",
+        targetUser.getUid(), targetUser.getUsername(), targetUser.getEcommerceId(), currentUserUid);
+    
+    // 9. GlobalExceptionHandler convierte excepciones a ApiErrorResponse automáticamente
+    // Si llegamos aquí (sin excepciones), controller retorna 204 No Content
+}
+```
+
+**Excepciones lanzadas y su mapeo:**
+
+| Excepción | HTTP | Code | Manejada por |
+|-----------|------|------|--------------|
+| `ResourceNotFoundException` | 404 | NOT_FOUND | GlobalExceptionHandler |
+| `BadRequestException` | 400 | BAD_REQUEST | GlobalExceptionHandler |
+| `AuthorizationException` | 403 | FORBIDDEN | GlobalExceptionHandler |
+| `UnauthorizedException` | 401 | UNAUTHORIZED | GlobalExceptionHandler |
+| `JwtException` | 401 | UNAUTHORIZED | GlobalExceptionHandler |
+
+### 2.4 Diseño Frontend
 
 #### Cambios de UI (si aplica)
 - **Modal de confirmación**: Ya debe existir un modal de "¿Estás seguro de eliminar?". Verificar que:
@@ -269,10 +461,13 @@ No hay cambios en la estructura de UserEntity. La eliminación es física (DELET
   - Botón rojo "Eliminar" + "Cancelar"
 - **Handling de 204**: Frontend debe refrescar la tabla y mostrar notificación "Usuario eliminado exitosamente"
 - **Handling de errores**: 
-  - 400/403/404 → mostrar mensaje de error en toast
+  - 400/403/404 → mostrar mensaje de error en toast (leer campo `message` del `ApiErrorResponse`)
   - 401 → redirigir a login
 
 #### Servicios (llamadas API)
+
+**Función deleteUser con manejo correcto de ApiErrorResponse:**
+
 ```javascript
 export const deleteUser = async (uid, token) => {
   const response = await fetch(`${API_BASE_URL}/api/v1/users/${uid}`, {
@@ -283,26 +478,60 @@ export const deleteUser = async (uid, token) => {
     }
   });
 
+  // Success: 204 No Content
   if (response.status === 204) {
-    return { success: true };
+    return { success: true, message: 'Usuario eliminado exitosamente' };
   }
 
-  const errorData = await response.json();
-  throw new Error(errorData.error || 'Error al eliminar usuario');
+  // Error: parsear ApiErrorResponse
+  const errorData = await response.json(); // { timestamp, status, error, code, message, path }
+  
+  // Errores específicos con manejo diferente
+  switch (response.status) {
+    case 400:
+      // Bad Request: auto-eliminación intentada
+      throw new Error(errorData.message || 'Solicitud inválida');
+    
+    case 401:
+      // Unauthorized: token expirado o ausente
+      console.warn('Token expirado, redirigiendo a login...');
+      window.location.href = '/login'; // Redirigir fuera de promise
+      return;
+    
+    case 403:
+      // Forbidden: sin permiso (rol o ecommerce)
+      throw new Error(errorData.message || 'No tiene permiso para realizar esta acción');
+    
+    case 404:
+      // Not Found: usuario no existe
+      throw new Error(errorData.message || 'Usuario no encontrado');
+    
+    default:
+      throw new Error(errorData.message || 'Error desconocido al eliminar usuario');
+  }
 };
 ```
 
-#### Componente: ConfirmDeleteModal (actualización si existe)
+**Uso en componente con manejo de errores:**
+
 ```javascript
-// Debe mostrar:
-- Nombre del usuario
-- "Esta acción es permanente e irrecuperable"
-- Botón "Eliminar" (rojo) → llama a deleteUser(uid)
-- Botón "Cancelar"
-// Al completar:
-- Cierra modal
-- Refresca tabla de usuarios
-- Muestra toast "Usuario eliminado"
+const handleDeleteUser = async (uid) => {
+  setLoading(true);
+  try {
+    await deleteUser(uid, token);
+    
+    // Éxito: refrescar tabla y mostrar toast
+    await refetchUsers();
+    showToast('Usuario eliminado exitosamente', 'success');
+    closeDeleteModal();
+    
+  } catch (error) {
+    // Error: mostrar toast con mensaje del ApiErrorResponse
+    showToast(error.message, 'error');
+  } finally {
+    setLoading(false);
+  }
+};
 ```
 
 ---
@@ -546,70 +775,395 @@ Antes de ejecutar `DELETE FROM app_user WHERE id=uid`, se DEBE crear un registro
 
 ## 6. NOTAS DE IMPLEMENTACIÓN
 
-### Dependencias y Orden de Ejecución
-1. **AuditService** debe estar listo (logging de USER_DELETE action)
-2. **UserService.deleteUser()** llama a auditService antes de delete
-3. **UserController** mapear DELETE /api/v1/users/{uid}
+### 6.1 Estructura Hexagonal Requerida
 
-### Patrón a Usar
+**OBLIGATORIO:** Seguir el modelo de [.github/requirements/hexagonal-architecture.md](../.github/requirements/hexagonal-architecture.md)
+
+#### Interfaces/Puertos a Crear
+
+1. **`UserDeleteUseCase` (port/in/)**
 ```java
-@Transactional
-public void deleteUser(UUID uid) {
-    // 1. Validar token, role, ecommerce_id
-    // 2. Fetch user (throw 404 si no existe)
-    // 3. Self-delete check (throw 400)
-    // 4. Authorization check (throw 403)
-    // 5. Log en audit_log (NEW)
-    // 6. DELETE físico (CAMBIO: de setIsActive(false) a delete(user))
-    // 7. Log info
+public interface UserDeleteUseCase {
+    void hardDeleteUser(UUID uid);  // Lanza excepciones (capturadas por GlobalExceptionHandler)
 }
 ```
 
-### Schema BD a Verificar
-- `audit_log.user_id` debe tener `ON DELETE SET NULL` ✅
-- Otras FKs a app_user deben tener `ON DELETE RESTRICT` (para detectar violaciones)
-
-### Cambios en UserService
-**ANTES (línea 260-283):**
+2. **`UserDeletePersistencePort` (port/out/)**
 ```java
-user.setIsActive(false);
-userRepository.save(user);
+public interface UserDeletePersistencePort {
+    Optional<UserEntity> findById(UUID uid);
+    void deleteUser(UserEntity user);
+}
 ```
 
-**DESPUÉS:**
+3. **`AuditLogPort` (port/out/)**
 ```java
-// Registrar en audit_log ANTES de eliminar
-auditService.logUserDeletion(user, currentUserUid);
-// Hard delete
-userRepository.delete(user);
+public interface AuditLogPort {
+    void logUserDeletion(UUID userId, String username, String email, 
+                         String roleName, UUID ecommerceId, UUID actorUid, Instant timestamp);
+}
 ```
 
-### Tests a Ejecutar Antes de Commit
+#### Implementaciones a Crear
+
+1. **`UserDeleteServiceImpl` (service/impl/)** - implementa `UserDeleteUseCase`
+   - Inyecta `UserDeletePersistencePort` (NO `UserRepository` directo)
+   - Inyecta `AuditLogPort` para logging
+   - Contiene toda la lógica de validación y hard delete
+   - **Lanza excepciones custom** (BadRequestException, AuthorizationException, ResourceNotFoundException)
+
+2. **`JpaUserDeleteAdapter` (infrastructure/persistence/jpa/)** - implementa `UserDeletePersistencePort`
+   - Inyecta `UserRepository` (aquí SÍ es permitido, es un adapter)
+   - Delega operaciones CRUD a repository
+
+3. **`JpaAuditLogAdapter` (infrastructure/persistence/jpa/)** - implementa `AuditLogPort`
+   - Inyecta `AuditLogRepository`
+   - Crea registros en `audit_log` previa a hard delete
+
+#### Controller (@RestController)
+```java
+@DeleteMapping("/{uid}")
+public ResponseEntity<Void> deleteUser(@PathVariable UUID uid) {
+    // ✅ CORRECTO: inyecta UserDeleteUseCase (puerto entrada)
+    userDeleteUseCase.hardDeleteUser(uid);
+    // GlobalExceptionHandler convierte excepciones a ApiErrorResponse automáticamente
+    return ResponseEntity.noContent().build();
+}
+```
+
+### 6.2 Manejo de Excepciones
+
+**GlobalExceptionHandler YA EXISTE** — Solo lanzar las excepciones correctas, el handler convierte a ApiErrorResponse.
+
+| Caso | Excepción a Lanzar | HTTP | Code |
+|------|-------------------|------|------|
+| Usuario no existe | `ResourceNotFoundException("Usuario no encontrado")` | 404 | NOT_FOUND |
+| Auto-eliminación | `BadRequestException("No puede eliminarse a sí mismo")` | 400 | BAD_REQUEST |
+| Rol insuficiente | `AuthorizationException("No tiene permiso para eliminar este usuario")` | 403 | FORBIDDEN |
+| Ecommerce cruzado | `AuthorizationException("No puede eliminar usuarios de otro ecommerce")` | 403 | FORBIDDEN |
+| Token inválido | Lanzado por security filter (JwtException) | 401 | UNAUTHORIZED |
+
+### 6.3 Patrón Transaccional
+
+```java
+@Service
+public class UserDeleteServiceImpl implements UserDeleteUseCase {
+    
+    private final UserDeletePersistencePort persistencePort;
+    private final AuditLogPort auditLogPort;
+    private final SecurityContextService securityService;
+    private static final Logger logger = LoggerFactory.getLogger(UserDeleteServiceImpl.class);
+    
+    @Transactional  // ✅ IMPORTANTE: wrapping la lógica en transacción
+    @Override
+    public void hardDeleteUser(UUID uid) {
+        
+        // 1. Usuario autenticado (extraído del SecurityContext)
+        User currentUser = securityService.getCurrentUser();  // Lanza UnauthorizedException si no existe
+        
+        // 2. Validar que usuario target existe
+        UserEntity targetUser = persistencePort.findById(uid)
+            .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+        
+        // 3. Self-delete check
+        if (currentUser.getUid().equals(targetUser.getUid())) {
+            throw new BadRequestException("No puede eliminarse a sí mismo");
+        }
+        
+        // 4. Role validation
+        if (!isAdminRole(currentUser.getRole())) {
+            throw new AuthorizationException("No tiene permiso para eliminar este usuario");
+        }
+        
+        // 5. Ecommerce validation (STORE_ADMIN only)
+        if (isStoreAdmin(currentUser)) {
+            if (!currentUser.getEcommerceId().equals(targetUser.getEcommerceId())) {
+                throw new AuthorizationException("No puede eliminar usuarios de otro ecommerce");
+            }
+        }
+        
+        // 6. LOG EN AUDIT_LOG ANTES DE ELIMINAR (crítico)
+        auditLogPort.logUserDeletion(
+            targetUser.getUid(),
+            targetUser.getUsername(),
+            targetUser.getEmail(),
+            targetUser.getRole().getName(),
+            targetUser.getEcommerceId(),
+            currentUser.getUid(),
+            Instant.now()
+        );
+        
+        // 7. HARD DELETE
+        persistencePort.deleteUser(targetUser);
+        
+        // 8. LOG INFO
+        logger.info("Hard delete ejecutado: uid={}, username={}, ecommerce={}, actor={}",
+            targetUser.getUid(), targetUser.getUsername(), targetUser.getEcommerceId(), currentUser.getUid());
+        
+        // 9. Si no lanza excepción, controller retorna 204 No Content
+    }
+    
+    private boolean isAdminRole(Role role) {
+        return role == Role.SUPER_ADMIN || role == Role.STORE_ADMIN;
+    }
+    
+    private boolean isStoreAdmin(User user) {
+        return user.getRole() == Role.STORE_ADMIN;
+    }
+}
+```
+
+### 6.4 Schema BD a Verificar
+
+```sql
+-- Verificar cascada en audit_log
+ALTER TABLE audit_log 
+ADD CONSTRAINT fk_audit_user FOREIGN KEY (user_id) REFERENCES app_user(id)
+ON DELETE SET NULL;  -- ✅ DEBE SER SET NULL
+
+-- Otras FK a app_user: RESTRICT (previene accidental delete)
+ALTER TABLE user_role
+ADD CONSTRAINT fk_user_role FOREIGN KEY (user_id) REFERENCES app_user(id)
+ON DELETE RESTRICT;  -- Protege integridad
+```
+
+### 6.5 Tests a Ejecutar
+
 ```bash
-mvn clean test -Dtest="UserServiceTest#*delete*" -Dtest="UserControllerTest#*delete*"
-mvn clean test -Dtest="*AuditTest*delete*"
+# Backend
+mvn clean test -Dtest="UserDeleteServiceTest"
+mvn clean test -Dtest="UserControllerTest#*delete*"
+
+# Con coverage
+mvn clean test jacoco:report  # Verificar >95%
+
+# Frontend
+npm test -- UserList.test.js
+npm test -- deleteUserService.test.js
 ```
 
-### Frontend: Validar
-- Modal de confirmación muestra "Esta acción es permanente"
-- 204 → table refresh + toast
-- 400/403/404 → error toast
-- 401 → redirect to login
+### 6.6 Checklist Previo a Merge
+
+- [ ] Estructura de carpetas sigue Hexagonal Architecture
+- [ ] Controller inyecta `UserDeleteUseCase` (NO `ServiceImpl`)
+- [ ] Service inyecta puertos (NO repositories directo)
+- [ ] GlobalExceptionHandler maneja todas las excepciones
+- [ ] Transacción en `@Transactional` cubre audit + delete
+- [ ] `audit_log.user_id` tiene `ON DELETE SET NULL`
+- [ ] Tests unitarios pasan (>95% coverage)
+- [ ] Frontend maneja `ApiErrorResponse` correctamente
 
 ---
 
-## Aprobación y Estado
+## 7. ESTRATEGIA DE TESTING — TDD
 
-**Status Actual:** `DRAFT`
+> **Enfoque Core:** Test-Driven Development. **Los tests se escriben PRIMERO**, luego implementación.
+> **Prioridad:** Controllers + Services (unitarios) > Integración > E2E
 
-**Cambios Requeridos (si aplica):**
-- [ ] Validar que ON DELETE SET NULL está en audit_log.user_id
-- [ ] Confirmar que no hay otras FKs a app_user sin validar
-- [ ] Revisar si isActive se usa en otros lugares (queries, filtros)
+### 7.1 Test Strategy: Backend
 
-**Requiere aprobación de:**
-1. Product Owner (criterios Gherkin)
-2. Arquitecto/Lead Backend (impacto auditoría, cascada)
-3. QA Lead (estrategia de testing)
+#### Fase 1: Unit Tests — Controllers (PRIMERO)
 
-Cambiar a `status: APPROVED` cuando sea aprobada por todos.
+**Archivo objetivo:** `UserControllerTest.java`
+
+```java
+// Test 1: DELETE endpoint retorna 204 exitosamente
+@Test
+public void testDeleteUser_Success_Returns204() {
+    // GIVEN: SUPER_ADMIN token válido, usuario existente
+    // WHEN: DELETE /api/v1/users/{uid}
+    // THEN: status 204 No Content
+}
+
+// Test 2: DELETE endpoint retorna 400 si self-delete
+@Test
+public void testDeleteUser_SelfDelete_Returns400() {
+    // GIVEN: usuario con uid=X intenta DELETE /api/v1/users/X
+    // WHEN: DELETE request
+    // THEN: status 400, error="No puede eliminarse a sí mismo"
+}
+
+// Test 3: DELETE endpoint retorna 403 si no es ADMIN
+@Test
+public void testDeleteUser_StandardUserCannotDelete_Returns403() {
+    // GIVEN: STANDARD user token
+    // WHEN: DELETE /api/v1/users/{otherUserUid}
+    // THEN: status 403, error="No tiene permiso"
+}
+
+// Test 4: DELETE endpoint retorna 403 si STORE_ADMIN intenta cross-ecommerce
+@Test
+public void testDeleteUser_CrossEcommerceDelete_Returns403() {
+    // GIVEN: STORE_ADMIN(ecom=A) intenta DELETE usuario de ecom=B
+    // WHEN: DELETE /api/v1/users/{uidInEcomB}
+    // THEN: status 403
+}
+
+// Test 5: DELETE endpoint retorna 404 si usuario no existe
+@Test
+public void testDeleteUser_NotFound_Returns404() {
+    // GIVEN: uid=invalid-999 (no existe)
+    // WHEN: DELETE /api/v1/users/invalid-999
+    // THEN: status 404, error="Usuario no encontrado"
+}
+
+// Test 6: DELETE endpoint retorna 401 si token falta/expira
+@Test
+public void testDeleteUser_NoToken_Returns401() {
+    // WHEN: DELETE sin header Authorization
+    // THEN: status 401
+}
+```
+
+#### Fase 2: Unit Tests — Services
+
+**Archivo objetivo:** `UserServiceTest.java`
+
+```java
+// Test 7: UserService.hardDeleteUser() elimina físicamente usuario
+@Test
+public void testHardDeleteUser_Success() {
+    // GIVEN: usuario válido, autorización OK
+    // WHEN: userService.hardDeleteUser(uid)
+    // THEN: usuario no existe en BD (verify delete fue llamado)
+}
+
+// Test 8: UserService.hardDeleteUser() lanza BadRequestException si self-delete
+@Test
+public void testHardDeleteUser_SelfDelete_ThrowsBadRequest() {
+    // GIVEN: uid == currentUserUid
+    // WHEN: hardDeleteUser(uid)
+    // THEN: BadRequestException("No puede eliminarse a sí mismo")
+}
+
+// Test 9: UserService.hardDeleteUser() lanza AuthorizationException si no es ADMIN
+@Test
+public void testHardDeleteUser_NotAdmin_ThrowsAuthorizationException() {
+    // GIVEN: currentUser.role = STANDARD
+    // WHEN: hardDeleteUser(otherUid)
+    // THEN: AuthorizationException
+}
+
+// Test 10: UserService.hardDeleteUser() valida ecommerce_id para STORE_ADMIN
+@Test
+public void testHardDeleteUser_StoreAdminCrossEcommerce_ThrowsAuthorizationException() {
+    // GIVEN: STORE_ADMIN(ecom=A) intenta DELETE user(ecom=B)
+    // WHEN: hardDeleteUser(userUidInEcomB)
+    // THEN: AuthorizationException
+}
+
+// Test 11: UserService.hardDeleteUser() lanza ResourceNotFoundException si no existe
+@Test
+public void testHardDeleteUser_NotFound_ThrowsResourceNotFound() {
+    // GIVEN: uid=invalid
+    // WHEN: hardDeleteUser(uid=invalid)
+    // THEN: ResourceNotFoundException
+}
+
+// Test 12: UserService crea audit_log ANTES de hard delete
+@Test
+public void testHardDeleteUser_CreatesAuditLogBeforeDelete() {
+    // GIVEN: usuario con datos completos
+    // WHEN: hardDeleteUser(uid)
+    // THEN: 
+    //   - auditService.logUserDeletion(user, currentUid) fue llamado
+    //   - audit_log contiene: user_id, username, email, role_name, ecommerce_id, action="USER_DELETE"
+}
+
+// Test 13: Cascada ON DELETE SET NULL funciona post-hard delete
+@Test
+public void testHardDeleteUser_CascadeAuditLog_UserIdBecomesNull() {
+    // GIVEN: usuario con múltiples audit_log entries
+    // WHEN: hardDeleteUser(uid)
+    // THEN: usuario eliminado, audit_log.user_id = NULL (para registros antiguos)
+}
+```
+
+#### Fase 3: Integration Tests (opcional, post unit tests)
+
+```java
+// Test 14: Hard delete + cascada + BD
+@Test
+@Transactional
+public void testHardDeleteUser_Integration_DeleteAndCascade() {
+    // FULL FLOW: create user → log audit entries → hard delete → verify user gone, audit_log preserved
+}
+```
+
+### 7.2 Test Strategy: Frontend
+
+#### Fase 1: Unit Tests — Components + Services
+
+**Archivo objetivo:** `UserList.test.js`, `ConfirmDeleteModal.test.js`, `userService.test.js`
+
+```javascript
+// Test 1: click "Eliminar" abre ConfirmDeleteModal
+test("UserList: click Eliminar button opens ConfirmDeleteModal", () => {
+  // WHEN: user clicks button with onClick={openDeleteModal(uid)}
+  // THEN: <ConfirmDeleteModal isOpen={true} /> rendered
+});
+
+// Test 2: click "Cancelar" cierra modal
+test("ConfirmDeleteModal: click Cancelar closes modal", () => {
+  // WHEN: click "Cancelar" button
+  // THEN: isOpen=false, UserList rendered again
+});
+
+// Test 3: click "Eliminar" en modal llama deleteUserService(uid)
+test("ConfirmDeleteModal: click Eliminar calls deleteUserService", async () => {
+  // GIVEN: modal abierto con uid=X
+  // WHEN: click "Eliminar" button
+  // THEN: deleteUserService(X) called
+});
+
+// Test 4: deleteUserService retorna { success: true } si 204
+test("deleteUserService: 204 returns { success: true }", async () => {
+  // GIVEN: fetch mock retorna 204
+  // WHEN: deleteUserService(uid)
+  // THEN: resolve { success: true }
+});
+
+// Test 5: deleteUserService lanza Error si 400/403/404
+test("deleteUserService: 400 throws Error with message", async () => {
+  // GIVEN: fetch retorna 400 + { error: "..." }
+  // WHEN: deleteUserService(uid)
+  // THEN: throw Error(errorData.error)
+});
+
+// Test 6: UserList refrescar tabla post-delete
+test("UserList: after delete refresh table (removes user from rows)", async () => {
+  // GIVEN: usuario visible en tabla
+  // WHEN: delete exitoso
+  // THEN: usuario NO aparece en tabla, fetchUsers() llamado
+});
+
+// Test 7: Toast success post-delete
+test("UserList: after delete shows success toast", async () => {
+  // WHEN: delete exitoso
+  // THEN: toast("Usuario eliminado")
+});
+
+// Test 8: Toast error si 400/403/404
+test("UserList: error toast on 400/403/404", async () => {
+  // WHEN: delete retorna error
+  // THEN: toast(error.message)
+});
+
+// Test 9: Redirect to login si 401
+test("deleteUserService: 401 redirige a login", async () => {
+  // GIVEN: fetch retorna 401
+  // WHEN: deleteUserService(uid)
+  // THEN: window.location = "/login"
+});
+```
+
+### 7.3 Coverage Esperado
+
+| Componente | Coverage Esperado | Tests |
+|------------|-------------------|-------|
+| UserController#deleteUser() | 100% | 6 tests (controller) |
+| UserService#hardDeleteUser() | 100% | 7 tests (service) |
+| UserList component | 90%+ | 3 tests (list, delete button, refresh) |
+| ConfirmDeleteModal | 90%+ | 3 tests (confirm, cancel, delete) |
+| deleteUserService() | 100% | 5 tests (204, 400, 403, 404, 401) |
+| **Total Estimado** | **80%+** | **24+ tests** |

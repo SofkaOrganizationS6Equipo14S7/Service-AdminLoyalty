@@ -24,8 +24,8 @@ public record AuditLogResponse(
     String action,
     String entityName,
     UUID entityId,
-    String oldValue,
-    String newValue,
+    Object oldValue,
+    Object newValue,
     Instant createdAt
 ) {
 }

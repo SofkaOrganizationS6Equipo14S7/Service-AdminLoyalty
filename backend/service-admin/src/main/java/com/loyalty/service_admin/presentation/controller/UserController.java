@@ -6,6 +6,11 @@ import com.loyalty.service_admin.application.dto.user.UserUpdateRequest;
 import com.loyalty.service_admin.application.dto.user.UpdateProfileRequest;
 import com.loyalty.service_admin.application.dto.auth.ChangePasswordRequest;
 import com.loyalty.service_admin.application.dto.auth.LoginResponse;
+import com.loyalty.service_admin.application.port.in.UserCreateUseCase;
+import com.loyalty.service_admin.application.port.in.UserListUseCase;
+import com.loyalty.service_admin.application.port.in.UserGetByIdUseCase;
+import com.loyalty.service_admin.application.port.in.UserUpdateUseCase;
+import com.loyalty.service_admin.application.port.in.UserDeleteUseCase;
 import com.loyalty.service_admin.application.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +28,11 @@ import java.util.UUID;
 @Slf4j
 public class UserController {
     
+    private final UserCreateUseCase userCreateUseCase;
+    private final UserListUseCase userListUseCase;
+    private final UserGetByIdUseCase userGetByIdUseCase;
+    private final UserUpdateUseCase userUpdateUseCase;
+    private final UserDeleteUseCase userDeleteUseCase;
     private final UserService userService;
     
     /**
@@ -31,18 +41,20 @@ public class UserController {
      */
     @PostMapping
     public ResponseEntity<UserResponse> createUser(@Valid @RequestBody UserCreateRequest request) {
-        UserResponse response = userService.createUser(request);
+        UserResponse response = userCreateUseCase.createUser(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
     
     /**
      * @param ecommerceId filter parameter (optional)
-     * @return HTTP 200 OK with list of UserResponse
+     * @param pageable pagination information
+     * @return HTTP 200 OK with paginated list of UserResponse
      */
     @GetMapping
-    public ResponseEntity<List<UserResponse>> listUsers(
-            @RequestParam(name = "ecommerceId", required = false) UUID ecommerceId) {
-        List<UserResponse> users = userService.listUsers(ecommerceId);
+    public ResponseEntity<org.springframework.data.domain.Page<UserResponse>> listUsers(
+            @RequestParam(name = "ecommerceId", required = false) UUID ecommerceId,
+            org.springframework.data.domain.Pageable pageable) {
+        org.springframework.data.domain.Page<UserResponse> users = userListUseCase.listUsers(ecommerceId, pageable);
         return ResponseEntity.ok(users);
     }
     
@@ -52,7 +64,7 @@ public class UserController {
      */
     @GetMapping("/{uid}")
     public ResponseEntity<UserResponse> getUser(@PathVariable UUID uid) {
-        UserResponse user = userService.getUserByUid(uid);
+        UserResponse user = userGetByIdUseCase.getUserById(uid);
         return ResponseEntity.ok(user);
     }
     
@@ -69,17 +81,36 @@ public class UserController {
     public ResponseEntity<UserResponse> updateUser(
             @PathVariable UUID uid,
             @Valid @RequestBody UserUpdateRequest request) {
-        UserResponse updated = userService.updateUser(uid, request);
+        UserResponse updated = userUpdateUseCase.updateUser(uid, request);
         return ResponseEntity.ok(updated);
     }
     
     /**
+     * Elimina permanentemente un usuario de forma física.
+     *
+     * HU-02.5: Hard Delete de Usuarios
+     * - Requiere autenticación (JWT válido)
+     * - Solo SUPER_ADMIN o STORE_ADMIN pueden eliminar usuarios
+     * - STORE_ADMIN solo puede eliminar usuarios de su ecommerce
+     * - No puede auto-eliminarse
+     *
+     * Respuestas:
+     * - 204 No Content: eliminación exitosa
+     * - 400 Bad Request: intento de auto-eliminación
+     * - 401 Unauthorized: token faltante/expirado
+     * - 403 Forbidden: rol insuficiente o ecommerce distinto
+     * - 404 Not Found: usuario no existe
+     *
      * @param uid user identifier
      * @return HTTP 204 No Content
+     * @throws com.loyalty.service_admin.infrastructure.exception.UnauthorizedException si token inválido
+     * @throws com.loyalty.service_admin.infrastructure.exception.BadRequestException si auto-eliminación
+     * @throws com.loyalty.service_admin.infrastructure.exception.AuthorizationException si sin permisos
+     * @throws com.loyalty.service_admin.infrastructure.exception.ResourceNotFoundException si no existe
      */
     @DeleteMapping("/{uid}")
     public ResponseEntity<Void> deleteUser(@PathVariable UUID uid) {
-        userService.deleteUser(uid);
+        userDeleteUseCase.hardDeleteUser(uid);
         return ResponseEntity.noContent().build();
     }
     

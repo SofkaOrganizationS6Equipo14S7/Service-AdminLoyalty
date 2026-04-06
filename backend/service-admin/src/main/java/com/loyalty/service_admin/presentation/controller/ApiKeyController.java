@@ -1,7 +1,7 @@
 package com.loyalty.service_admin.presentation.controller;
 
 import com.loyalty.service_admin.application.dto.apikey.*;
-import com.loyalty.service_admin.application.service.ApiKeyService;
+import com.loyalty.service_admin.application.port.in.ApiKeyUseCase;
 import com.loyalty.service_admin.infrastructure.exception.AuthorizationException;
 import com.loyalty.service_admin.infrastructure.security.SecurityContextHelper;
 import lombok.extern.slf4j.Slf4j;
@@ -19,11 +19,11 @@ import java.util.UUID;
 @PreAuthorize("isAuthenticated()")
 public class ApiKeyController {
     
-    private final ApiKeyService apiKeyService;
+    private final ApiKeyUseCase apiKeyUseCase;
     private final SecurityContextHelper securityContextHelper;
     
-    public ApiKeyController(ApiKeyService apiKeyService, SecurityContextHelper securityContextHelper) {
-        this.apiKeyService = apiKeyService;
+    public ApiKeyController(ApiKeyUseCase apiKeyUseCase, SecurityContextHelper securityContextHelper) {
+        this.apiKeyUseCase = apiKeyUseCase;
         this.securityContextHelper = securityContextHelper;
     }
     
@@ -41,7 +41,7 @@ public class ApiKeyController {
         // Validar autorización: STORE_ADMIN solo puede crear en su propio ecommerce
         validateEcommerceAccess(ecommerceId);
         
-        ApiKeyCreatedResponse response = apiKeyService.createApiKey(ecommerceId);
+        ApiKeyCreatedResponse response = apiKeyUseCase.createApiKey(ecommerceId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
     
@@ -57,7 +57,7 @@ public class ApiKeyController {
         // Validar autorización: STORE_ADMIN solo puede listar su propio ecommerce
         validateEcommerceAccess(ecommerceId);
         
-        List<ApiKeyListResponse> keys = apiKeyService.getApiKeysByEcommerce(ecommerceId);
+        List<ApiKeyListResponse> keys = apiKeyUseCase.getApiKeysByEcommerce(ecommerceId);
         return ResponseEntity.ok(keys);
     }
     
@@ -75,7 +75,7 @@ public class ApiKeyController {
         // Validar autorización: STORE_ADMIN solo puede eliminar keys de su propio ecommerce
         validateEcommerceAccess(ecommerceId);
         
-        apiKeyService.deleteApiKey(ecommerceId, keyId);
+        apiKeyUseCase.deleteApiKey(ecommerceId, keyId);
         return ResponseEntity.noContent().build();
     }
     

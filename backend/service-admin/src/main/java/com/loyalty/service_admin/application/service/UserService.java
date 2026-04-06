@@ -278,10 +278,12 @@ public class UserService {
             );
         }
         
-        // CRITERIO-1.5: Soft delete - marcar isActive=false en lugar de eliminar físicamente
-        user.setIsActive(false);
-        userRepository.save(user);
-        log.info("Usuario desactivado (soft delete): uid={}, username={}, ecommerce={}, actor={}", 
+        // Registrar auditoría antes de eliminar (CRITERIO-2.5.1)
+        auditService.auditUserDeletion(user, currentUserUid);
+        
+        // Hard delete: eliminar físicamente de la BD (CRITERIO-2.5.1)
+        userRepository.delete(user);
+        log.info("Hard delete ejecutado: uid={}, username={}, ecommerce={}, actor={}", 
                 user.getId(), user.getUsername(), user.getEcommerceId(), currentUserUid);
     }
     
