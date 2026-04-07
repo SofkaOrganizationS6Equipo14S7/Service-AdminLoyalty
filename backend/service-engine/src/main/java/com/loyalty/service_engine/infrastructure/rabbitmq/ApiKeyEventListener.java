@@ -33,12 +33,13 @@ public class ApiKeyEventListener {
             containerFactory = "apiKeyEventListenerContainerFactory"
     )
     public void onApiKeyEvent(String payload) {
+        String eventId = null;
         try {
             ApiKeyEventPayload event = objectMapper.readValue(payload, ApiKeyEventPayload.class);
             validateEvent(event);
-            String eventId = buildEventId(event);
+            eventId = buildEventId(event);
 
-            if (!markIfFirstTime(eventId)) {
+            if (isAlreadyProcessed(eventId)) {
                 log.info("event=api_key_event_duplicate_ignored eventId={} type={} keyId={} ecommerceId={}",
                         eventId, event.eventType(), event.keyId(), event.ecommerceId());
                 return;
@@ -49,7 +50,12 @@ public class ApiKeyEventListener {
                 case "API_KEY_DELETED" -> handleApiKeyDeleted(event, eventId);
                 default -> throw new IllegalArgumentException("Unknown API Key event type: " + event.eventType());
             }
+
+            markAsProcessed(eventId);
         } catch (Exception e) {
+            if (eventId != null) {
+                processedEvents.remove(eventId);
+            }
             log.error("event=api_key_event_processing_failed payload={}", payload, e);
             throw new IllegalStateException("API Key event processing failed", e);
         }
@@ -89,6 +95,15 @@ public class ApiKeyEventListener {
     private boolean markIfFirstTime(String eventId) {
         cleanupDedupMap();
         return processedEvents.putIfAbsent(eventId, Instant.now()) == null;
+    }
+
+    private boolean isAlreadyProcessed(String eventId) {
+        cleanupDedupMap();
+        return processedEvents.containsKey(eventId);
+    }
+
+    private void markAsProcessed(String eventId) {
+        processedEvents.put(eventId, Instant.now());
     }
 
     private void cleanupDedupMap() {

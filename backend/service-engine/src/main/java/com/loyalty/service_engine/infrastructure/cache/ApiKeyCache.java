@@ -130,6 +130,7 @@ public class ApiKeyCache {
             ApiKeyEntity entity = new ApiKeyEntity();
             entity.setHashedKey(hashedKeyValue);
             entity.setEcommerceId(UUID.fromString(ecommerceId));
+            entity.setExpiresAt(java.time.Instant.now().plus(java.time.Duration.ofDays(365)));
             apiKeyRepository.save(entity);
             
             // Insertar en caché
