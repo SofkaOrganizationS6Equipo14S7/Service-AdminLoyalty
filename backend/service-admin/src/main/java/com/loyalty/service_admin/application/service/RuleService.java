@@ -11,6 +11,7 @@ import com.loyalty.service_admin.application.dto.discount.DiscountPriorityDTO;
 import com.loyalty.service_admin.domain.entity.*;
 import com.loyalty.service_admin.domain.repository.*;
 import com.loyalty.service_admin.infrastructure.exception.BadRequestException;
+import com.loyalty.service_admin.infrastructure.exception.ConflictException;
 import com.loyalty.service_admin.infrastructure.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,7 +20,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -36,6 +41,7 @@ public class RuleService {
     private final RuleCustomerTierRepository ruleCustomerTierRepository;
     private final CustomerTierRepository customerTierRepository;
     private final DiscountTypeRepository discountTypeRepository;
+    private final DiscountConfigRepository discountConfigRepository;
 
     public RuleResponse createRule(UUID ecommerceId, RuleCreateRequest request) {
         log.debug("Creating rule for ecommerce: {}", ecommerceId);
@@ -43,6 +49,21 @@ public class RuleService {
         UUID priorityId = UUID.fromString(request.discountPriorityId());
         DiscountPriorityEntity priority = discountLimitPriorityRepository.findById(priorityId)
                 .orElseThrow(() -> new ResourceNotFoundException("Discount priority not found: " + priorityId));
+
+        DiscountTypeEntity discountType = discountTypeRepository.findById(priority.getDiscountTypeId())
+                .orElseThrow(() -> new ResourceNotFoundException("Discount type not found"));
+        
+        String typeCode = discountType.getCode(); // PRODUCT, SEASONAL, CLASSIFICATION
+
+        // ========== HU-06 SEASONAL VALIDATION ==========
+        if ("SEASONAL".equals(typeCode)) {
+            LocalDate startDate = LocalDate.parse(request.attributes().get("start_date"));
+            LocalDate endDate = LocalDate.parse(request.attributes().get("end_date"));
+            validateSeasonalDateOverlap(ecommerceId, null, startDate, endDate);
+        }
+
+        // ========== HU-06/HU-07 DISCOUNT LIMITS VALIDATION (APPLIES TO ALL) ==========
+        validateDiscountLimits(ecommerceId, request.discountPercentage());
 
         RuleEntity rule = RuleEntity.builder()
                 .ecommerceId(ecommerceId)
@@ -92,6 +113,21 @@ public class RuleService {
         UUID priorityId = UUID.fromString(request.discountPriorityId());
         DiscountPriorityEntity priority = discountLimitPriorityRepository.findById(priorityId)
                 .orElseThrow(() -> new ResourceNotFoundException("Discount priority not found: " + priorityId));
+
+        DiscountTypeEntity discountType = discountTypeRepository.findById(priority.getDiscountTypeId())
+                .orElseThrow(() -> new ResourceNotFoundException("Discount type not found"));
+        
+        String typeCode = discountType.getCode();
+
+        // ========== HU-06 SEASONAL VALIDATION ==========
+        if ("SEASONAL".equals(typeCode)) {
+            LocalDate startDate = LocalDate.parse(request.attributes().get("start_date"));
+            LocalDate endDate = LocalDate.parse(request.attributes().get("end_date"));
+            validateSeasonalDateOverlap(ecommerceId, ruleId, startDate, endDate); // Pass ruleId to exclude from check
+        }
+
+        // ========== HU-06/HU-07 DISCOUNT LIMITS VALIDATION ==========
+        validateDiscountLimits(ecommerceId, request.discountPercentage());
 
         rule.setName(request.name());
         rule.setDescription(request.description());
@@ -174,6 +210,171 @@ public class RuleService {
                             }
                     );
         }
+    }
+
+    // ============================================================
+    // VALIDATION METHODS - Date Overlap & Discount Limits (HU-06/HU-07)
+    // ============================================================
+
+    /**
+     * Validates that SEASONAL rule dates don't overlap with existing rules
+     * HU-06: Validación de Superposición de Fechas
+     * 
+     * @param ecommerceId    Tenant ID
+     * @param ruleId         Current rule ID (for update, null for create)
+     * @param startDate      Season start date
+     * @param endDate        Season end date
+     * @throws BadRequestException if dates are invalid
+     * @throws ConflictException if overlap detected
+     */
+    private void validateSeasonalDateOverlap(UUID ecommerceId, UUID ruleId, 
+                                             LocalDate startDate, LocalDate endDate) {
+        log.debug("Validating SEASONAL date overlap for ecommerce: {}", ecommerceId);
+        
+        // Validate date order
+        if (startDate.isAfter(endDate)) {
+            throw new BadRequestException("start_date must be before or equal to end_date");
+        }
+        
+        // Query all active SEASONAL rules for this ecommerce
+        List<RuleEntity> activeSeasonalRules = findActiveSeasonalRulesByEcommerce(ecommerceId);
+        
+        for (RuleEntity existingRule : activeSeasonalRules) {
+            // Skip current rule if updating
+            if (ruleId != null && existingRule.getId().equals(ruleId)) {
+                continue;
+            }
+            
+            // Extract dates from existing rule
+            LocalDate existingStart = getAttributeDate(existingRule, "start_date");
+            LocalDate existingEnd = getAttributeDate(existingRule, "end_date");
+            
+            // Check overlap
+            if (datesOverlap(startDate, endDate, existingStart, existingEnd)) {
+                log.warn("Date overlap detected with rule: {} (dates: {} to {})", 
+                    existingRule.getId(), existingStart, existingEnd);
+                throw new ConflictException(
+                    "SEASONAL rule date overlap detected. Existing rule (" + 
+                    existingRule.getId() + ") covers " + existingStart + 
+                    " to " + existingEnd
+                );
+            }
+        }
+        
+        log.debug("SEASONAL date overlap validation passed");
+    }
+
+    /**
+     * Validates that discount percentage doesn't exceed configured limits
+     * HU-06/HU-07: Validación de Límites de Descuento
+     * 
+     * @param ecommerceId        Tenant ID
+     * @param discountPercentage Discount to validate
+     * @throws BadRequestException if discount exceeds max limit
+     * @throws ResourceNotFoundException if discount settings not found
+     */
+    private void validateDiscountLimits(UUID ecommerceId, BigDecimal discountPercentage) {
+        log.debug("Validating discount limits for ecommerce: {}", ecommerceId);
+        
+        // Get discount settings for ecommerce
+        DiscountSettingsEntity settings = discountConfigRepository
+            .findActiveByEcommerceId(ecommerceId)
+            .orElseThrow(() -> new ResourceNotFoundException(
+                "Discount settings not found for ecommerce: " + ecommerceId
+            ));
+        
+        // Validate against max_discount_cap
+        if (discountPercentage.compareTo(settings.getMaxDiscountCap()) > 0) {
+            log.warn("Discount {} exceeds max cap: {}", discountPercentage, settings.getMaxDiscountCap());
+            throw new BadRequestException(
+                "Discount percentage " + discountPercentage + 
+                "% exceeds maximum allowed: " + settings.getMaxDiscountCap() + "%"
+            );
+        }
+        
+        log.debug("Discount limits validation passed");
+    }
+
+    /**
+     * Extract date value from rule attributes by name
+     * Helper for date validation
+     * 
+     * @param rule           Rule entity
+     * @param attributeName  Attribute name (e.g., "start_date")
+     * @return LocalDate parsed value
+     * @throws BadRequestException if attribute not found or invalid format
+     */
+    private LocalDate getAttributeDate(RuleEntity rule, String attributeName) {
+        List<RuleAttributeValueEntity> values = 
+            ruleAttributeValueRepository.findByRuleIdOrderByCreatedAtAsc(rule.getId());
+        
+        for (RuleAttributeValueEntity value : values) {
+            RuleAttributeEntity attr = ruleAttributeRepository
+                .findById(value.getAttributeId())
+                .orElse(null);
+            
+            if (attr != null && attr.getAttributeName().equalsIgnoreCase(attributeName)) {
+                try {
+                    // Expected format: YYYY-MM-DD (ISO 8601)
+                    return LocalDate.parse(value.getValue(), DateTimeFormatter.ISO_LOCAL_DATE);
+                } catch (DateTimeParseException e) {
+                    throw new BadRequestException(
+                        "Invalid " + attributeName + " format. Expected YYYY-MM-DD, got: " + value.getValue()
+                    );
+                }
+            }
+        }
+        
+        throw new BadRequestException(
+            "Attribute '" + attributeName + "' not found for rule: " + rule.getId()
+        );
+    }
+
+    /**
+     * Check if two date ranges overlap
+     * Logic: ranges overlap if end1 >= start2 AND end2 >= start1
+     * 
+     * @param s1 First range start
+     * @param e1 First range end
+     * @param s2 Second range start
+     * @param e2 Second range end
+     * @return true if overlap exists
+     */
+    private boolean datesOverlap(LocalDate s1, LocalDate e1, LocalDate s2, LocalDate e2) {
+        return !e1.isBefore(s2) && !e2.isBefore(s1);
+    }
+
+    /**
+     * Query all active SEASONAL rules for ecommerce
+     * Helper for overlap validation
+     * 
+     * @param ecommerceId Tenant ID
+     * @return List of active SEASONAL rules
+     */
+    private List<RuleEntity> findActiveSeasonalRulesByEcommerce(UUID ecommerceId) {
+        // Get all active rules
+        Page<RuleEntity> allRules = ruleRepository
+            .findByEcommerceIdAndIsActiveTrueOrderByCreatedAtDesc(ecommerceId, 
+                org.springframework.data.domain.PageRequest.of(0, Integer.MAX_VALUE));
+        
+        // Filter by SEASONAL type
+        return allRules.stream()
+            .filter(rule -> {
+                try {
+                    DiscountPriorityEntity priority = discountLimitPriorityRepository
+                        .findById(rule.getDiscountPriorityId()).orElse(null);
+                    if (priority == null) return false;
+                    
+                    DiscountTypeEntity type = discountTypeRepository
+                        .findById(priority.getDiscountTypeId()).orElse(null);
+                    
+                    return type != null && "SEASONAL".equals(type.getCode());
+                } catch (Exception e) {
+                    log.error("Error filtering SEASONAL rule", e);
+                    return false;
+                }
+            })
+            .collect(Collectors.toList());
     }
 
     /**
