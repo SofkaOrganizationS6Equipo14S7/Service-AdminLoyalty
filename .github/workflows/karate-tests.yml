@@ -99,6 +99,17 @@ jobs:
           repository: SofkaOrganizationS6Equipo14S7/KarateLoyalty
           path: karate-tests
 
+      - name: Verify Karate project
+        run: |
+          echo "Contents of karate-tests/:"
+          ls -la karate-tests/
+          echo "---"
+          find karate-tests -name 'pom.xml' -maxdepth 3
+          if [ ! -f karate-tests/pom.xml ]; then
+            echo "ERROR: pom.xml not found at karate-tests root"
+            exit 1
+          fi
+
       - name: Run Karate tests
         working-directory: karate-tests
         run: mvn test -Dkarate.env=dev
