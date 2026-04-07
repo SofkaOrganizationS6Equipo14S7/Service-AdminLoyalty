@@ -55,15 +55,14 @@ public class RuleService {
 
         // ========== HU-06 CRITERIO: PRODUCT RULES VALIDATION ==========
         if ("PRODUCT".equals(typeCode)) {
-            String productType = request.attributes().get("productType");
+            String productType = request.attributes().get("product_type");
             
-            // Validar que productType existe
+            // Validar que product_type existe
             if (productType == null || productType.isBlank()) {
-                throw new BadRequestException("productType attribute is required for PRODUCT rules");
+                throw new BadRequestException("product_type attribute is required for PRODUCT rules");
             }
             
-            // Validar que no existe otra regla activa con el mismo productType para este ecommerce
-            // Buscar todas las rules activas del ecommerce, filtrar por atributo productType
+            // Validar que no existe otra regla activa con el mismo product_type para este ecommerce
             List<RuleEntity> activeRules = ruleRepository.findByEcommerceIdAndIsActiveTrueOrderByCreatedAtDesc(ecommerceId, org.springframework.data.domain.PageRequest.of(0, Integer.MAX_VALUE))
                     .getContent();
             
@@ -71,9 +70,9 @@ public class RuleService {
                 List<RuleAttributeValueEntity> attrs = ruleAttributeValueRepository.findByRuleIdOrderByCreatedAtAsc(activeRule.getId());
                 for (RuleAttributeValueEntity attr : attrs) {
                     RuleAttributeEntity attrDef = ruleAttributeRepository.findById(attr.getAttributeId()).orElse(null);
-                    if (attrDef != null && "productType".equalsIgnoreCase(attrDef.getAttributeName())) {
+                    if (attrDef != null && "product_type".equalsIgnoreCase(attrDef.getAttributeName())) {
                         if (productType.equals(attr.getValue())) {
-                            throw new ConflictException("A rule with productType '" + productType + "' already exists for this ecommerce. Only one active rule per product type is allowed.");
+                            throw new ConflictException("A rule with product_type '" + productType + "' already exists for this ecommerce. Only one active rule per product type is allowed.");
                         }
                     }
                 }
@@ -137,26 +136,26 @@ public class RuleService {
 
         // ========== HU-06: PRODUCT RULES UNIQUENESS VALIDATION ON UPDATE ==========
         if ("PRODUCT".equals(typeCode)) {
-            String productType = request.attributes().get("productType");
+            String productType = request.attributes().get("product_type");
             
-            // Validar que productType existe
+            // Validar que product_type existe
             if (productType == null || productType.isBlank()) {
-                throw new BadRequestException("productType attribute is required for PRODUCT rules");
+                throw new BadRequestException("product_type attribute is required for PRODUCT rules");
             }
             
-            // Obtener productType actual
+            // Obtener product_type actual
             List<RuleAttributeValueEntity> currentAttrs = ruleAttributeValueRepository.findByRuleIdOrderByCreatedAtAsc(ruleId);
             String currentProductType = null;
             
             for (RuleAttributeValueEntity attr : currentAttrs) {
                 RuleAttributeEntity attrDef = ruleAttributeRepository.findById(attr.getAttributeId()).orElse(null);
-                if (attrDef != null && "productType".equalsIgnoreCase(attrDef.getAttributeName())) {
+                if (attrDef != null && "product_type".equalsIgnoreCase(attrDef.getAttributeName())) {
                     currentProductType = attr.getValue();
                     break;
                 }
             }
             
-            // Solo validar duplicidad si el productType cambió
+            // Solo validar duplicidad si el product_type cambió
             if (!productType.equals(currentProductType)) {
                 List<RuleEntity> activeRules = ruleRepository.findByEcommerceIdAndIsActiveTrueOrderByCreatedAtDesc(ecommerceId, org.springframework.data.domain.PageRequest.of(0, Integer.MAX_VALUE))
                         .getContent();
@@ -167,9 +166,9 @@ public class RuleService {
                     List<RuleAttributeValueEntity> attrs = ruleAttributeValueRepository.findByRuleIdOrderByCreatedAtAsc(activeRule.getId());
                     for (RuleAttributeValueEntity attr : attrs) {
                         RuleAttributeEntity attrDef = ruleAttributeRepository.findById(attr.getAttributeId()).orElse(null);
-                        if (attrDef != null && "productType".equalsIgnoreCase(attrDef.getAttributeName())) {
+                        if (attrDef != null && "product_type".equalsIgnoreCase(attrDef.getAttributeName())) {
                             if (productType.equals(attr.getValue())) {
-                                throw new ConflictException("A rule with productType '" + productType + "' already exists for this ecommerce. Only one active rule per product type is allowed.");
+                                throw new ConflictException("A rule with product_type '" + productType + "' already exists for this ecommerce. Only one active rule per product type is allowed.");
                             }
                         }
                     }

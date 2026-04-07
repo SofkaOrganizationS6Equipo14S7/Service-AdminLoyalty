@@ -83,7 +83,7 @@ public class TransactionLogWriter {
                 .finalAmount(response.finalAmount())
                 .wasCapped(response.wasCapped())
                 .capReason(response.capReason())
-                .appliedRulesJson(appliedRulesJson != null ? objectMapper.convertValue(appliedRulesJson, com.fasterxml.jackson.databind.JsonNode.class) : null)
+                .appliedRulesJson(objectMapper.convertValue(appliedRulesJson, com.fasterxml.jackson.databind.JsonNode.class))
                 .customerTier(response.customerTier())
                 .clientMetricsJson(clientMetricsJson != null ? objectMapper.convertValue(clientMetricsJson, com.fasterxml.jackson.databind.JsonNode.class) : null)
                 .status("SUCCESS")
@@ -131,20 +131,22 @@ public class TransactionLogWriter {
      */
     private Object serializeAppliedRules(List<AppliedRuleDetail> rules) {
         if (rules == null || rules.isEmpty()) {
-            return null;
+            return List.of();
         }
 
         return rules.stream()
-            .map(rule -> Map.of(
-                "rule_id", rule.ruleId().toString(),
-                "rule_name", rule.ruleName(),
-                "discount_type_code", rule.discountTypeCode(),
-                "discount_type", rule.discountType(),
-                "applied_with", rule.appliedWith(),
-                "discount_percentage", rule.discountPercentage() != null ? rule.discountPercentage().toPlainString() : null,
-                "discount_amount", rule.discountAmount().toPlainString(),
-                "priority_level", rule.priorityLevel()
-            ))
+            .map(rule -> {
+                Map<String, Object> map = new HashMap<>();
+                map.put("rule_id", rule.ruleId().toString());
+                map.put("rule_name", rule.ruleName());
+                map.put("discount_type_code", rule.discountTypeCode());
+                map.put("discount_type", rule.discountType());
+                map.put("applied_with", rule.appliedWith());
+                map.put("discount_percentage", rule.discountPercentage() != null ? rule.discountPercentage().toPlainString() : "0");
+                map.put("discount_amount", rule.discountAmount().toPlainString());
+                map.put("priority_level", rule.priorityLevel());
+                return map;
+            })
             .toList();
     }
 
