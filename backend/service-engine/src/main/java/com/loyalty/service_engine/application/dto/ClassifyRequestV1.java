@@ -4,11 +4,17 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
+import java.time.Instant;
 
 /**
- * DTO for customer classification request.
- * Request body for POST /api/v1/customers/classify
- * Flexible: supports multiple metrics (total_spent, order_count, loyalty_points, etc).
+ * DTO for customer classification request (INTERNAL)NOT EXPOSED AS PUBLIC ENDPOINT.
+ * Evaluates customer metrics to determine loyalty tier.
+ *
+ * Fields used in classification via JSONB logic_conditions:
+ * - totalSpent: customer lifetime purchase value
+ * - orderCount: number of orders placed
+ * - membershipDays: days since account creation
+ * - lastPurchaseDate: optional, for recency-based rules
  */
 public record ClassifyRequestV1(
     @NotNull(message = "Total spent is required")
@@ -19,7 +25,10 @@ public record ClassifyRequestV1(
     @Min(value = 0, message = "Order count must be non-negative")
     Integer orderCount,
 
-    @Min(value = 0, message = "Loyalty points must be non-negative when provided")
-    Integer loyaltyPoints // Optional
+    @NotNull(message = "Membership days is required")
+    @Min(value = 0, message = "Membership days must be non-negative")
+    Integer membershipDays,
+
+    Instant lastPurchaseDate // Optional
 ) {
 }

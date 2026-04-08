@@ -278,8 +278,12 @@ public class UserService {
             );
         }
         
+        // Registrar auditoría antes de eliminar (CRITERIO-2.5.1)
+        auditService.auditUserDeletion(user, currentUserUid);
+        
+        // Hard delete: eliminar físicamente de la BD (CRITERIO-2.5.1)
         userRepository.delete(user);
-        log.info("Usuario eliminado: uid={}, username={}, ecommerce={}, actor={}", 
+        log.info("Hard delete ejecutado: uid={}, username={}, ecommerce={}, actor={}", 
                 user.getId(), user.getUsername(), user.getEcommerceId(), currentUserUid);
     }
     

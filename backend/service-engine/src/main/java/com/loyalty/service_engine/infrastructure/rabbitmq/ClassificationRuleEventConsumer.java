@@ -1,8 +1,5 @@
 package com.loyalty.service_engine.infrastructure.rabbitmq;
 
-import com.loyalty.service_engine.application.dto.events.ClassificationRuleCreatedEvent;
-import com.loyalty.service_engine.application.dto.events.ClassificationRuleDeletedEvent;
-import com.loyalty.service_engine.application.dto.events.ClassificationRuleUpdatedEvent;
 import com.loyalty.service_engine.application.service.ClassificationMatrixCaffeineCacheService;
 import com.loyalty.service_engine.domain.entity.ClassificationRuleReplicaEntity;
 import com.loyalty.service_engine.domain.repository.ClassificationRuleReplicaRepository;
@@ -11,7 +8,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Consumes classification rule events published by Admin Service.
@@ -21,9 +22,24 @@ import java.time.Instant;
  * Admin Service (source of truth) → RabbitMQ → Engine Service (listener) → DB replica + Caffeine Cache
  *
  * Three paths:
- * 1. ClassificationRuleCreated: Add new rule to DB replica and invalidate cache
- * 2. ClassificationRuleUpdated: Update rule in DB replica and invalidate cache
- * 3. ClassificationRuleDeleted: Soft-delete rule in DB replica and invalidate cache
+ * 1. RuleCreated: Add new rule to DB replica and invalidate cache for ecommerce
+ * 2. RuleUpdated: Update rule in DB replica and invalidate cache for ecommerce
+ * 3. RuleDeleted: Soft-delete rule in DB replica and invalidate cache for ecommerce
+ *
+ * Event payload structure:
+ * {
+ *   "ruleId": "uuid",
+ *   "ecommerceId": "uuid",
+ *   "name": "Gold Tier Rule",
+ *   "discountTypeCode": "CLASSIFICATION",
+ *   "discountType": "PERCENTAGE",
+ *   "discountValue": 10.0,
+ *   "appliedWith": "INDIVIDUAL",
+ *   "logicConditions": { "min_spent": {...}, ... },
+ *   "priorityLevel": 1,
+ *   "isActive": true,
+ *   "eventType": "CREATED|UPDATED|DELETED"
+ * }
  */
 @Slf4j
 @Component
@@ -33,55 +49,126 @@ public class ClassificationRuleEventConsumer {
     private final ClassificationRuleReplicaRepository ruleReplicaRepo;
     private final ClassificationMatrixCaffeineCacheService cacheService;
 
-    @RabbitListener(queues = "${rabbitmq.queue.classification:classification.matrix.queue}")
-    public void handleRuleCreated(ClassificationRuleCreatedEvent event) {
-        log.info("Received ClassificationRuleCreatedEvent: ruleUid={}", event.ruleUid());
+    @RabbitListener(queues = "${rabbitmq.queue.classification-rules:classification-rules.queue}")
+    public void handleRuleEvent(ClassificationRuleEvent event) {
+        if (event == null) {
+            log.warn("Received null rule event");
+            return;
+        }
+
+        try {
+            switch (event.eventType().toUpperCase()) {
+                case "CREATED":
+                    handleRuleCreated(event);
+                    break;
+                case "UPDATED":
+                    handleRuleUpdated(event);
+                    break;
+                case "DELETED":
+                    handleRuleDeleted(event);
+                    break;
+                default:
+                    log.warn("Unknown rule event type: {}", event.eventType());
+                    return;
+            }
+
+            // Invalidate cache for this ecommerce
+            if (event.ecommerceId() != null) {
+                cacheService.invalidateEcommerce(event.ecommerceId());
+                log.debug("Cache invalidated for ecommerce: {} after {} event", event.ecommerceId(), event.eventType());
+            }
+
+        } catch (Exception e) {
+            log.error("Error processing rule event: {}", event, e);
+        }
+    }
+
+    private void handleRuleCreated(ClassificationRuleEvent event) {
+        log.info("Creating classification rule: id={}, ecommerce={}, name={}", 
+            event.ruleId(), event.ecommerceId(), event.name());
 
         ClassificationRuleReplicaEntity replica = new ClassificationRuleReplicaEntity(
-            event.ruleUid(),
-            event.tierUid(),
-            event.metricType(),
-            event.minValue(),
-            event.maxValue(),
-            event.priority(),
+            event.ruleId(),
+            event.ecommerceId(),
+            event.name(),
+            event.description(),
+            event.discountTypeCode(),
+            event.discountType(),
+            event.discountValue(),
+            event.appliedWith(),
+            event.logicConditions(),
+            event.priorityLevel(),
             true,
+            Instant.now(),
+            Instant.now(),
             Instant.now()
         );
 
         ruleReplicaRepo.save(replica);
-        cacheService.invalidate();
-        log.info("Rule created in replica and cache invalidated");
+        log.info("Rule created in replica: id={}", event.ruleId());
     }
 
-    @RabbitListener(queues = "${rabbitmq.queue.classification:classification.matrix.queue}")
-    public void handleRuleUpdated(ClassificationRuleUpdatedEvent event) {
-        log.info("Received ClassificationRuleUpdatedEvent: ruleUid={}", event.ruleUid());
+    private void handleRuleUpdated(ClassificationRuleEvent event) {
+        log.info("Updating classification rule: id={}, ecommerce={}", event.ruleId(), event.ecommerceId());
 
-        ruleReplicaRepo.findById(event.ruleUid()).ifPresent(rule -> {
-            rule.setMetricType(event.metricType());
-            rule.setMinValue(event.minValue());
-            rule.setMaxValue(event.maxValue());
-            rule.setPriority(event.priority());
-            rule.setIsActive(event.isActive());
-            ruleReplicaRepo.save(rule);
-            log.info("Rule updated in replica: uid={}", event.ruleUid());
-        });
+        Optional<ClassificationRuleReplicaEntity> existing = ruleReplicaRepo.findById(event.ruleId());
 
-        cacheService.invalidate();
-        log.info("Cache invalidated after rule update");
+        if (existing.isPresent()) {
+            ClassificationRuleReplicaEntity entity = existing.get();
+            entity.setName(event.name());
+            entity.setDescription(event.description());
+            entity.setDiscountTypeCode(event.discountTypeCode());
+            entity.setDiscountType(event.discountType());
+            entity.setDiscountValue(event.discountValue());
+            entity.setAppliedWith(event.appliedWith());
+            entity.setLogicConditions(event.logicConditions());
+            entity.setPriorityLevel(event.priorityLevel());
+            entity.setIsActive(event.isActive());
+            entity.setSyncedAt(Instant.now());
+            entity.setUpdatedAt(Instant.now());
+
+            ruleReplicaRepo.save(entity);
+            log.info("Rule updated in replica: id={}", event.ruleId());
+        } else {
+            log.warn("Rule not found for update: id={}", event.ruleId());
+            // Treat as create if not exists
+            handleRuleCreated(event);
+        }
     }
 
-    @RabbitListener(queues = "${rabbitmq.queue.classification:classification.matrix.queue}")
-    public void handleRuleDeleted(ClassificationRuleDeletedEvent event) {
-        log.info("Received ClassificationRuleDeletedEvent: ruleUid={}", event.ruleUid());
+    private void handleRuleDeleted(ClassificationRuleEvent event) {
+        log.info("Soft-deleting classification rule: id={}", event.ruleId());
 
-        ruleReplicaRepo.findById(event.ruleUid()).ifPresent(rule -> {
-            rule.setIsActive(false);
-            ruleReplicaRepo.save(rule);
-            log.info("Rule soft-deleted in replica");
-        });
+        Optional<ClassificationRuleReplicaEntity> existing = ruleReplicaRepo.findById(event.ruleId());
 
-        cacheService.invalidate();
-        log.info("Cache invalidated");
+        if (existing.isPresent()) {
+            ClassificationRuleReplicaEntity entity = existing.get();
+            entity.setIsActive(false);
+            entity.setSyncedAt(Instant.now());
+            entity.setUpdatedAt(Instant.now());
+
+            ruleReplicaRepo.save(entity);
+            log.info("Rule soft-deleted in replica: id={}", event.ruleId());
+        } else {
+            log.warn("Rule not found for deletion: id={}", event.ruleId());
+        }
     }
+
+    /**
+     * Event payload for classification rule synchronization from Admin Service.
+     */
+    public record ClassificationRuleEvent(
+        String eventType,
+        UUID ruleId,
+        UUID ecommerceId,
+        String name,
+        String description,
+        String discountTypeCode,
+        String discountType,
+        BigDecimal discountValue,
+        String appliedWith,
+        Map<String, Object> logicConditions,
+        Integer priorityLevel,
+        boolean isActive
+    ) {}
 }

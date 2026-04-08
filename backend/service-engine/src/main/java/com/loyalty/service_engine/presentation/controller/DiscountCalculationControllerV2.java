@@ -1,7 +1,7 @@
 package com.loyalty.service_engine.presentation.controller;
 
-import com.loyalty.service_engine.application.dto.calculate.DiscountCalculateRequestV2;
-import com.loyalty.service_engine.application.dto.calculate.DiscountCalculateResponseV2;
+import com.loyalty.service_engine.application.dto.DiscountCalculateRequestV2;
+import com.loyalty.service_engine.application.dto.DiscountCalculateResponseV2;
 import com.loyalty.service_engine.application.service.DiscountCalculationServiceV2;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v1/discounts")
+@RequestMapping("/api/v1/engine")
 public class DiscountCalculationControllerV2 {
 
     private final DiscountCalculationServiceV2 discountCalculationService;

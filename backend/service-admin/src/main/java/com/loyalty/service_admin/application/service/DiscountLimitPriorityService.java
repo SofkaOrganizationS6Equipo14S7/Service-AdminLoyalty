@@ -15,7 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.OffsetDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -48,13 +48,14 @@ public class DiscountLimitPriorityService {
     /**
      * Guarda o actualiza las prioridades para una configuración.
      * Reemplaza las prioridades anteriores.
+     * CRITERIO-4.3: Valida discountTypeId y priorityLevel
      */
     @Transactional
     public DiscountLimitPriorityResponse savePriorities(DiscountLimitPriorityRequest request) {
         // Validar request
         priorityValidator.validatePriorities(request);
 
-        UUID configId = UUID.fromString(request.discountConfigId());
+        UUID configId = request.discountSettingId();
 
         // Eliminar prioridades anteriores
         priorityRepository.deleteByDiscountSettingsId(configId);
@@ -66,11 +67,10 @@ public class DiscountLimitPriorityService {
             .map(dto -> {
                 DiscountPriorityEntity entity = new DiscountPriorityEntity();
                 entity.setDiscountSettingId(configId);
-                // Buscar el UUID del discount type por código
-                UUID discountTypeId = discountTypeRepository.findByCode(dto.discountType())
-                    .map(DiscountTypeEntity::getId)
-                    .orElseThrow(() -> new BadRequestException("Tipo de descuento no encontrado: " + dto.discountType()));
-                entity.setDiscountTypeId(discountTypeId);
+                // Validar que discountTypeId existe
+                discountTypeRepository.findById(dto.discountTypeId())
+                    .orElseThrow(() -> new BadRequestException("Tipo de descuento no encontrado: " + dto.discountTypeId()));
+                entity.setDiscountTypeId(dto.discountTypeId());
                 entity.setPriorityLevel(dto.priorityLevel());
                 return entity;
             })
@@ -113,25 +113,25 @@ public class DiscountLimitPriorityService {
      * Convierte entidades a DTO response.
      */
     private DiscountLimitPriorityResponse toResponse(UUID configId, List<DiscountPriorityEntity> entities) {
+        // Obtener el primer entity para uid (si existe), o generar un UUID único para el grupo
+        UUID responseUid = entities.isEmpty() ? UUID.randomUUID() : entities.get(0).getId();
+        Instant now = Instant.now();
+        
         List<DiscountLimitPriorityResponse.PriorityEntry> entries = entities
             .stream()
-            .map(entity -> {
-                String discountTypeCode = discountTypeRepository.findById(entity.getDiscountTypeId())
-                    .map(DiscountTypeEntity::getCode)
-                    .orElse("UNKNOWN");
-                return new DiscountLimitPriorityResponse.PriorityEntry(
-                    discountTypeCode,
-                    entity.getPriorityLevel(),
-                    entity.getCreatedAt().atOffset(java.time.ZoneOffset.UTC)
-                );
-            })
+            .map(entity -> new DiscountLimitPriorityResponse.PriorityEntry(
+                entity.getDiscountTypeId(),
+                entity.getPriorityLevel(),
+                entity.getCreatedAt()
+            ))
             .collect(Collectors.toList());
 
         return new DiscountLimitPriorityResponse(
-            UUID.randomUUID().toString(), // ID de agrupación
-            configId.toString(),
+            responseUid,
+            configId,
             entries,
-            OffsetDateTime.now()
+            now,
+            now
         );
     }
 }

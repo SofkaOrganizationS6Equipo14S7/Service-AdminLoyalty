@@ -1,5 +1,7 @@
 package com.loyalty.service_engine.infrastructure.startup;
 
+import com.loyalty.service_engine.application.dto.ClassificationRuleDTO;
+import com.loyalty.service_engine.application.dto.CustomerTierDTO;
 import com.loyalty.service_engine.application.service.ClassificationMatrixCaffeineCacheService;
 import com.loyalty.service_engine.domain.entity.ClassificationRuleReplicaEntity;
 import com.loyalty.service_engine.domain.entity.CustomerTierReplicaEntity;
@@ -12,6 +14,9 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Cold Start Loader for Classification Matrix.
@@ -19,19 +24,18 @@ import java.util.List;
  * Responsibility:
  * - Executes on application startup (ApplicationReadyEvent)
  * - Loads all active tiers and rules from replica database tables
- * - Populates Caffeine in-memory cache (10-minute TTL)
+ * - Populates Caffeine in-memory cache per ecommerce (1-hour TTL)
  * - Guarantees Engine autonomy even if RabbitMQ events haven't arrived yet
  *
  * Why this matters:
  * - Without this loader, Engine would fail on first /classify request after restart
  * - With this loader, classification works immediately after startup
- * - Replica tables are the fallback data source (populated by Admin via events)
+ * - Replica tables are the fallback data source (populated by Admin via RabbitMQ events)
  *
- * Algorithm:
- * 1. Query all active tiers (isActive=true) ordered by level
- * 2. Query all active rules
- * 3. Put both into Caffeine cache
- * 4. Log completion with counts
+ * Multi-tenant Strategy:
+ * - Loads ALL ecommerces that have tiers/rules in the replica database
+ * - Groups by ecommerce and loads each one separately
+ * - Supports independent cache invalidation per ecommerce
  *
  * Execution Order:
  * - @EventListener(ApplicationReadyEvent.class) executes AFTER all @PostConstruct hooks
@@ -50,38 +54,107 @@ public class ClassificationMatrixStartupLoader {
     public void loadClassificationMatrixOnStartup() {
         try {
             log.info("=== ClassificationMatrix Cold Start Loader ===");
-            log.info("Loading customer tiers from replica database...");
+            log.info("Loading customer tiers and rules for all ecommerces...");
 
-            // Load active tiers ordered by level (Bronce=1 → Platino=4)
-            List<CustomerTierReplicaEntity> tiers = tierReplicaRepository.findByIsActiveTrueOrderByLevelAsc();
-            log.info("Loaded {} customer tiers", tiers.size());
+            // Load all active tiers (regardless of ecommerce)
+            List<CustomerTierReplicaEntity> allTiers = tierReplicaRepository.findAll()
+                .stream()
+                .filter(t -> t.getIsActive() != null && t.getIsActive())
+                .collect(Collectors.toList());
 
-            // Load active rules for cache
-            List<ClassificationRuleReplicaEntity> rules = ruleReplicaRepository.findAllActiveRulesForCache();
-            log.info("Loaded {} classification rules", rules.size());
+            // Load all active rules (regardless of ecommerce)
+            List<ClassificationRuleReplicaEntity> allRules = ruleReplicaRepository.findAll()
+                .stream()
+                .filter(r -> r.getIsActive() != null && r.getIsActive())
+                .collect(Collectors.toList());
 
-            // Populate Caffeine cache (both must succeed or cache remains empty)
-            if (!tiers.isEmpty()) {
-                cacheService.putTiers(tiers);
-                log.info("✓ Tiers populated in Caffeine cache (10-min TTL)");
-            } else {
-                log.warn("⚠ No active tiers found in replica database");
+            log.info("Loaded {} total active tiers from database", allTiers.size());
+            log.info("Loaded {} total active rules from database", allRules.size());
+
+            if (allTiers.isEmpty() && allRules.isEmpty()) {
+                log.warn("⚠ No active tiers or rules found in replica database - cache will be empty");
+                return;
             }
 
-            if (!rules.isEmpty()) {
-                cacheService.putRules(rules);
-                log.info("✓ Rules populated in Caffeine cache (10-min TTL)");
-            } else {
-                log.warn("⚠ No active rules found in replica database");
+            // Group tiers by ecommerce
+            Map<UUID, List<CustomerTierReplicaEntity>> tiersByEcommerce = allTiers.stream()
+                .collect(Collectors.groupingBy(CustomerTierReplicaEntity::getEcommerceId));
+
+            // Group rules by ecommerce
+            Map<UUID, List<ClassificationRuleReplicaEntity>> rulesByEcommerce = allRules.stream()
+                .collect(Collectors.groupingBy(ClassificationRuleReplicaEntity::getEcommerceId));
+
+            // Combine ecommerce IDs from both tiers and rules
+            var allEcommerceIds = tiersByEcommerce.keySet().stream()
+                .collect(Collectors.toSet());
+            allEcommerceIds.addAll(rulesByEcommerce.keySet());
+
+            // Load cache for each ecommerce
+            int successCount = 0;
+            for (UUID ecommerceId : allEcommerceIds) {
+                try {
+                    List<CustomerTierReplicaEntity> tiersList = tiersByEcommerce.getOrDefault(ecommerceId, List.of());
+                    List<ClassificationRuleReplicaEntity> rulesList = rulesByEcommerce.getOrDefault(ecommerceId, List.of());
+
+                    // Convert entities to DTOs
+                    List<CustomerTierDTO> tierDTOs = tiersList.stream()
+                        .map(this::toTierDTO)
+                        .collect(Collectors.toList());
+
+                    List<ClassificationRuleDTO> ruleDTOs = rulesList.stream()
+                        .map(this::toRuleDTO)
+                        .collect(Collectors.toList());
+
+                    // Populate cache for this ecommerce
+                    if (!tierDTOs.isEmpty()) {
+                        cacheService.putTiers(ecommerceId, tierDTOs);
+                        log.debug("  ✓ Ecommerce {}: {} tiers cached", ecommerceId, tierDTOs.size());
+                    }
+
+                    if (!ruleDTOs.isEmpty()) {
+                        cacheService.putRules(ecommerceId, ruleDTOs);
+                        log.debug("  ✓ Ecommerce {}: {} rules cached", ecommerceId, ruleDTOs.size());
+                    }
+
+                    successCount++;
+                } catch (Exception e) {
+                    log.error("Failed to load classification matrix for ecommerce {}", ecommerceId, e);
+                }
             }
 
-            log.info("ClassificationMatrix Cold Start complete: {} tiers, {} rules ready for classification",
-                tiers.size(), rules.size());
+            log.info("✓ ClassificationMatrix Cold Start complete: {} ecommerces loaded, {} tiers, {} rules ready",
+                successCount, allTiers.size(), allRules.size());
 
         } catch (Exception e) {
-            log.error("❌ CRITICAL: ClassificationMatrix startup loader failed — cache empty", e);
-            // Don't rethrow: Engine will use lazy-load fallback on first request
-            // This allows graceful degradation if DB is temporarily unavailable
+            log.error("ClassificationMatrix Cold Start failed - classification may not work until cache is populated via events", e);
         }
+    }
+
+    private CustomerTierDTO toTierDTO(CustomerTierReplicaEntity entity) {
+        return new CustomerTierDTO(
+            entity.getId(),
+            entity.getEcommerceId(),
+            entity.getName(),
+            entity.getDiscountPercentage(),
+            entity.getHierarchyLevel(),
+            entity.getIsActive() != null ? entity.getIsActive() : false,
+            entity.getSyncedAt()
+        );
+    }
+
+    private ClassificationRuleDTO toRuleDTO(ClassificationRuleReplicaEntity entity) {
+        return new ClassificationRuleDTO(
+            entity.getId(),
+            entity.getEcommerceId(),
+            entity.getName(),
+            entity.getDiscountTypeCode(),
+            entity.getDiscountType(),
+            entity.getDiscountValue(),
+            entity.getAppliedWith(),
+            entity.getLogicConditions(),
+            entity.getPriorityLevel(),
+            entity.getIsActive() != null ? entity.getIsActive() : false,
+            entity.getSyncedAt()
+        );
     }
 }

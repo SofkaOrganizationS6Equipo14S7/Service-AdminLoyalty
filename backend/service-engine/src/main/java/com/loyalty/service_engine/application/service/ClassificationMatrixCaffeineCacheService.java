@@ -2,93 +2,117 @@ package com.loyalty.service_engine.application.service;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import com.loyalty.service_engine.domain.entity.ClassificationRuleReplicaEntity;
-import com.loyalty.service_engine.domain.entity.CustomerTierReplicaEntity;
+import com.loyalty.service_engine.application.dto.ClassificationRuleDTO;
+import com.loyalty.service_engine.application.dto.CustomerTierDTO;
+import com.loyalty.service_engine.infrastructure.exception.CacheUnavailableException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 /**
  * In-memory Caffeine cache for Classification Matrix.
- * Stores tiers and rules for O(1) lookup during /classify endpoint.
- * TTL: 10 minutes. Invalidated via RabbitMQ events.
+ * Stores tiers and rules per ecommerce for fast classification lookups.
+ * TTL: 1 hour. Invalidated via RabbitMQ events.
+ * Multi-tenant: separate cache keys per ecommerceId.
  */
 @Service
 @Slf4j
 public class ClassificationMatrixCaffeineCacheService {
 
-    private static final String TIERS_CACHE_KEY = "CUSTOMER_TIERS";
-    private static final String RULES_CACHE_KEY = "CLASSIFICATION_RULES";
-    private static final int TTL_MINUTES = 10;
+    private static final long TTL_MINUTES = 60; // 1 hour
+    private static final String TIERS_PREFIX = "TIERS:";
+    private static final String RULES_PREFIX = "RULES:";
 
     private final Cache<String, Object> cache;
 
     public ClassificationMatrixCaffeineCacheService() {
         this.cache = Caffeine.newBuilder()
             .expireAfterWrite(TTL_MINUTES, TimeUnit.MINUTES)
-            .maximumSize(10000)
+            .maximumSize(100_000) // Support many ecommerces with their tiers/rules
             .recordStats()
             .build();
         log.info("ClassificationMatrixCaffeineCacheService initialized with TTL={}min", TTL_MINUTES);
     }
 
     /**
-     * Store tiers in cache.
+     * Store tiers in cache for a specific ecommerce.
      */
-    public void putTiers(List<CustomerTierReplicaEntity> tiers) {
-        cache.put(TIERS_CACHE_KEY, tiers);
-        log.info("Cached {} customer tiers", tiers.size());
-    }
-
-    /**
-     * Retrieve tiers from cache.
-     */
-    @SuppressWarnings("unchecked")
-    public Optional<List<CustomerTierReplicaEntity>> getTiers() {
-        Object cached = cache.getIfPresent(TIERS_CACHE_KEY);
-        return Optional.ofNullable((List<CustomerTierReplicaEntity>) cached);
-    }
-
-    /**
-     * Store rules in cache (grouped by tier for quick access).
-     */
-    public void putRules(List<ClassificationRuleReplicaEntity> rules) {
-        Map<UUID, List<ClassificationRuleReplicaEntity>> rulesByTier = new HashMap<>();
-        for (ClassificationRuleReplicaEntity rule : rules) {
-            rulesByTier.computeIfAbsent(rule.getTierUid(), key -> new java.util.ArrayList<>()).add(rule);
+    public void putTiers(UUID ecommerceId, List<CustomerTierDTO> tiers) {
+        if (ecommerceId == null) {
+            throw new CacheUnavailableException("ecommerceId cannot be null");
         }
-        cache.put(RULES_CACHE_KEY, rulesByTier);
-        log.info("Cached {} classification rules grouped by tier", rules.size());
+        String cacheKey = TIERS_PREFIX + ecommerceId;
+        cache.put(cacheKey, tiers);
+        log.debug("Cached {} customer tiers for ecommerce: {}", tiers.size(), ecommerceId);
     }
 
     /**
-     * Retrieve rules from cache.
+     * Retrieve tiers from cache for a specific ecommerce.
      */
     @SuppressWarnings("unchecked")
-    public Optional<Map<UUID, List<ClassificationRuleReplicaEntity>>> getRules() {
-        Object cached = cache.getIfPresent(RULES_CACHE_KEY);
-        return Optional.ofNullable((Map<UUID, List<ClassificationRuleReplicaEntity>>) cached);
+    public Optional<List<CustomerTierDTO>> getTiers(UUID ecommerceId) {
+        if (ecommerceId == null) {
+            return Optional.empty();
+        }
+        String cacheKey = TIERS_PREFIX + ecommerceId;
+        Object cached = cache.getIfPresent(cacheKey);
+        return Optional.ofNullable((List<CustomerTierDTO>) cached);
     }
 
     /**
-     * Invalidate entire cache (call when matrix updated via RabbitMQ).
+     * Store rules in cache for a specific ecommerce.
      */
-    public void invalidate() {
+    public void putRules(UUID ecommerceId, List<ClassificationRuleDTO> rules) {
+        if (ecommerceId == null) {
+            throw new CacheUnavailableException("ecommerceId cannot be null");
+        }
+        String cacheKey = RULES_PREFIX + ecommerceId;
+        cache.put(cacheKey, rules);
+        log.debug("Cached {} classification rules for ecommerce: {}", rules.size(), ecommerceId);
+    }
+
+    /**
+     * Retrieve rules from cache for a specific ecommerce.
+     */
+    @SuppressWarnings("unchecked")
+    public Optional<List<ClassificationRuleDTO>> getRules(UUID ecommerceId) {
+        if (ecommerceId == null) {
+            return Optional.empty();
+        }
+        String cacheKey = RULES_PREFIX + ecommerceId;
+        Object cached = cache.getIfPresent(cacheKey);
+        return Optional.ofNullable((List<ClassificationRuleDTO>) cached);
+    }
+
+    /**
+     * Invalidate cache for a specific ecommerce (call when tiers/rules updated via RabbitMQ).
+     */
+    public void invalidateEcommerce(UUID ecommerceId) {
+        if (ecommerceId == null) {
+            return;
+        }
+        cache.invalidate(TIERS_PREFIX + ecommerceId);
+        cache.invalidate(RULES_PREFIX + ecommerceId);
+        log.debug("Cache invalidated for ecommerce: {}", ecommerceId);
+    }
+
+    /**
+     * Invalidate entire cache (use with caution).
+     */
+    public void invalidateAll() {
         cache.invalidateAll();
-        log.info("Classification matrix cache invalidated");
+        log.info("Classification matrix cache invalidated (all ecommerces)");
     }
 
     /**
-     * Check if cache is empty.
+     * Check if cache is populated for a specific ecommerce.
      */
-    public boolean isEmpty() {
-        return getTiers().isEmpty() || getRules().isEmpty();
+    public boolean isPopulated(UUID ecommerceId) {
+        return getTiers(ecommerceId).isPresent() && getRules(ecommerceId).isPresent();
     }
 
     /**

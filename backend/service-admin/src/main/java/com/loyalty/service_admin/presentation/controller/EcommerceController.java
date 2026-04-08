@@ -3,7 +3,7 @@ package com.loyalty.service_admin.presentation.controller;
 import com.loyalty.service_admin.application.dto.ecommerce.EcommerceCreateRequest;
 import com.loyalty.service_admin.application.dto.ecommerce.EcommerceResponse;
 import com.loyalty.service_admin.application.dto.ecommerce.EcommerceUpdateStatusRequest;
-import com.loyalty.service_admin.application.service.EcommerceService;
+import com.loyalty.service_admin.application.port.in.EcommerceUseCase;
 import com.loyalty.service_admin.infrastructure.exception.AuthorizationException;
 import com.loyalty.service_admin.infrastructure.security.SecurityContextHelper;
 import jakarta.validation.Valid;
@@ -24,7 +24,7 @@ import java.util.UUID;
 @PreAuthorize("isAuthenticated()")
 public class EcommerceController {
     
-    private final EcommerceService ecommerceService;
+    private final EcommerceUseCase ecommerceUseCase;
     private final SecurityContextHelper securityContextHelper;
     
     /**
@@ -35,7 +35,7 @@ public class EcommerceController {
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<EcommerceResponse> createEcommerce(
             @Valid @RequestBody EcommerceCreateRequest request) {
-        EcommerceResponse response = ecommerceService.createEcommerce(request);
+        EcommerceResponse response = ecommerceUseCase.createEcommerce(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
     
@@ -51,7 +51,7 @@ public class EcommerceController {
             @RequestParam(name = "status", required = false) String status,
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "50") int size) {
-        Page<EcommerceResponse> response = ecommerceService.listEcommerces(status, page, size);
+        Page<EcommerceResponse> response = ecommerceUseCase.listEcommerces(status, page, size);
         return ResponseEntity.ok(response);
     }
     
@@ -73,7 +73,7 @@ public class EcommerceController {
             }
         }
         
-        EcommerceResponse response = ecommerceService.getEcommerceById(uid);
+        EcommerceResponse response = ecommerceUseCase.getEcommerceById(uid);
         return ResponseEntity.ok(response);
     }
     
@@ -82,12 +82,12 @@ public class EcommerceController {
      * @param request status update data
      * @return HTTP 200 OK with updated EcommerceResponse
      */
-    @PutMapping("/{uid}")
+    @PutMapping("/{uid}/status")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<EcommerceResponse> updateEcommerceStatus(
             @PathVariable UUID uid,
             @Valid @RequestBody EcommerceUpdateStatusRequest request) {
-        EcommerceResponse response = ecommerceService.updateEcommerceStatus(uid, request);
+        EcommerceResponse response = ecommerceUseCase.updateEcommerceStatus(uid, request);
         return ResponseEntity.ok(response);
     }
 }

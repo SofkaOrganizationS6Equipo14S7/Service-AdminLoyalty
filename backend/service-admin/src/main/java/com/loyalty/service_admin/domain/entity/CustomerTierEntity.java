@@ -25,9 +25,6 @@ public class CustomerTierEntity {
     @Column(name = "ecommerce_id", nullable = false)
     private UUID ecommerceId;
 
-    @Column(name = "discount_type_id", nullable = false)
-    private UUID discountTypeId;
-
     @Column(nullable = false, length = 100)
     private String name;
 

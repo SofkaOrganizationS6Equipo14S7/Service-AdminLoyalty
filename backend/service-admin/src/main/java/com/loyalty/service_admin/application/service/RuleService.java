@@ -8,6 +8,7 @@ import com.loyalty.service_admin.application.dto.rules.RuleCustomerTierDTO;
 import com.loyalty.service_admin.application.dto.rules.RuleAttributeMetadataDTO;
 import com.loyalty.service_admin.application.dto.discount.DiscountTypeDTO;
 import com.loyalty.service_admin.application.dto.discount.DiscountPriorityDTO;
+import com.loyalty.service_admin.application.dto.classificationrule.ClassificationRuleResponse;
 import com.loyalty.service_admin.domain.entity.*;
 import com.loyalty.service_admin.domain.repository.*;
 import com.loyalty.service_admin.infrastructure.exception.BadRequestException;
@@ -50,10 +51,37 @@ public class RuleService {
         DiscountPriorityEntity priority = discountLimitPriorityRepository.findById(priorityId)
                 .orElseThrow(() -> new ResourceNotFoundException("Discount priority not found: " + priorityId));
 
+        // Resolver tipo de descuento
         DiscountTypeEntity discountType = discountTypeRepository.findById(priority.getDiscountTypeId())
                 .orElseThrow(() -> new ResourceNotFoundException("Discount type not found"));
         
         String typeCode = discountType.getCode(); // PRODUCT, SEASONAL, CLASSIFICATION
+
+        // ========== HU-07: PRODUCT RULES UNIQUENESS VALIDATION ==========
+        if ("PRODUCT".equals(typeCode)) {
+            String productType = request.attributes().get("product_type");
+            
+            // Validar que product_type existe
+            if (productType == null || productType.isBlank()) {
+                throw new BadRequestException("product_type attribute is required for PRODUCT rules");
+            }
+            
+            // Validar que no existe otra regla activa con el mismo product_type para este ecommerce
+            List<RuleEntity> activeRules = ruleRepository.findByEcommerceIdAndIsActiveTrueOrderByCreatedAtDesc(ecommerceId, org.springframework.data.domain.PageRequest.of(0, Integer.MAX_VALUE))
+                    .getContent();
+            
+            for (RuleEntity activeRule : activeRules) {
+                List<RuleAttributeValueEntity> attrs = ruleAttributeValueRepository.findByRuleIdOrderByCreatedAtAsc(activeRule.getId());
+                for (RuleAttributeValueEntity attr : attrs) {
+                    RuleAttributeEntity attrDef = ruleAttributeRepository.findById(attr.getAttributeId()).orElse(null);
+                    if (attrDef != null && "product_type".equalsIgnoreCase(attrDef.getAttributeName())) {
+                        if (productType.equals(attr.getValue())) {
+                            throw new ConflictException("A rule with product_type '" + productType + "' already exists for this ecommerce. Only one active rule per product type is allowed.");
+                        }
+                    }
+                }
+            }
+        }
 
         // ========== HU-06 SEASONAL VALIDATION ==========
         if ("SEASONAL".equals(typeCode)) {
@@ -64,7 +92,6 @@ public class RuleService {
 
         // ========== HU-06/HU-07 DISCOUNT LIMITS VALIDATION (APPLIES TO ALL) ==========
         validateDiscountLimits(ecommerceId, request.discountPercentage());
-
         RuleEntity rule = RuleEntity.builder()
                 .ecommerceId(ecommerceId)
                 .discountPriorityId(priorityId)
@@ -114,10 +141,53 @@ public class RuleService {
         DiscountPriorityEntity priority = discountLimitPriorityRepository.findById(priorityId)
                 .orElseThrow(() -> new ResourceNotFoundException("Discount priority not found: " + priorityId));
 
+        // Resolver tipo de descuento
         DiscountTypeEntity discountType = discountTypeRepository.findById(priority.getDiscountTypeId())
                 .orElseThrow(() -> new ResourceNotFoundException("Discount type not found"));
         
         String typeCode = discountType.getCode();
+
+        // ========== HU-07: PRODUCT RULES UNIQUENESS VALIDATION ON UPDATE ==========
+        if ("PRODUCT".equals(typeCode)) {
+            String productType = request.attributes().get("product_type");
+            
+            // Validar que product_type existe
+            if (productType == null || productType.isBlank()) {
+                throw new BadRequestException("product_type attribute is required for PRODUCT rules");
+            }
+            
+            // Obtener product_type actual
+            List<RuleAttributeValueEntity> currentAttrs = ruleAttributeValueRepository.findByRuleIdOrderByCreatedAtAsc(ruleId);
+            String currentProductType = null;
+            
+            for (RuleAttributeValueEntity attr : currentAttrs) {
+                RuleAttributeEntity attrDef = ruleAttributeRepository.findById(attr.getAttributeId()).orElse(null);
+                if (attrDef != null && "product_type".equalsIgnoreCase(attrDef.getAttributeName())) {
+                    currentProductType = attr.getValue();
+                    break;
+                }
+            }
+            
+            // Solo validar duplicidad si el product_type cambió
+            if (!productType.equals(currentProductType)) {
+                List<RuleEntity> activeRules = ruleRepository.findByEcommerceIdAndIsActiveTrueOrderByCreatedAtDesc(ecommerceId, org.springframework.data.domain.PageRequest.of(0, Integer.MAX_VALUE))
+                        .getContent();
+                
+                for (RuleEntity activeRule : activeRules) {
+                    if (activeRule.getId().equals(ruleId)) continue;  // Saltar la regla actual
+                    
+                    List<RuleAttributeValueEntity> attrs = ruleAttributeValueRepository.findByRuleIdOrderByCreatedAtAsc(activeRule.getId());
+                    for (RuleAttributeValueEntity attr : attrs) {
+                        RuleAttributeEntity attrDef = ruleAttributeRepository.findById(attr.getAttributeId()).orElse(null);
+                        if (attrDef != null && "product_type".equalsIgnoreCase(attrDef.getAttributeName())) {
+                            if (productType.equals(attr.getValue())) {
+                                throw new ConflictException("A rule with product_type '" + productType + "' already exists for this ecommerce. Only one active rule per product type is allowed.");
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         // ========== HU-06 SEASONAL VALIDATION ==========
         if ("SEASONAL".equals(typeCode)) {
@@ -128,7 +198,6 @@ public class RuleService {
 
         // ========== HU-06/HU-07 DISCOUNT LIMITS VALIDATION ==========
         validateDiscountLimits(ecommerceId, request.discountPercentage());
-
         rule.setName(request.name());
         rule.setDescription(request.description());
         rule.setDiscountPercentage(request.discountPercentage());
@@ -419,6 +488,24 @@ public class RuleService {
     }
 
     /**
+     * Delete a specific customer tier from a rule (HU-07 CRITERIO-7.3)
+     */
+    public void deleteCustomerTierFromRule(UUID ecommerceId, UUID ruleId, UUID tierId) {
+        RuleEntity rule = ruleRepository.findByIdAndEcommerceId(ruleId, ecommerceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Rule not found: " + ruleId));
+
+        // Verify tier exists
+        if (!ruleCustomerTierRepository.existsByRuleIdAndCustomerTierId(ruleId, tierId)) {
+            throw new ResourceNotFoundException(
+                "Customer tier " + tierId + " is not assigned to rule " + ruleId
+            );
+        }
+
+        ruleCustomerTierRepository.deleteByRuleIdAndCustomerTierId(ruleId, tierId);
+        log.info("Deleted tier {} from rule {}", tierId, ruleId);
+    }
+
+    /**
      * Convert entity to response DTO with tiers
      */
     private RuleResponseWithTiers toResponseWithTiers(RuleEntity rule) {
@@ -518,6 +605,259 @@ public class RuleService {
                 .collect(Collectors.toList());
     }
 
+    // ========== HU-07: CLASSIFICATION RULES (NESTED) ==========
+
+    /**
+     * HU-07 CRITERIO-7.3, 7.4: Crear classification_rule para un customer_tier
+     * 
+     * Internamente:
+     * 1. Resuelve discount_priority por tipo CLASSIFICATION
+     * 2. Valida metricType enum y minValue < maxValue
+     * 3. Crea RuleEntity con type=CLASSIFICATION
+     * 4. Inserta record en rule_customer_tiers
+     * 5. Guarda atributos (metricType, minValue, maxValue, priority) en rule_attributes
+     */
+    @Transactional
+    public ClassificationRuleResponse createClassificationRuleForTier(
+            UUID ecommerceId, 
+            UUID tierId, 
+            com.loyalty.service_admin.application.dto.classificationrule.ClassificationRuleCreateRequest request
+    ) {
+        log.info("Creating classification rule for tier: {}, ecommerce: {}", tierId, ecommerceId);
+
+        // Validar que el tier existe
+        CustomerTierEntity tier = customerTierRepository.findById(tierId)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer tier not found: " + tierId));
+
+        // Obtener discount_priority desde request
+        UUID priorityId = UUID.fromString(request.discountPriorityId());
+        DiscountPriorityEntity priority = discountLimitPriorityRepository.findById(priorityId)
+                .orElseThrow(() -> new ResourceNotFoundException("Discount priority not found: " + priorityId));
+
+        // Resolver tipo de la prioridad
+        DiscountTypeEntity discountType = discountTypeRepository.findById(priority.getDiscountTypeId())
+                .orElseThrow(() -> new ResourceNotFoundException("Discount type not found"));
+        
+        // La classification rule DEBE tener type=CLASSIFICATION
+        if (!"CLASSIFICATION".equals(discountType.getCode())) {
+            throw new BadRequestException("Discount priority must be of type CLASSIFICATION for this endpoint");
+        }
+
+        // Validaciones específicas para CLASSIFICATION (CRITERIO-7.3, 7.4)
+        if (request.minValue().compareTo(request.maxValue()) >= 0) {
+            throw new BadRequestException("minValue must be less than maxValue (CRITERIO-7.3)");
+        }
+
+        // Validar enum metricType
+        String metricTypeUpper = request.metricType().toUpperCase();
+        if (!("TOTAL_SPENT".equals(metricTypeUpper) || "ORDER_COUNT".equals(metricTypeUpper) || 
+              "LOYALTY_POINTS".equals(metricTypeUpper) || "CUSTOM".equals(metricTypeUpper))) {
+            throw new BadRequestException("metricType must be one of: total_spent, order_count, loyalty_points, custom (CRITERIO-7.4)");
+        }
+
+        // Crear RuleEntity
+        RuleEntity rule = RuleEntity.builder()
+                .ecommerceId(ecommerceId)
+                .discountPriorityId(priorityId)
+                .name(request.name())
+                .description(request.description())
+                .discountPercentage(request.discountPercentage())
+                .isActive(true)
+                .createdAt(Instant.now())
+                .updatedAt(Instant.now())
+                .build();
+
+        RuleEntity savedRule = ruleRepository.save(rule);
+        log.info("Classification rule created with id: {}", savedRule.getId());
+
+        // Guardar atributos de clasificación
+        Map<String, String> attributes = new HashMap<>();
+        attributes.put("metricType", request.metricType());
+        attributes.put("minValue", request.minValue().toString());
+        attributes.put("maxValue", request.maxValue().toString());
+        attributes.put("priority", request.priority().toString());
+        
+        saveAttributeValues(savedRule.getId(), priority.getDiscountTypeId(), attributes);
+
+        // Vincular rule a tier en rule_customer_tiers
+        RuleCustomerTierEntity ruleCustomerTier = RuleCustomerTierEntity.builder()
+                .rule(savedRule)
+                .customerTier(tier)
+                .createdAt(Instant.now())
+                .updatedAt(Instant.now())
+                .build();
+        
+        ruleCustomerTierRepository.save(ruleCustomerTier);
+        log.info("Classification rule linked to tier: ruleId={}, tierId={}", savedRule.getId(), tierId);
+
+        return mapToClassificationRuleResponse(savedRule);
+    }
+
+    /**
+     * HU-07 CRITERIO-7.6: Listar classification_rules de un tier
+     */
+    @Transactional(readOnly = true)
+    public List<ClassificationRuleResponse> listClassificationRulesForTier(UUID ecommerceId, UUID tierId) {
+        log.info("Listing classification rules for tier: {}, ecommerce: {}", tierId, ecommerceId);
+
+        // Validar que el tier existe
+        CustomerTierEntity tier = customerTierRepository.findById(tierId)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer tier not found: " + tierId));
+
+        // Obtener todas las relaciones rule_customer_tiers para este tier
+        List<RuleCustomerTierEntity> ruleLinks = ruleCustomerTierRepository.findByCustomerTierId(tierId);
+
+        // Convertir a responses
+        return ruleLinks.stream()
+                .filter(link -> link.getRule().getIsActive())  // Solo rules activas
+                .map(link -> mapToClassificationRuleResponse(link.getRule()))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * HU-07 CRITERIO-7.7: Actualizar classification_rule
+     */
+    @Transactional
+    public ClassificationRuleResponse updateClassificationRuleForTier(
+            UUID ecommerceId, 
+            UUID tierId, 
+            UUID ruleId,
+            com.loyalty.service_admin.application.dto.classificationrule.ClassificationRuleUpdateRequest request
+    ) {
+        log.info("Updating classification rule: ruleId={}, tierId={}, ecommerce={}", ruleId, tierId, ecommerceId);
+
+        // Validar que tier existe
+        CustomerTierEntity tier = customerTierRepository.findById(tierId)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer tier not found: " + tierId));
+
+        // Validar que rule existe y está vinculada a este tier
+        RuleEntity rule = ruleRepository.findByIdAndEcommerceId(ruleId, ecommerceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Rule not found: " + ruleId));
+
+        RuleCustomerTierEntity link = ruleCustomerTierRepository.findByRuleIdAndCustomerTierId(ruleId, tierId)
+                .orElseThrow(() -> new BadRequestException("Rule is not linked to this tier"));
+
+        // Resolvr priority para validaciones
+        DiscountPriorityEntity priority = discountLimitPriorityRepository.findById(rule.getDiscountPriorityId())
+                .orElseThrow(() -> new ResourceNotFoundException("Discount priority not found"));
+
+        // Aplicar updates (solo los que se proporcionan)
+        if (request.name() != null) rule.setName(request.name());
+        if (request.description() != null) rule.setDescription(request.description());
+        if (request.discountPercentage() != null) rule.setDiscountPercentage(request.discountPercentage());
+
+        rule.setUpdatedAt(Instant.now());
+        RuleEntity updated = ruleRepository.save(rule);
+
+        // Actualizar atributos si se proporcionan
+        if (request.metricType() != null || request.minValue() != null || request.maxValue() != null || request.priority() != null) {
+            // Obtener atributos actuales
+            List<RuleAttributeValueEntity> currentAttrs = ruleAttributeValueRepository.findByRuleIdOrderByCreatedAtAsc(ruleId);
+            Map<String, String> newAttributes = new HashMap<>();
+            
+            for (RuleAttributeValueEntity attr : currentAttrs) {
+                RuleAttributeEntity attrDef = ruleAttributeRepository.findById(attr.getAttributeId()).orElse(null);
+                if (attrDef != null) {
+                    newAttributes.put(attrDef.getAttributeName(), attr.getValue());
+                }
+            }
+
+            // Override con valores nuevos
+            if (request.metricType() != null) newAttributes.put("metricType", request.metricType());
+            if (request.minValue() != null) newAttributes.put("minValue", request.minValue().toString());
+            if (request.maxValue() != null) newAttributes.put("maxValue", request.maxValue().toString());
+            if (request.priority() != null) newAttributes.put("priority", request.priority().toString());
+
+            // Validar si se actualizaron minValue/maxValue
+            if (request.minValue() != null && request.maxValue() != null) {
+                if (request.minValue().compareTo(request.maxValue()) >= 0) {
+                    throw new BadRequestException("minValue must be less than maxValue");
+                }
+            }
+
+            // Guardar atributos actualizados
+            ruleAttributeValueRepository.deleteByRuleId(ruleId);
+            saveAttributeValues(ruleId, priority.getDiscountTypeId(), newAttributes);
+        }
+
+        return mapToClassificationRuleResponse(updated);
+    }
+
+    /**
+     * HU-07 CRITERIO-7.8: Soft delete classification_rule
+     */
+    @Transactional
+    public void deleteClassificationRuleForTier(UUID ecommerceId, UUID tierId, UUID ruleId) {
+        log.info("Soft deleting classification rule: ruleId={}, tierId={}, ecommerce={}", ruleId, tierId, ecommerceId);
+
+        // Validar que tier existe
+        CustomerTierEntity tier = customerTierRepository.findById(tierId)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer tier not found: " + tierId));
+
+        // Validar que rule existe y está vinculada a este tier
+        RuleEntity rule = ruleRepository.findByIdAndEcommerceId(ruleId, ecommerceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Rule not found: " + ruleId));
+
+        ruleCustomerTierRepository.findByRuleIdAndCustomerTierId(ruleId, tierId)
+                .orElseThrow(() -> new BadRequestException("Rule is not linked to this tier"));
+
+        // Soft delete
+        rule.setIsActive(false);
+        rule.setUpdatedAt(Instant.now());
+        ruleRepository.save(rule);
+
+        log.info("Classification rule soft deleted: {}", ruleId);
+    }
+
+    /**
+     * Helper: Map RuleEntity to ClassificationRuleResponse
+     */
+    private ClassificationRuleResponse mapToClassificationRuleResponse(RuleEntity rule) {
+        List<RuleAttributeValueDTO> attrs = getAttributeDTOs(rule.getId());
+        
+        // Extraer atributos específicos
+        String metricType = attrs.stream()
+                .filter(a -> "metricType".equals(a.attributeName()))
+                .findFirst()
+                .map(RuleAttributeValueDTO::value)
+                .orElse("");
+        
+        BigDecimal minValue = attrs.stream()
+                .filter(a -> "minValue".equals(a.attributeName()))
+                .findFirst()
+                .map(a -> new BigDecimal(a.value()))
+                .orElse(BigDecimal.ZERO);
+        
+        BigDecimal maxValue = attrs.stream()
+                .filter(a -> "maxValue".equals(a.attributeName()))
+                .findFirst()
+                .map(a -> new BigDecimal(a.value()))
+                .orElse(BigDecimal.ZERO);
+        
+        Integer priority = attrs.stream()
+                .filter(a -> "priority".equals(a.attributeName()))
+                .findFirst()
+                .map(a -> Integer.parseInt(a.value()))
+                .orElse(0);
+
+        return new ClassificationRuleResponse(
+                rule.getId(),
+                rule.getName(),
+                rule.getDescription(),
+                rule.getDiscountPercentage(),
+                metricType,
+                minValue,
+                maxValue,
+                priority,
+                rule.getIsActive(),
+                rule.getCreatedAt(),
+                rule.getUpdatedAt()
+        );
+    }
+
+    /**
+     * Get available attributes for a discount type
+     */
     /**
      * Helper: Extract attribute DTOs for a rule
      */

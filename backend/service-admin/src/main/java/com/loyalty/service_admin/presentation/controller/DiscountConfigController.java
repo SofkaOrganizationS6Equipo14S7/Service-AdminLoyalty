@@ -6,6 +6,7 @@ import com.loyalty.service_admin.application.dto.rules.discount.DiscountLimitPri
 import com.loyalty.service_admin.application.dto.rules.discount.DiscountLimitPriorityResponse;
 import com.loyalty.service_admin.application.service.DiscountConfigService;
 import com.loyalty.service_admin.application.service.DiscountLimitPriorityService;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -35,7 +36,7 @@ public class DiscountConfigController {
      */
     @PostMapping("/discount-config")
     public ResponseEntity<DiscountConfigResponse> updateDiscountConfig(
-            @RequestBody DiscountConfigCreateRequest request
+            @Valid @RequestBody DiscountConfigCreateRequest request
     ) {
         DiscountConfigResponse response = discountConfigService.updateConfig(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -68,14 +69,14 @@ public class DiscountConfigController {
 
     /**
      * CRITERIO-4.4: Obtener prioridades configuradas
-     * @param configId discount configuration identifier (UUID)
+     * @param discountSettingId discount configuration identifier (UUID)
      * @return HTTP 200 OK with DiscountLimitPriorityResponse
      */
     @GetMapping("/discount-priority")
     public ResponseEntity<DiscountLimitPriorityResponse> getPriorities(
-            @RequestParam UUID configId
+            @RequestParam UUID discountSettingId
     ) {
-        DiscountLimitPriorityResponse response = priorityService.getPriorities(configId);
+        DiscountLimitPriorityResponse response = priorityService.getPriorities(discountSettingId);
         return ResponseEntity.ok(response);
     }
 }

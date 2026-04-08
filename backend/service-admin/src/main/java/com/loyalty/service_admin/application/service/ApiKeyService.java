@@ -1,12 +1,15 @@
 package com.loyalty.service_admin.application.service;
 
-import com.loyalty.service_admin.application.dto.apikey.*;
+import com.loyalty.service_admin.application.dto.apikey.ApiKeyCreatedResponse;
+import com.loyalty.service_admin.application.dto.apikey.ApiKeyEventPayload;
+import com.loyalty.service_admin.application.dto.apikey.ApiKeyListResponse;
+import com.loyalty.service_admin.application.port.in.ApiKeyUseCase;
+import com.loyalty.service_admin.application.port.out.ApiKeyEventPort;
+import com.loyalty.service_admin.application.port.out.ApiKeyPersistencePort;
 import com.loyalty.service_admin.domain.entity.ApiKeyEntity;
-import com.loyalty.service_admin.domain.repository.ApiKeyRepository;
 import com.loyalty.service_admin.infrastructure.exception.ApiKeyNotFoundException;
-import com.loyalty.service_admin.infrastructure.exception.EcommerceNotFoundException;
-import com.loyalty.service_admin.infrastructure.rabbitmq.ApiKeyEventPublisher;
 import com.loyalty.service_admin.infrastructure.util.HashingUtil;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,160 +19,123 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+/**
+ * Implementación del use case de API Keys usando Arquitectura Hexagonal.
+ * 
+ * Responsabilidades:
+ * - Orquestar la lógica de negocio de creación, listado y eliminación de API Keys
+ * - Delegar persistencia al puerto out (ApiKeyPersistencePort)
+ * - Delegar eventos al puerto out (ApiKeyEventPort)
+ * - Validar existencia de ecommerce (delegado a EcommerceService)
+ * - Garantizar que la lógica es testeable sin Spring Context
+ * 
+ * Reglas de Negocio:
+ * - API Keys se generan como UUID v4
+ * - En BD se guardan como SHA-256 (nunca plaintext)
+ * - En respuesta 201 se devuelven sin enmascarar (una sola vez)
+ * - En respuesta GET se devuelven enmascaradas (****XXXX)
+ * - Expiración: 365 días desde creación
+ * - Eventos siempre se publican (con o sin persistencia)
+ */
 @Service
+@RequiredArgsConstructor
 @Slf4j
-public class ApiKeyService {
+public class ApiKeyService implements ApiKeyUseCase {
     
-    private final ApiKeyRepository apiKeyRepository;
-    private final ApiKeyEventPublisher apiKeyEventPublisher;
+    private final ApiKeyPersistencePort persistencePort;
+    private final ApiKeyEventPort eventPort;
     private final EcommerceService ecommerceService;
     
-    public ApiKeyService(
-        ApiKeyRepository apiKeyRepository,
-        ApiKeyEventPublisher apiKeyEventPublisher,
-        EcommerceService ecommerceService
-    ) {
-        this.apiKeyRepository = apiKeyRepository;
-        this.apiKeyEventPublisher = apiKeyEventPublisher;
-        this.ecommerceService = ecommerceService;
-    }
-    
-    /**
-     * Crea una nueva API Key para un ecommerce.
-     * 
-     * Flujo de seguridad:
-     * 1. Generar UUID v4 (plaintext)
-     * 2. Hashear con SHA-256 para persistencia
-     * 3. Guardar hash en BD
-     * 4. Retornar el UUID plaintext al cliente SIN ENMASCARAR (una sola vez, 201 Created)
-     * 5. Publicar evento con el hash para sincronización a Engine
-     * 
-     * @param ecommerceId ID del ecommerce propietario
-     * @return ApiKeyCreatedResponse con la key completa (plaintext, sin enmascarar)
-     * @throws EcommerceNotFoundException si el ecommerce no existe
-     */
+    @Override
     @Transactional
     public ApiKeyCreatedResponse createApiKey(UUID ecommerceId) {
         // Validar que el ecommerce existe
         ecommerceService.validateEcommerceExists(ecommerceId);
         
-        // 1. Generar UUID v4 plaintext
+        // Generar plainkey (UUID v4)
         String plainKeyValue = UUID.randomUUID().toString();
-        
-        // 2. Hashear con SHA-256
         String hashedKeyValue = HashingUtil.sha256(plainKeyValue);
         
-        // 3. Crear entity con hash persistido
+        // Crear entidad
         ApiKeyEntity entity = new ApiKeyEntity();
-        //entity.setKeyPrefix(plainKeyValue.substring(0, 8));
         entity.setHashedKey(hashedKeyValue);
         entity.setEcommerceId(ecommerceId);
         entity.setIsActive(true);
-        entity.setExpiresAt(Instant.now().plus(java.time.Duration.ofDays(365)));  // Expira en 1 año
+        entity.setExpiresAt(Instant.now().plus(java.time.Duration.ofDays(365)));
         
-        // 4. Persistir en BD (solo el hash)
-        ApiKeyEntity saved = apiKeyRepository.save(entity);
+        // Persistir a través del puerto
+        ApiKeyEntity saved = persistencePort.save(entity);
         
-        // 5. Publicar evento de creación (con hash para Engine Service)
+        // Publicar evento
         ApiKeyEventPayload event = new ApiKeyEventPayload(
             "API_KEY_CREATED",
             saved.getId().toString(),
-            hashedKeyValue,  // Pasar el hash, no el plaintext
+            hashedKeyValue,
             ecommerceId.toString(),
             Instant.now()
         );
-        apiKeyEventPublisher.publishApiKeyCreated(event);
+        eventPort.publishApiKeyCreated(event);
         
         log.info("API Key created for ecommerce: {}, keyId: {}", ecommerceId, saved.getId());
         
-        // Retornar response con el plaintext SIN ENMASCARAR (solo para este 201 Created)
+        // Retornar response con plainkey (SIN enmascarar)
         return toApiKeyCreatedResponse(saved, plainKeyValue);
     }
     
-    /**
-     * Lista todas las API Keys de un ecommerce.
-     * @param ecommerceId ID del ecommerce
-     * @return lista de ApiKeyListResponse con keys enmascaradas
-     * @throws EcommerceNotFoundException si el ecommerce no existe
-     */
+    @Override
     @Transactional(readOnly = true)
     public List<ApiKeyListResponse> getApiKeysByEcommerce(UUID ecommerceId) {
         // Validar que el ecommerce existe
         ecommerceService.validateEcommerceExists(ecommerceId);
         
-        // Obtener todas las keys del ecommerce
-        List<ApiKeyEntity> keys = apiKeyRepository.findByEcommerceId(ecommerceId);
+        // Consultar a través del puerto
+        List<ApiKeyEntity> keys = persistencePort.findByEcommerceId(ecommerceId);
         
-        // Convertir a DTO con key enmascarada
+        // Mapear a responses con masking
         return keys.stream()
             .map(this::toApiKeyListResponse)
             .collect(Collectors.toList());
     }
     
-    /**
-     * Elimina una API Key (revoca acceso).
-     * @param ecommerceId ID del ecommerce propietario
-     * @param keyId ID de la API Key a eliminar
-     * @throws EcommerceNotFoundException si el ecommerce no existe
-     * @throws ApiKeyNotFoundException si la key no existe o no pertenece al ecommerce
-     */
+    @Override
     @Transactional
     public void deleteApiKey(UUID ecommerceId, UUID keyId) {
         // Validar que el ecommerce existe
         ecommerceService.validateEcommerceExists(ecommerceId);
         
-        // Obtener la key
-        ApiKeyEntity key = apiKeyRepository.findById(keyId)
+        // Recuperar la key a través del puerto
+        ApiKeyEntity key = persistencePort.findById(keyId)
             .orElseThrow(() -> new ApiKeyNotFoundException("API Key no encontrada"));
         
-        // Validar que la key pertenece al ecommerce
+        // Validar que pertenece al ecommerce
         if (!key.getEcommerceId().equals(ecommerceId)) {
             throw new ApiKeyNotFoundException("API Key no pertenece a este ecommerce");
         }
         
-        // Publicar evento de eliminación ANTES de eliminar (incluir hash)
+        // Publicar evento ANTES de eliminar
         ApiKeyEventPayload event = new ApiKeyEventPayload(
             "API_KEY_DELETED",
             key.getId().toString(),
-            key.getHashedKey(),  // Pasar el hash, no plaintext
+            key.getHashedKey(),
             ecommerceId.toString(),
             Instant.now()
         );
-        apiKeyEventPublisher.publishApiKeyDeleted(event);
+        eventPort.publishApiKeyDeleted(event);
         
-        // Eliminar de base de datos
-        apiKeyRepository.delete(key);
+        // Eliminar a través del puerto
+        persistencePort.deleteById(keyId);
         
         log.info("API Key deleted for ecommerce: {}, keyId: {}", ecommerceId, keyId);
     }
     
     /**
-     * Convierte ApiKeyEntity a ApiKeyResponse con key enmascarada.
-     * 
-     * Nota: plainKeyValue solo se proporciona en el momento de creación (201 Created).
-     * En GETs posteriores, no tenemos el plaintext, solo mostramos ****XXXX del hash.
-     */
-    private ApiKeyResponse toApiKeyResponse(ApiKeyEntity entity, String plainKeyValue) {
-        return new ApiKeyResponse(
-            entity.getId(),
-            maskKey(plainKeyValue),  // Masking del plaintext
-            entity.getExpiresAt(),
-            entity.getEcommerceId(),
-            entity.getCreatedAt(),
-            entity.getUpdatedAt()
-        );
-    }
-    
-    /**
-     * Convierte ApiKeyEntity a ApiKeyCreatedResponse con key SIN ENMASCARAR (solo para POST 201).
-     * 
-     * IMPORTANTE: Esta respuesta SOLO se devuelve 1 vez al crear la key.
-     * En GETs posteriores, usamos toApiKeyListResponse (con key enmascarada).
+     * Convierte entidad a response con plainkey sin enmascarar.
+     * Se usa en response 201 Create (una sola ocasión para copiar la clave).
      */
     private ApiKeyCreatedResponse toApiKeyCreatedResponse(ApiKeyEntity entity, String plainKeyValue) {
         return new ApiKeyCreatedResponse(
             entity.getId(),
-            plainKeyValue,  // SIN MASKING - devolver la clave completa
+            plainKeyValue,
             entity.getExpiresAt(),
             entity.getEcommerceId(),
             entity.getCreatedAt(),
@@ -178,13 +144,13 @@ public class ApiKeyService {
     }
     
     /**
-     * Convierte ApiKeyEntity a ApiKeyListResponse con key enmascarada (para GETs).
-     * Nota: En listados, solo tenemos el hash, así que mostramos ****XXXX del hash.
+     * Convierte entidad a response con masking.
+     * Se usa en response 200 Get (listado de claves).
      */
     private ApiKeyListResponse toApiKeyListResponse(ApiKeyEntity entity) {
         return new ApiKeyListResponse(
             entity.getId(),
-            maskKey(entity.getHashedKey()),  // Masking del hash (fallback)
+            maskKey(entity.getHashedKey()),
             entity.getExpiresAt(),
             entity.getIsActive(),
             entity.getCreatedAt(),
@@ -193,10 +159,8 @@ public class ApiKeyService {
     }
     
     /**
-     * Enmascara una key al formato ****XXXX (últimos 4 caracteres).
-     * Para UUID, extrae los últimos 4 chars.
-     * Ejemplo: 550e8400-e29b-41d4-a716-446655440000 → ****0000
-     * Ejemplo hash: a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3 → ****e3
+     * Enmascara una clave para mostrar solo los últimos 4 caracteres.
+     * Formato: ****XXXX (donde XXXX son los últimos 4 caracteres)
      */
     private String maskKey(String keyString) {
         if (keyString == null || keyString.length() < 4) {

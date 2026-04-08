@@ -33,7 +33,7 @@ public class RabbitMQClassificationEngineConfig {
     @Value("${rabbitmq.exchange.classification:classification.exchange}")
     private String exchangeName;
 
-    @Value("${rabbitmq.queue.classification:classification.matrix.queue}")
+    @Value("${rabbitmq.queue.classification-rules:classification.matrix.queue}")
     private String queueName;
 
     @Bean(name = "classificationExchange")

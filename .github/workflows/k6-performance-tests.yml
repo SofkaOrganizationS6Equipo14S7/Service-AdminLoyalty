@@ -1,0 +1,126 @@
+name: K6 Performance Tests
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'feature/**'
+  pull_request:
+    branches:
+      - main
+      - develop
+      - 'feature/**'
+
+jobs:
+  k6-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout backend
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'maven'
+
+      - name: Start infrastructure
+        working-directory: backend
+        run: docker compose up -d
+
+      - name: Wait for infrastructure to be healthy
+        working-directory: backend
+        run: |
+          echo "Waiting for PostgreSQL Admin (5432)..."
+          for i in $(seq 1 30); do
+            docker compose exec -T postgres-admin pg_isready -U loyalty -d loyalty_admin && break
+            echo "  attempt $i..."
+            sleep 2
+          done
+
+          echo "Waiting for PostgreSQL Engine (5433)..."
+          for i in $(seq 1 30); do
+            docker compose exec -T postgres-engine pg_isready -U loyalty -d loyalty_engine && break
+            echo "  attempt $i..."
+            sleep 2
+          done
+
+          echo "Waiting for RabbitMQ (5672)..."
+          for i in $(seq 1 30); do
+            docker compose exec -T rabbitmq rabbitmq-diagnostics check_port_connectivity && break
+            echo "  attempt $i..."
+            sleep 2
+          done
+
+      - name: Build service-admin
+        working-directory: backend/service-admin
+        run: ./mvnw package -DskipTests -q
+
+      - name: Build service-engine
+        working-directory: backend/service-engine
+        run: ./mvnw package -DskipTests -q
+
+      - name: Start service-admin
+        working-directory: backend/service-admin
+        run: java -jar target/*.jar &
+
+      - name: Start service-engine
+        working-directory: backend/service-engine
+        run: java -jar target/*.jar &
+
+      - name: Wait for services to be ready
+        run: |
+          echo "Waiting for service-admin (8081)..."
+          for i in $(seq 1 60); do
+            if curl -sf -o /dev/null -w '%{http_code}' http://localhost:8081/api/v1/auth/login 2>/dev/null | grep -qE '(200|400|401|405)'; then
+              echo "  service-admin is UP"
+              break
+            fi
+            echo "  attempt $i..."
+            sleep 3
+          done
+
+          echo "Waiting for service-engine (8082)..."
+          for i in $(seq 1 60); do
+            if curl -sf -o /dev/null -w '%{http_code}' http://localhost:8082/api/v1/health 2>/dev/null | grep -qE '(200|400|401|405)'; then
+              echo "  service-engine is UP"
+              break
+            fi
+            echo "  attempt $i..."
+            sleep 3
+          done
+
+      - name: Checkout K6 tests
+        uses: actions/checkout@v4
+        with:
+          repository: SofkaOrganizationS6Equipo14S7/K6Loyalty
+          path: k6-tests
+
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D68 || \
+            curl -s https://dl.k6.io/key.gpg | sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --import
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+
+      - name: Run k6 performance tests
+        working-directory: k6-tests
+        run: |
+          k6 run script-principal.js \
+            -e BASE_URL=http://localhost:8082 \
+            -e API_KEY=${{ secrets.K6_API_KEY }} \
+            -e ECOMMERCE_ID=${{ secrets.K6_ECOMMERCE_ID }}
+
+      - name: Upload k6 reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-reports
+          path: |
+            k6-tests/reportes/resultado-prueba.html
+            k6-tests/reportes/resultado-prueba.json

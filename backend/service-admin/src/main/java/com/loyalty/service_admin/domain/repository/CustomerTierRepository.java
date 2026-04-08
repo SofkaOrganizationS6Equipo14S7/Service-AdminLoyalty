@@ -17,6 +17,8 @@ public interface CustomerTierRepository extends JpaRepository<CustomerTierEntity
 
     Optional<CustomerTierEntity> findByEcommerceIdAndNameAndIsActiveTrue(UUID ecommerceId, String name);
 
+    boolean existsByEcommerceIdAndNameAndIsActiveTrue(UUID ecommerceId, String name);
+
     List<CustomerTierEntity> findAllByOrderByHierarchyLevelAsc();
 
     List<CustomerTierEntity> findByEcommerceId(UUID ecommerceId);

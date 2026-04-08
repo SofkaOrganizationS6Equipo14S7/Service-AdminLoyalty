@@ -38,8 +38,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/v1/health").permitAll()
                 .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**").permitAll()
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/v1/discount/calculate").authenticated()
-                .requestMatchers(HttpMethod.POST, "/api/v1/discounts/calculate").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/v1/engine/calculate").authenticated()
                 .anyRequest().denyAll()
             )
             .addFilterBefore(apiKeyAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

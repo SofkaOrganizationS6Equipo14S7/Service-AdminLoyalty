@@ -54,7 +54,16 @@ public class TenantInterceptor implements HandlerInterceptor {
             if (SecurityContextHolder.getContext().getAuthentication() != null &&
                 SecurityContextHolder.getContext().getAuthentication().isAuthenticated()) {
                 
-                // Extrae el ecommerce_id del UserPrincipal
+                Object principal = SecurityContextHolder.getContext()
+                        .getAuthentication()
+                        .getPrincipal();
+
+                if (!(principal instanceof UserPrincipal)) {
+                    log.debug("Skipping tenant - principal no es UserPrincipal: {}",
+                            principal != null ? principal.getClass().getSimpleName() : "null");
+                    return true;
+                }
+
                 UUID tenantId = securityContextHelper.getCurrentUserEcommerceId();
                 
                 // Establece en TenantContext para todo el ciclo de vida del request

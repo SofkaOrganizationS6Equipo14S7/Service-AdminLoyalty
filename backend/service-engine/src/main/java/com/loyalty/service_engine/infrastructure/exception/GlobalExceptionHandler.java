@@ -37,6 +37,21 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.BAD_REQUEST, "BAD_REQUEST", e.getMessage(), request);
     }
 
+    @ExceptionHandler(InvalidCartException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidCart(InvalidCartException e, HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, "INVALID_CART", e.getMessage(), request);
+    }
+
+    @ExceptionHandler(DiscountCalculationException.class)
+    public ResponseEntity<ApiErrorResponse> handleDiscountCalculation(DiscountCalculationException e, HttpServletRequest request) {
+        return build(HttpStatus.SERVICE_UNAVAILABLE, "DISCOUNT_CALCULATION_ERROR", e.getMessage(), request);
+    }
+
+    @ExceptionHandler(RuleEvaluationException.class)
+    public ResponseEntity<ApiErrorResponse> handleRuleEvaluation(RuleEvaluationException e, HttpServletRequest request) {
+        return build(HttpStatus.SERVICE_UNAVAILABLE, "RULE_EVALUATION_ERROR", e.getMessage(), request);
+    }
+
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleNotFound(ResourceNotFoundException e, HttpServletRequest request) {
         return build(HttpStatus.NOT_FOUND, "NOT_FOUND", e.getMessage(), request);

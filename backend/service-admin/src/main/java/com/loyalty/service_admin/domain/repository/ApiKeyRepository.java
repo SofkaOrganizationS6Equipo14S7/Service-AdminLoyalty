@@ -12,4 +12,5 @@ import java.util.UUID;
 public interface ApiKeyRepository extends JpaRepository<ApiKeyEntity, UUID> {
     Optional<ApiKeyEntity> findByHashedKey(String hashedKey);
     List<ApiKeyEntity> findByEcommerceId(UUID ecommerceId);
+    boolean existsByHashedKey(String hashedKey);
 }

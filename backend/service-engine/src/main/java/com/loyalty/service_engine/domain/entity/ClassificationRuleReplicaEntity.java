@@ -1,129 +1,98 @@
 package com.loyalty.service_engine.domain.entity;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
 
 /**
- * Read-only replica of classification rules from service-admin.
- * Used for Cold Start autonomy and caché population.
- * Synchronized via RabbitMQ events.
+ * Read-only replica of classification rules from service-admin (engine_rules table).
+ * Stores dynamic evaluation criteria in JSONB logic_conditions for classification.
+ * Used for Cold Start autonomy and in-memory cache.
+ * Synchronized via RabbitMQ events "classification-rules.updated".
  */
 @Entity
-@Table(name = "classification_rules_replica", indexes = {
-    @Index(name = "idx_rules_replica_active_metric", columnList = "is_active, metric_type"),
-    @Index(name = "idx_rules_replica_tier", columnList = "tier_uid")
+@Table(name = "engine_rules", indexes = {
+    @Index(name = "idx_engine_rules_ecommerce", columnList = "ecommerce_id"),
+    @Index(name = "idx_engine_rules_type", columnList = "discount_type_code"),
+    @Index(name = "idx_engine_rules_priority", columnList = "ecommerce_id, priority_level"),
+    @Index(name = "idx_engine_rules_active", columnList = "is_active"),
+    @Index(name = "idx_engine_rules_ecommerce_active", columnList = "ecommerce_id, is_active")
 })
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class ClassificationRuleReplicaEntity {
 
     @Id
-    private UUID uid;
+    private UUID id;
 
-    @Column(name = "tier_uid", nullable = false)
-    private UUID tierUid;
+    @Column(name = "ecommerce_id", nullable = false)
+    private UUID ecommerceId;
 
-    @Column(name = "metric_type", nullable = false, length = 50)
-    private String metricType; // 'loyalty_points', 'total_spent', 'order_count', 'custom'
+    @Column(nullable = false, length = 255)
+    private String name;
 
-    @Column(name = "min_value", nullable = false)
-    private BigDecimal minValue;
+    @Column(columnDefinition = "TEXT")
+    private String description;
 
-    @Column(name = "max_value")
-    private BigDecimal maxValue; // NULL = no upper limit
+    @Column(name = "discount_type_code", nullable = false, length = 50)
+    private String discountTypeCode; // e.g., "CLASSIFICATION"
 
-    @Column(nullable = false)
-    private Integer priority;
+    @Column(name = "discount_type", nullable = false, length = 50)
+    private String discountType; // PERCENTAGE | FIXED_AMOUNT
+
+    @Column(name = "discount_value", nullable = false)
+    private BigDecimal discountValue;
+
+    @Column(name = "applied_with", nullable = false, length = 50)
+    private String appliedWith; // INDIVIDUAL | CUMULATIVE | EXCLUSIVE
+
+    @Column(name = "logic_conditions", nullable = false, columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
+    private Map<String, Object> logicConditions; // JSONB: {min_spent: {type: "NUMERIC", value: 2000}, ...}
+
+    @Column(name = "priority_level", nullable = false)
+    private Integer priorityLevel;
 
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
-    @Column(name = "last_synced", nullable = false)
-    private Instant lastSynced;
+    @Column(name = "synced_at", nullable = false)
+    private Instant syncedAt;
 
-    // Constructors
-    public ClassificationRuleReplicaEntity() {
-    }
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
 
-    public ClassificationRuleReplicaEntity(UUID uid, UUID tierUid, String metricType, BigDecimal minValue,
-                                          BigDecimal maxValue, Integer priority, Boolean isActive, Instant lastSynced) {
-        this.uid = uid;
-        this.tierUid = tierUid;
-        this.metricType = metricType;
-        this.minValue = minValue;
-        this.maxValue = maxValue;
-        this.priority = priority;
-        this.isActive = isActive;
-        this.lastSynced = lastSynced;
-    }
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
 
-    // Getters and Setters
-    public UUID getUid() {
-        return uid;
-    }
-
-    public void setUid(UUID uid) {
-        this.uid = uid;
-    }
-
-    public UUID getTierUid() {
-        return tierUid;
-    }
-
-    public void setTierUid(UUID tierUid) {
-        this.tierUid = tierUid;
-    }
-
-    public String getMetricType() {
-        return metricType;
-    }
-
-    public void setMetricType(String metricType) {
-        this.metricType = metricType;
-    }
-
-    public BigDecimal getMinValue() {
-        return minValue;
-    }
-
-    public void setMinValue(BigDecimal minValue) {
-        this.minValue = minValue;
-    }
-
-    public BigDecimal getMaxValue() {
-        return maxValue;
-    }
-
-    public void setMaxValue(BigDecimal maxValue) {
-        this.maxValue = maxValue;
-    }
-
-    public Integer getPriority() {
-        return priority;
-    }
-
-    public void setPriority(Integer priority) {
-        this.priority = priority;
-    }
-
-    public Boolean getIsActive() {
-        return isActive;
-    }
-
-    public void setIsActive(Boolean isActive) {
-        this.isActive = isActive;
-    }
-
-    public Instant getLastSynced() {
-        return lastSynced;
-    }
-
-    public void setLastSynced(Instant lastSynced) {
-        this.lastSynced = lastSynced;
+    @PrePersist
+    protected void onCreate() {
+        if (createdAt == null) {
+            createdAt = Instant.now();
+        }
+        if (syncedAt == null) {
+            syncedAt = Instant.now();
+        }
+        if (updatedAt == null) {
+            updatedAt = Instant.now();
+        }
+        if (isActive == null) {
+            isActive = true;
+        }
     }
 
     @PreUpdate
     protected void onUpdate() {
-        this.lastSynced = Instant.now();
+        updatedAt = Instant.now();
+        syncedAt = Instant.now();
     }
 }

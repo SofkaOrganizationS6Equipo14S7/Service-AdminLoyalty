@@ -22,9 +22,12 @@ import java.util.UUID;
 /**
  * Classification Engine — DETERMINISTIC classification logic.
  * 
+ * Adapter service that integrates FidelityClassificationService with legacy DiscountCalculationServiceV2.
+ * This service ensures backward compatibility while delegating to the new JSONB-based classification.
+ * 
  * Algorithm (3 paths):
- * 1. Evaluate ALL active rules against payload metrics
- * 2. Find ALL matching rules (metric value within [min, max])
+ * 1. Evaluate ALL active rules against payload metrics using JSONB logic_conditions
+ * 2. Find ALL matching rules
  * 3. If multiple tiers match → select HIGHEST tier level (Platino > Oro > Plata > Bronce)
  * 4. Return single tier OR null (no match)
  * 
@@ -35,6 +38,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ClassificationEngine {
 
+    private final FidelityClassificationService fidelityClassificationService;
     private final ClassificationMatrixCaffeineCacheService cacheService;
     private final CustomerTierReplicaRepository tierReplicaRepo;
     private final ClassificationRuleReplicaRepository ruleReplicaRepo;
@@ -42,139 +46,70 @@ public class ClassificationEngine {
     /**
      * Classify a customer based on their metrics.
      * 
-     * @param request contains total_spent, order_count, loyalty_points
+     * IMPORTANT: This method assumes single-ecommerce context (uses "default" ecommerce UUID).
+     * For multi-ecommerce systems, use FidelityClassificationService.classify(UUID, ClassifyRequestV1) instead.
+     * 
+     * @param request contains totalSpent, orderCount, membershipDays
      * @return ClassifyResponseV1 with matched tier or null
      * @throws ServiceUnavailableException if matrix unavailable
      */
     public ClassifyResponseV1 classify(ClassifyRequestV1 request) {
-        log.info("Classifying customer: totalSpent={}, orderCount={}, loyaltyPoints={}",
-            request.totalSpent(), request.orderCount(), request.loyaltyPoints());
+        // Use default ecommerce ID for backward compatibility
+        // In production, this should be passed from the caller (DiscountCalculationServiceV2)
+        UUID defaultEcommerceId = UUID.fromString("00000000-0000-0000-0000-000000000000");
+        
+        log.info("Classifying customer (legacy): totalSpent={}, orderCount={}, membershipDays={}",
+            request.totalSpent(), request.orderCount(), request.membershipDays());
 
-        // Try to load matrix from cache
-        var tiersOptional = cacheService.getTiers();
-        var rulesOptional = cacheService.getRules();
+        try {
+            // Try cache first
+            var tiersOptional = cacheService.getTiers(defaultEcommerceId);
+            var rulesOptional = cacheService.getRules(defaultEcommerceId);
 
-        // Fallback to database if cache empty
-        if (tiersOptional.isEmpty() || rulesOptional.isEmpty()) {
-            loadMatrixFromDatabase();
-            tiersOptional = cacheService.getTiers();
-            rulesOptional = cacheService.getRules();
-        }
+            // Fallback to database if cache empty
+            if (tiersOptional.isEmpty() || rulesOptional.isEmpty()) {
+                loadMatrixFromDatabase();
+                tiersOptional = cacheService.getTiers(defaultEcommerceId);
+                rulesOptional = cacheService.getRules(defaultEcommerceId);
+            }
 
-        if (tiersOptional.isEmpty() || rulesOptional.isEmpty()) {
-            throw new ServiceUnavailableException("Classification matrix not available");
-        }
+            if (tiersOptional.isEmpty() || rulesOptional.isEmpty()) {
+                throw new ServiceUnavailableException("Classification matrix not available");
+            }
 
-        List<CustomerTierReplicaEntity> tiers = tiersOptional.get();
-        Map<UUID, List<ClassificationRuleReplicaEntity>> rulesByTier = rulesOptional.get();
-
-        // Build payload map for flexible metric evaluation
-        Map<String, Object> payload = buildPayload(request);
-
-        // Find ALL matching rules
-        Optional<CustomerTierReplicaEntity> matchedTier = Optional.empty();
-        Integer highestLevel = -1;
-
-        for (CustomerTierReplicaEntity tier : tiers) {
-            if (!tier.getIsActive()) continue;
-
-            List<ClassificationRuleReplicaEntity> tierRules = rulesByTier.getOrDefault(tier.getUid(), List.of());
+            // Delegate to new JSONB-based service
+            var classificationResult = fidelityClassificationService.classify(defaultEcommerceId, request);
             
-            // Check if ALL rules for this tier match the payload
-            boolean allRulesMatch = true;
-            for (ClassificationRuleReplicaEntity rule : tierRules) {
-                if (!rule.getIsActive()) continue;
-                
-                Object metricValue = payload.get(rule.getMetricType());
-                if (metricValue == null || !ruleMatches(rule, metricValue)) {
-                    allRulesMatch = false;
-                    break;
-                }
+            if (classificationResult.getTierUid().isPresent()) {
+                return new ClassifyResponseV1(
+                    classificationResult.getTierUid().get(),
+                    classificationResult.getTierName().get(),
+                    classificationResult.getHierarchyLevel().get(),
+                    classificationResult.getDiscountPercentage().get(),
+                    classificationResult.getCriteriaMet(),
+                    Instant.now()
+                );
+            } else {
+                return new ClassifyResponseV1(null, null, null, null, List.of(), Instant.now());
             }
-
-            // If all rules match and this tier has higher level, select it
-            if (allRulesMatch && tier.getLevel() > highestLevel) {
-                matchedTier = Optional.of(tier);
-                highestLevel = tier.getLevel();
-                log.debug("Tier {} matches with level {}", tier.getName(), tier.getLevel());
-            }
+        } catch (Exception e) {
+            log.error("Classification engine error: {}", e.getMessage(), e);
+            throw new ServiceUnavailableException("Classification failed: " + e.getMessage());
         }
-
-        if (matchedTier.isPresent()) {
-            CustomerTierReplicaEntity tier = matchedTier.get();
-            log.info("Customer classified as: tier={}, level={}", tier.getName(), tier.getLevel());
-            return new ClassifyResponseV1(
-                tier.getUid(),
-                tier.getName(),
-                tier.getLevel(),
-                "Qualified for " + tier.getName(),
-                Instant.now()
-            );
-        } else {
-            log.info("Customer does not qualify for any tier");
-            return new ClassifyResponseV1(null, null, null, "No tier match", Instant.now());
-        }
-    }
-
-    /**
-     * Build payload map from request for flexible metric evaluation.
-     */
-    private Map<String, Object> buildPayload(ClassifyRequestV1 request) {
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("total_spent", request.totalSpent());
-        payload.put("order_count", request.orderCount());
-        if (request.loyaltyPoints() != null && request.loyaltyPoints() >= 0) {
-            payload.put("loyalty_points", request.loyaltyPoints());
-        }
-        return payload;
-    }
-
-    /**
-     * Check if a metric value matches a rule (deterministic).
-     */
-    @SuppressWarnings("unchecked")
-    private boolean ruleMatches(ClassificationRuleReplicaEntity rule, Object metricValue) {
-        BigDecimal value;
-
-        // Convert metric to BigDecimal for comparison
-        if (metricValue instanceof BigDecimal bd) {
-            value = bd;
-        } else if (metricValue instanceof Integer i) {
-            value = BigDecimal.valueOf(i);
-        } else if (metricValue instanceof Long l) {
-            value = BigDecimal.valueOf(l);
-        } else if (metricValue instanceof String s) {
-            try {
-                value = new BigDecimal(s);
-            } catch (NumberFormatException e) {
-                log.warn("Invalid metric value format: {}", s);
-                return false;
-            }
-        } else {
-            return false;
-        }
-
-        // Check min <= value <= max (NULL max = no upper limit)
-        if (value.compareTo(rule.getMinValue()) < 0) {
-            return false;
-        }
-        if (rule.getMaxValue() != null && value.compareTo(rule.getMaxValue()) > 0) {
-            return false;
-        }
-
-        return true;
     }
 
     /**
      * Load matrix from replica tables (for Cold Start).
      */
     private void loadMatrixFromDatabase() {
+        UUID defaultEcommerceId = UUID.fromString("00000000-0000-0000-0000-000000000000");
+        
         log.info("Loading classification matrix from replica database...");
-        List<CustomerTierReplicaEntity> tiers = tierReplicaRepo.findByIsActiveTrueOrderByLevelAsc();
-        List<ClassificationRuleReplicaEntity> rules = ruleReplicaRepo.findAllActiveRulesForCache();
+        List<CustomerTierReplicaEntity> tiers = tierReplicaRepo.findByEcommerceIdAndIsActiveTrueOrderByHierarchyLevelAsc(defaultEcommerceId);
+        List<ClassificationRuleReplicaEntity> rules = ruleReplicaRepo.findByEcommerceIdAndDiscountTypeCodeAndIsActiveTrueOrderByPriorityLevelAsc(
+            defaultEcommerceId, "CLASSIFICATION"
+        );
 
-        cacheService.putTiers(tiers);
-        cacheService.putRules(rules);
         log.info("Classification matrix loaded: {} tiers, {} rules", tiers.size(), rules.size());
     }
 }
