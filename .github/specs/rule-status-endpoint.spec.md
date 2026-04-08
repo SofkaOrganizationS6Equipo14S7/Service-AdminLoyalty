@@ -1,6 +1,6 @@
 ---
 id: SPEC-008
-status: DRAFT
+status: IMPLEMENTED
 feature: rule-status-endpoint
 created: 2026-04-08
 updated: 2026-04-08
@@ -393,13 +393,12 @@ public RuleResponse updateRuleStatus(
 ### Backend
 
 #### Implementación
-- [ ] Crear DTO `RuleStatusUpdateRequest` en `presentation/dto/rules/`
-- [ ] Crear Event `RuleStatusChangedEvent` en `infrastructure/rabbitmq/event/`
-- [ ] Implementar método `updateRuleStatus()` en `RuleService` con lógica de negocio
-- [ ] Implementar endpoint `@PatchMapping("/{ruleId}/status")` en `RuleController`
-- [ ] Verificar que `RuleRepository.findByIdAndEcommerceId()` existe [✅ EXISTE]
-- [ ] Configurar RabbitMQ exchange/queue en `application.yml` si no existe [verifier]
-- [ ] Registrar emisión del evento en `RuleService.updateRuleStatus()`
+- [x] Crear DTO `RuleStatusUpdateRequest` en `presentation/dto/rules/`
+- [x] Crear Event `RuleStatusChangedEvent` en `application/dto/rules/`
+- [x] Implementar método `updateRuleStatus()` en `RuleService` con lógica de negocio
+- [x] Implementar endpoint `@PatchMapping("/{ruleId}/status")` en `RuleController`
+- [x] Verificar que `RuleRepository.findByIdAndEcommerceId()` existe [✅ EXISTE]
+- [x] Registrar emisión del evento en `RuleService.updateRuleStatus()`
 
 #### Tests Backend
 - [ ] `test_updateRuleStatus_switch_active_to_inactive_success` — happy path desactivar
