@@ -356,8 +356,8 @@ public class RuleService {
         if (discountPercentage.compareTo(settings.getMaxDiscountCap()) > 0) {
             log.warn("Discount {} exceeds max cap: {}", discountPercentage, settings.getMaxDiscountCap());
             throw new BadRequestException(
-                "Discount percentage " + discountPercentage + 
-                "% exceeds maximum allowed: " + settings.getMaxDiscountCap() + "%"
+                "Discount amount $" + discountPercentage + 
+                " exceeds maximum allowed: $" + settings.getMaxDiscountCap()
             );
         }
         
