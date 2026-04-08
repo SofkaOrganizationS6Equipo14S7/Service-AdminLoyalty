@@ -1,6 +1,6 @@
 ---
 id: SPEC-010
-status: DRAFT
+status: APPROVED
 feature: rule-full-sync-engine
 created: 2026-04-08
 updated: 2026-04-08

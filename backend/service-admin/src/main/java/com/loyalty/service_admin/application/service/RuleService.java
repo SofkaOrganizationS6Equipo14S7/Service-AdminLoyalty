@@ -9,6 +9,7 @@ import com.loyalty.service_admin.application.dto.rules.RuleAttributeMetadataDTO;
 import com.loyalty.service_admin.application.dto.discount.DiscountTypeDTO;
 import com.loyalty.service_admin.application.dto.discount.DiscountPriorityDTO;
 import com.loyalty.service_admin.application.dto.classificationrule.ClassificationRuleResponse;
+import com.loyalty.service_admin.application.dto.events.RuleEvent;
 import com.loyalty.service_admin.application.validation.ContinuityValidator;
 import com.loyalty.service_admin.application.validation.HierarchyValidator;
 import com.loyalty.service_admin.application.validation.UniquePriorityValidator;
@@ -117,6 +118,9 @@ public class RuleService {
 
         saveAttributeValues(savedRule.getId(), priority.getDiscountTypeId(), request.attributes());
 
+        // SPEC-010: Emit RULE_CREATED event for Engine sync
+        publishRuleEvent("RULE_CREATED", savedRule, ecommerceId, request.attributes(), typeCode);
+
         return toResponse(savedRule);
     }
 
@@ -219,11 +223,15 @@ public class RuleService {
         ruleAttributeValueRepository.deleteByRuleId(ruleId);
         saveAttributeValues(ruleId, priority.getDiscountTypeId(), request.attributes());
 
+        // SPEC-010: Emit RULE_UPDATED event for Engine sync
+        publishRuleEvent("RULE_UPDATED", updated, ecommerceId, request.attributes(), typeCode);
+
         return toResponse(updated);
     }
 
     /**
      * Delete rule (soft delete)
+     * SPEC-010: Emits RULE_DELETED event for Engine sync
      */
     public void deleteRule(UUID ecommerceId, UUID ruleId) {
         RuleEntity rule = ruleRepository.findByIdAndEcommerceId(ruleId, ecommerceId)
@@ -231,8 +239,31 @@ public class RuleService {
 
         rule.setIsActive(false);
         rule.setUpdatedAt(Instant.now());
-        ruleRepository.save(rule);
+        RuleEntity deletedRule = ruleRepository.save(rule);
         log.info("Rule soft deleted: {}", ruleId);
+
+        // Resolve discount type code from priority
+        DiscountPriorityEntity priority = discountLimitPriorityRepository.findById(rule.getDiscountPriorityId())
+                .orElse(null);
+        String typeCode = "UNKNOWN";
+        if (priority != null) {
+            DiscountTypeEntity discountType = discountTypeRepository.findById(priority.getDiscountTypeId())
+                    .orElse(null);
+            typeCode = discountType != null ? discountType.getCode() : "UNKNOWN";
+        }
+
+        // Get last known attributes
+        Map<String, String> attributes = new HashMap<>();
+        List<RuleAttributeValueEntity> attrValues = ruleAttributeValueRepository.findByRuleIdOrderByCreatedAtAsc(ruleId);
+        for (RuleAttributeValueEntity attrValue : attrValues) {
+            RuleAttributeEntity attrDef = ruleAttributeRepository.findById(attrValue.getAttributeId()).orElse(null);
+            if (attrDef != null) {
+                attributes.put(attrDef.getAttributeName(), attrValue.getValue());
+            }
+        }
+
+        // SPEC-010: Emit RULE_DELETED event for Engine sync
+        publishRuleEvent("RULE_DELETED", deletedRule, ecommerceId, attributes, typeCode);
     }
 
     /**
@@ -989,5 +1020,59 @@ public class RuleService {
                     );
                 })
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * SPEC-010: Publish generic RuleEvent for all rule types (FIDELITY, SEASONAL, PRODUCT, CLASSIFICATION)
+     * 
+     * @param eventType "RULE_CREATED" | "RULE_UPDATED" | "RULE_DELETED"
+     * @param rule      The rule entity
+     * @param ecommerceId Tenant ID
+     * @param attributes  Dynamic attributes (product_type, start_date, etc.)
+     * @param typeCode    Discount type code (FIDELITY|SEASONAL|PRODUCT|CLASSIFICATION)
+     */
+    private void publishRuleEvent(String eventType, RuleEntity rule, UUID ecommerceId, 
+                                   Map<String, String> attributes, String typeCode) {
+        try {
+            // Convert attributes Map to JSONB-compatible format
+            Map<String, Object> logicConditions = new HashMap<>(attributes);
+            
+            RuleEvent event = new RuleEvent(
+                eventType,
+                rule.getId(),
+                ecommerceId,
+                rule.getName(),
+                rule.getDescription(),
+                typeCode,
+                rule.getDiscountPercentage(),
+                resolvePriorityLevel(rule.getDiscountPriorityId()),
+                logicConditions,
+                rule.getIsActive(),
+                "INDIVIDUAL",  // SPEC-010: Default appliedWith
+                Instant.now()
+            );
+            
+            rabbitTemplate.convertAndSend(
+                "loyalty.events",
+                "rule.updated",  // Universal routing key for all rule types
+                event
+            );
+            
+            log.info("Published RuleEvent: eventType={}, ruleId={}, discountTypeCode={}, ecommerceId={}",
+                    eventType, rule.getId(), typeCode, ecommerceId);
+        } catch (Exception ex) {
+            // Log error but don't rollback transaction (rule was already persisted)
+            log.error("Failed to publish RuleEvent: eventType={}, ruleId={}, typeCode={}",
+                    eventType, rule.getId(), typeCode, ex);
+        }
+    }
+
+    /**
+     * Helper: Resolve priority level from discount priority entity
+     */
+    private Integer resolvePriorityLevel(UUID discountPriorityId) {
+        DiscountPriorityEntity priority = discountLimitPriorityRepository.findById(discountPriorityId)
+                .orElse(null);
+        return priority != null ? priority.getPriorityLevel() : 1;
     }
 }
