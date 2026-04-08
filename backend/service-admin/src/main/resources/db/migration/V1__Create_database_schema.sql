@@ -154,7 +154,6 @@ CREATE TABLE IF NOT EXISTS customer_tiers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     ecommerce_id UUID NOT NULL REFERENCES ecommerce(id) ON DELETE CASCADE,
     name VARCHAR(100) NOT NULL,
-    discount_percentage DECIMAL(5,2) NOT NULL,
     hierarchy_level INTEGER NOT NULL,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
