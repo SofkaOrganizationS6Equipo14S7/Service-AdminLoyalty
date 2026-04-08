@@ -1,6 +1,6 @@
 ---
 id: SPEC-009
-status: DRAFT
+status: APPROVED
 feature: rule-status-sync-engine
 created: 2026-04-08
 updated: 2026-04-08
@@ -19,7 +19,7 @@ related-specs: ["SPEC-008"]
 ## 1. REQUERIMIENTOS
 
 ### Descripción
-Implementar un consumer RabbitMQ en el Engine Service que escuche cambios de activación/desactivación de reglas publicados por la Admin Service. El Engine debe sincronizar estos cambios en su tabla replica `engine_rules` e invalidar el caché Caffeine para que los cálculos subsecuentes usen el estado actualizado.
+Implementar un consumer RabbitMQ en el Engine Service que escuche cambios de activación/desactivación de reglas publicados por la Admin Service. El Engine Service mantiene un clone simplificado de la BD Admin (arquitectura sin asociaciones complejas para operaciones de lectura rápida): `engine_rules` replicará los cambios de estado, invalidará el caché Caffeine para que los cálculos subsecuentes usen el estado actualizado.
 
 ### Requerimiento de Negocio
 El requerimiento original de HU-14:
@@ -115,30 +115,68 @@ CRITERIO-14.12: Mismo evento procesado multiple veces
 
 ### Reglas de Negocio
 
-1. **Event Source of Truth**: Admin Service es única fuente de verdad. Engine solo replica.
-2. **Replica Pattern**: `engine_rules` se mantiene en sinc con Admin `rules` (subconjunto).
-3. **Cache Invalidation**: Cada cambio en status invalida el cache Caffeine para ese ecommerce.
-4. **Async Processing**: Listener RabbitMQ procesa eventos asincronicamente sin bloquear Admin.
-5. **Idempotencia**: Procesar el mismo evento múltiples veces debe dar resultado consistente.
-6. **Dead Letter Queue**: Eventos malformados van a DLQ para investigación.
-7. **No Cascade Delete**: Si regla se elimina en Admin, Engine solo marca `is_active = false` (soft delete).
+1. **Event Source of Truth**: Admin Service es única fuente de verdad. Engine solo es consumer (read-only after sync).
+2. **Clone Simplificado**: `engine_rules` es réplica simplificada del Admin:
+   - No replicar asociaciones complejas (no foreign keys entre replicas)
+   - Atributos dinámicos desnormalizados en JSONB (no table separada engine_rule_attributes)
+   - Propósito: operaciones de lectura rápida sin joins complejos
+3. **Sync Pattern**: Admin emite eventos para CREATE, UPDATE y status changes. Engine consume y actualiza replica.
+4. **Cache Invalidation**: Cada cambio de status (o cualquier atributo) invalida Caffeine cache para ese ecommerce, forzando reload lazy.
+5. **Async Processing**: @RabbitListener procesa eventos asincronicamente sin bloquear Admin.
+6. **Idempotencia**: Procesar el mismo evento 2+ veces = resultado idéntico. UPDATE por id es idempotente.
+7. **Dead Letter Queue**: Eventos inválidos (null fields, etc.) van a DLQ para auditoría.
+8. **Read-Only en Engine**: Engine **nunca** inserta nuevas reglas directamente. Solo replica desde Admin.
 
 ---
 
 ## 2. DISEÑO
 
+### Contexto Arquitectónico: Clone Simplificado
+
+El Engine Service mantiene un **clone simplificado** de la BD Admin con 5 tablas sincronizadas (no una réplica compleja):
+
+| Tabla Admin | Tabla Engine | Sincronización | Características |
+|---|---|---|---|
+| `api_keys` | `engine_api_keys` | Solo datos necesarios | Hash, ecommerce_id, is_active |
+| `discount_settings` | `engine_discount_settings` | Sync completo | Config de negocio |
+| `discount_priorities` | `engine_discount_priorities` | Sync completo | Prioridades de descuento |
+| `customer_tiers` | `engine_customer_tiers` | Sync completo | Niveles de fidelidad |
+| `rules` + `rule_attribute_values` | `engine_rules` (JSONB) | Sync completo, atributos desnormalizados | Reglas simplificadas = lectura rápida |
+
+**Beneficio**: Operaciones de lectura rápida sin joins complejos. Todos los datos que necesita calcular descuentos están en 5 tablas simples.
+
 ### Modelos de Datos
 
-#### Tabla: `engine_rules` (Replica)
+#### Tabla: `engine_rules` (Replica Simplificada)
+
+**Propósito**: Snapshot de configuraciones de reglas del Admin para cálculos en tiempo real. No es entidad transaccional; es una copia sincronizada. Los atributos dinámicos se almacenan desnormalizados en JSONB (no en tabla separada) para evitar joins complejos.
+
+**Estructura**:
 | Campo | Tipo | Cambios | Descripción |
 |-------|------|---------|-------------|
-| `id` | UUID | ✅ | PK — Identificador único (syncronizado desde Admin) |
+| `id` | UUID | — | PK — Identificador único (sincronizado desde Admin rules.id) |
 | `ecommerce_id` | UUID | — | Tenant ID |
-| `is_active` | Boolean | ✅ **ACTUALIZAR** | Flag de activación (true = activa, false = inactiva) |
-| `updated_at` | Instant (UTC) | ✅ **ACTUALIZAR** | Timestamp de última sincronización |
-| (resto intacto) | — | — | priority_level, discount_type_code, discount_percentage, logic_conditions |
+| `discount_priority_id` | UUID | — | FK a engine_discount_priorities |
+| `name` | String | — | Nombre de la regla |
+| `description` | String | — | Descripción opcional |
+| `discount_percentage` | BigDecimal | — | Porcentaje 0-100 |
+| `priority_level` | Integer | — | Orden de aplicación (1=first, 2=second, etc.) |
+| `discount_type_code` | String | — | PRODUCT, SEASONAL, o CLASSIFICATION |
+| `is_active` | Boolean | ✅ **ACTUALIZAR** | Flag de activación (true=aplica, false=ignorar) |
+| `attributes` | JSONB | — | Atributos dinámicos (product_type, start_date, end_date, etc.) serializados en JSON |
+| `created_at` | Instant | — | Timestamp de creación (UTC) |
+| `updated_at` | Instant | ✅ **ACTUALIZAR** | Timestamp de última sincronización (UTC) |
 
-**Índices existentes**: `idx_rules_priority`, `idx_ecommerce_rules` (verificar)
+**Índices**: `idx_ecommerce_active` para queries frecuentes (rules activas por ecommerce)
+
+**Ejemplo de `attributes` (JSONB)**:
+```json
+{
+  "product_type": "electronics",
+  "start_date": "2026-04-01",
+  "end_date": "2026-06-30"
+}
+```
 
 ### Evento RabbitMQ (Entrada)
 
@@ -313,12 +351,14 @@ public class RuleStatusEventConfig {
 
 #### Notas de Implementación
 > - Seguir patrón existente de `ClassificationRuleEventConsumer`
-> - Usuario del método: `@RabbitListener(queues = "...")` con `@Value` para propiedad
+> - Usar `@RabbitListener(queues = "...")` con `@Value` para propiedad de nombre de queue
 > - No ejecutar queries costosas dentro del listener (async, fire-and-forget)
-> - Si `engineRuleRepository.findByIdAndEcommerceId()` no existe, crearla (es método estándar)
-> - El cache `RuleCaffeineCacheService` debe tener método `invalidateEcommerce()` — investigar si existe, sino crear
-> - Dead Letter Queue automática: Spring desvia después de reintentos configurados
-> - No lanzar excepciones que causen rollback de transacción: logging + rethrow para que RabbitMQ reintente
+> - `EngineRuleRepository.findByIdAndEcommerceId()` debe retornar Optional (es método estándar CRUD)
+> - `RuleCaffeineCacheService.invalidateEcommerce(ecommerceId)` invalida todas las keys del caché para ese ecommerce
+> - Estructura JSONB: los atributos dinámicos se almacenan como JSON string, no como table normalizadas
+> - Dead Letter Queue: Spring auto-enviará después de reintentos configurados en RabbitMQ redelivery policy
+> - Logging importante: ruleId+ecommerceId en todos los logs para auditoría
+> - No Rollback: No lanzar excepciones no-recoverable que bloqueen el listener. Logging + low-level retries.
 
 ---
 
@@ -327,12 +367,15 @@ public class RuleStatusEventConfig {
 ### Backend (Engine Service)
 
 #### Implementación
+- [ ] Crear/verificar DTO `RuleStatusChangedEvent` en `application/dto/rules/` (debe ser compatible con Admin SPEC-008)
 - [ ] Crear consumer `RuleStatusEventConsumer` en `infrastructure/rabbitmq/`
 - [ ] Crear/verificar `EngineRuleRepository.findByIdAndEcommerceId()` en `domain/repository/`
 - [ ] Verificar/crear `RuleCaffeineCacheService.invalidateEcommerce(ecommerceId)` en `application/service/`
-- [ ] Crear bean de configuración para queue/exchange/binding en `infrastructure/config/`
-- [ ] Agregar propiedades RabbitMQ en `application.properties`
-- [ ] Verificar que tabla `engine_rules` existe con columnas `is_active`, `updated_at`
+- [ ] Crear bean de configuración para queue/exchange/binding en `infrastructure/config/RuleStatusEventConfig.java`
+- [ ] Agregar propiedades RabbitMQ en `application.properties` (queues, exchange, routing keys)
+- [ ] Verificar que tabla `engine_rules` existe con:
+  - Columnas: `id`, `ecommerce_id`, `discount_priority_id`, `name`, `description`, `discount_percentage`, `priority_level`, `discount_type_code`, `is_active`, `attributes` (JSONB), `created_at`, `updated_at`
+  - Índice: `idx_ecommerce_active` para queries rápidas
 
 #### Tests Backend
 - [ ] `test_consumer_rule_deactivated_updates_db_and_invalidates_cache` — desactivar
