@@ -3,7 +3,7 @@ package com.loyalty.service_admin.presentation.controller;
 import com.loyalty.service_admin.application.dto.customertier.CustomerTierCreateRequest;
 import com.loyalty.service_admin.application.dto.customertier.CustomerTierUpdateRequest;
 import com.loyalty.service_admin.application.dto.customertier.CustomerTierResponse;
-import com.loyalty.service_admin.application.service.CustomerTierService;
+import com.loyalty.service_admin.application.port.in.CustomerTierUseCase;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,7 +21,7 @@ import java.util.UUID;
 @Slf4j
 public class CustomerTierController {
 
-    private final CustomerTierService customerTierService;
+    private final CustomerTierUseCase customerTierUseCase;
 
     @PostMapping
     public ResponseEntity<CustomerTierResponse> createCustomerTier(
@@ -30,7 +30,7 @@ public class CustomerTierController {
         log.info("POST /api/v1/customer-tiers - Creating tier: name={}, hierarchyLevel={}", 
             request.name(), request.hierarchyLevel());
         
-        CustomerTierResponse response = customerTierService.create(request);
+        CustomerTierResponse response = customerTierUseCase.create(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -42,7 +42,7 @@ public class CustomerTierController {
         log.info("GET /api/v1/customer-tiers - Listing tiers with pagination: page={}, size={}, isActive={}", 
             pageable.getPageNumber(), pageable.getPageSize(), isActive);
         
-        Page<CustomerTierResponse> response = customerTierService.listPaginated(pageable, isActive);
+        Page<CustomerTierResponse> response = customerTierUseCase.listPaginated(pageable, isActive);
         return ResponseEntity.ok(response);
     }
 
@@ -52,7 +52,7 @@ public class CustomerTierController {
     ) {
         log.info("GET /api/v1/customer-tiers/{} - Obtaining tier details", tierId);
         
-        CustomerTierResponse response = customerTierService.getById(tierId);
+        CustomerTierResponse response = customerTierUseCase.getById(tierId);
         return ResponseEntity.ok(response);
     }
 
@@ -63,7 +63,7 @@ public class CustomerTierController {
     ) {
         log.info("PUT /api/v1/customer-tiers/{} - Updating tier", tierId);
         
-        CustomerTierResponse response = customerTierService.update(tierId, request);
+        CustomerTierResponse response = customerTierUseCase.update(tierId, request);
         return ResponseEntity.ok(response);
     }
 
@@ -74,7 +74,7 @@ public class CustomerTierController {
     ) {
         log.info("DELETE /api/v1/customer-tiers/{} - Soft deleting tier", tierId);
         
-        customerTierService.delete(tierId);
+        customerTierUseCase.delete(tierId);
         return ResponseEntity.noContent().build();
     }
 
@@ -84,7 +84,7 @@ public class CustomerTierController {
     ) {
         log.info("PUT /api/v1/customer-tiers/{}/activate - Reactivating tier", tierId);
         
-        CustomerTierResponse response = customerTierService.activate(tierId);
+        CustomerTierResponse response = customerTierUseCase.activate(tierId);
         return ResponseEntity.ok(response);
     }
 }

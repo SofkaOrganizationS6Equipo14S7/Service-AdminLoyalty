@@ -4,8 +4,8 @@ import com.loyalty.service_admin.application.dto.rules.discount.DiscountConfigCr
 import com.loyalty.service_admin.application.dto.rules.discount.DiscountConfigResponse;
 import com.loyalty.service_admin.application.dto.rules.discount.DiscountLimitPriorityRequest;
 import com.loyalty.service_admin.application.dto.rules.discount.DiscountLimitPriorityResponse;
-import com.loyalty.service_admin.application.service.DiscountConfigService;
-import com.loyalty.service_admin.application.service.DiscountLimitPriorityService;
+import com.loyalty.service_admin.application.port.in.DiscountConfigUseCase;
+import com.loyalty.service_admin.application.port.in.DiscountLimitPriorityUseCase;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -17,18 +17,11 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1")
 @Slf4j
+@lombok.RequiredArgsConstructor
 public class DiscountConfigController {
 
-    private final DiscountConfigService discountConfigService;
-    private final DiscountLimitPriorityService priorityService;
-
-    public DiscountConfigController(
-            DiscountConfigService discountConfigService,
-            DiscountLimitPriorityService priorityService
-    ) {
-        this.discountConfigService = discountConfigService;
-        this.priorityService = priorityService;
-    }
+    private final DiscountConfigUseCase discountConfigUseCase;
+    private final DiscountLimitPriorityUseCase priorityUseCase;
 
     /**
      * @param request discount configuration data
@@ -38,7 +31,7 @@ public class DiscountConfigController {
     public ResponseEntity<DiscountConfigResponse> updateDiscountConfig(
             @Valid @RequestBody DiscountConfigCreateRequest request
     ) {
-        DiscountConfigResponse response = discountConfigService.updateConfig(request);
+        DiscountConfigResponse response = discountConfigUseCase.updateConfig(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -51,7 +44,7 @@ public class DiscountConfigController {
     public ResponseEntity<DiscountConfigResponse> getDiscountConfig(
             @RequestParam UUID ecommerceId
     ) {
-        DiscountConfigResponse response = discountConfigService.getActiveConfig(ecommerceId);
+        DiscountConfigResponse response = discountConfigUseCase.getActiveConfig(ecommerceId);
         return ResponseEntity.ok(response);
     }
 
@@ -63,7 +56,7 @@ public class DiscountConfigController {
     public ResponseEntity<DiscountLimitPriorityResponse> savePriorities(
             @RequestBody DiscountLimitPriorityRequest request
     ) {
-        DiscountLimitPriorityResponse response = priorityService.savePriorities(request);
+        DiscountLimitPriorityResponse response = priorityUseCase.savePriorities(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -76,7 +69,7 @@ public class DiscountConfigController {
     public ResponseEntity<DiscountLimitPriorityResponse> getPriorities(
             @RequestParam UUID discountSettingId
     ) {
-        DiscountLimitPriorityResponse response = priorityService.getPriorities(discountSettingId);
+        DiscountLimitPriorityResponse response = priorityUseCase.getPriorities(discountSettingId);
         return ResponseEntity.ok(response);
     }
 }

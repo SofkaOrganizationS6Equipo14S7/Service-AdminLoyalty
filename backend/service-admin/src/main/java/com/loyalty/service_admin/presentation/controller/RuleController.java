@@ -12,7 +12,7 @@ import com.loyalty.service_admin.application.dto.discount.DiscountPriorityDTO;
 import com.loyalty.service_admin.application.dto.classificationrule.ClassificationRuleCreateRequest;
 import com.loyalty.service_admin.application.dto.classificationrule.ClassificationRuleUpdateRequest;
 import com.loyalty.service_admin.application.dto.classificationrule.ClassificationRuleResponse;
-import com.loyalty.service_admin.application.service.RuleService;
+import com.loyalty.service_admin.application.port.in.RuleUseCase;
 import com.loyalty.service_admin.infrastructure.security.SecurityContextHelper;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -37,13 +37,13 @@ import java.util.UUID;
 @PreAuthorize("isAuthenticated()")
 public class RuleController {
 
-    private final RuleService ruleService;
+    private final RuleUseCase ruleUseCase;
     private final SecurityContextHelper securityContextHelper;
 
     @GetMapping("/discount-types")
     public ResponseEntity<List<DiscountTypeDTO>> listDiscountTypes() {
         log.info("Fetching all discount types");
-        List<DiscountTypeDTO> types = ruleService.getAllDiscountTypes();
+        List<DiscountTypeDTO> types = ruleUseCase.getAllDiscountTypes();
         return ResponseEntity.ok(types);
     }
 
@@ -52,7 +52,7 @@ public class RuleController {
             @RequestParam UUID discountTypeId
     ) {
         log.info("Fetching available attributes for discount type: {}", discountTypeId);
-        List<RuleAttributeMetadataDTO> attributes = ruleService.getAvailableAttributesForDiscountType(discountTypeId);
+        List<RuleAttributeMetadataDTO> attributes = ruleUseCase.getAvailableAttributesForDiscountType(discountTypeId);
         return ResponseEntity.ok(attributes);
     }
 
@@ -61,7 +61,7 @@ public class RuleController {
             @RequestParam UUID discountTypeId
     ) {
         log.info("Fetching discount priorities for type: {}", discountTypeId);
-        List<DiscountPriorityDTO> priorities = ruleService.getDiscountPrioritiesByType(discountTypeId);
+        List<DiscountPriorityDTO> priorities = ruleUseCase.getDiscountPrioritiesByType(discountTypeId);
         return ResponseEntity.ok(priorities);
     }
 
@@ -77,7 +77,7 @@ public class RuleController {
             );
         }
 
-        RuleResponse response = ruleService.createRule(ecommerceId, request);
+        RuleResponse response = ruleUseCase.createRule(ecommerceId, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -90,7 +90,7 @@ public class RuleController {
         UUID ecommerceId = securityContextHelper.getCurrentUserEcommerceId();
         Pageable pageable = PageRequest.of(page, size);
 
-        Page<RuleResponse> response = ruleService.listRules(ecommerceId, active, pageable);
+        Page<RuleResponse> response = ruleUseCase.listRules(ecommerceId, active, pageable);
         return ResponseEntity.ok(response);
     }
 
@@ -99,8 +99,8 @@ public class RuleController {
         UUID ecommerceId = securityContextHelper.getCurrentUserEcommerceId();
         log.info("Fetching rule: {}", ruleId);
 
-        RuleResponse baseResponse = ruleService.getRuleById(ecommerceId, ruleId);
-        List<RuleCustomerTierDTO> tiers = ruleService.getRuleAssignedTiers(ecommerceId, ruleId);
+        RuleResponse baseResponse = ruleUseCase.getRuleById(ecommerceId, ruleId);
+        List<RuleCustomerTierDTO> tiers = ruleUseCase.getRuleAssignedTiers(ecommerceId, ruleId);
 
         RuleResponseWithTiers response = new RuleResponseWithTiers(
                 baseResponse.id(),
@@ -132,7 +132,7 @@ public class RuleController {
             );
         }
 
-        RuleResponse response = ruleService.updateRule(ecommerceId, ruleId, request);
+        RuleResponse response = ruleUseCase.updateRule(ecommerceId, ruleId, request);
         return ResponseEntity.ok(response);
     }
 
@@ -147,7 +147,7 @@ public class RuleController {
             );
         }
 
-        ruleService.deleteRule(ecommerceId, ruleId);
+        ruleUseCase.deleteRule(ecommerceId, ruleId);
         return ResponseEntity.noContent().build();
     }
 
@@ -171,7 +171,7 @@ public class RuleController {
             );
         }
 
-        RuleResponse response = ruleService.updateRuleStatus(ecommerceId, ruleId, request.active());
+        RuleResponse response = ruleUseCase.updateRuleStatus(ecommerceId, ruleId, request.active());
         return ResponseEntity.ok(response);
     }
 
@@ -189,7 +189,7 @@ public class RuleController {
             );
         }
 
-        RuleResponseWithTiers response = ruleService.assignCustomerTiersToRule(ecommerceId, ruleId, request.customerTierIds());
+        RuleResponseWithTiers response = ruleUseCase.assignCustomerTiersToRule(ecommerceId, ruleId, request.customerTierIds());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -198,7 +198,7 @@ public class RuleController {
         UUID ecommerceId = securityContextHelper.getCurrentUserEcommerceId();
         log.info("Fetching assigned tiers for rule: {}", ruleId);
 
-        List<RuleCustomerTierDTO> tiers = ruleService.getRuleAssignedTiers(ecommerceId, ruleId);
+        List<RuleCustomerTierDTO> tiers = ruleUseCase.getRuleAssignedTiers(ecommerceId, ruleId);
         return ResponseEntity.ok(tiers);
     }
 
@@ -220,7 +220,7 @@ public class RuleController {
             );
         }
 
-        ruleService.deleteCustomerTierFromRule(ecommerceId, ruleId, tierId);
+        ruleUseCase.deleteCustomerTierFromRule(ecommerceId, ruleId, tierId);
         return ResponseEntity.noContent().build();
     }
 
@@ -248,7 +248,7 @@ public class RuleController {
             );
         }
 
-        ClassificationRuleResponse response = ruleService.createClassificationRuleForTier(ecommerceId, tierId, request);
+        ClassificationRuleResponse response = ruleUseCase.createClassificationRuleForTier(ecommerceId, tierId, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -269,7 +269,7 @@ public class RuleController {
             );
         }
 
-        List<ClassificationRuleResponse> response = ruleService.listClassificationRulesForTier(ecommerceId, tierId);
+        List<ClassificationRuleResponse> response = ruleUseCase.listClassificationRulesForTier(ecommerceId, tierId);
         return ResponseEntity.ok(response);
     }
 
@@ -292,7 +292,7 @@ public class RuleController {
             );
         }
 
-        ClassificationRuleResponse response = ruleService.updateClassificationRuleForTier(ecommerceId, tierId, ruleId, request);
+        ClassificationRuleResponse response = ruleUseCase.updateClassificationRuleForTier(ecommerceId, tierId, ruleId, request);
         return ResponseEntity.ok(response);
     }
 
@@ -314,7 +314,7 @@ public class RuleController {
             );
         }
 
-        ruleService.deleteClassificationRuleForTier(ecommerceId, tierId, ruleId);
+        ruleUseCase.deleteClassificationRuleForTier(ecommerceId, tierId, ruleId);
         return ResponseEntity.noContent().build();
     }
 }
