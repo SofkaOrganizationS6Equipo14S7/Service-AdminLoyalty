@@ -300,27 +300,17 @@ public class RuleService implements RuleUseCase {
         
         log.info("Rule status updated: ruleId={}, newStatus={}, previousStatus={}", ruleId, newStatus, previousStatus);
 
-        // Emit RabbitMQ event for Engine Service
+        // Emit event via port - uses RuleEventPort abstractions instead of direct RabbitMQ
         try {
-            com.loyalty.service_admin.application.dto.rules.RuleStatusChangedEvent event = 
-                new com.loyalty.service_admin.application.dto.rules.RuleStatusChangedEvent(
-                    rule.getId(),
-                    rule.getEcommerceId(),
-                    newStatus,
-                    previousStatus,
-                    Instant.now()
-                );
-            
-            rabbitTemplate.convertAndSend(
-                "loyalty.events",
-                "rule.status.changed",
-                event
-            );
-            
-            log.debug("RuleStatusChangedEvent emitted to RabbitMQ: ruleId={}, newStatus={}", ruleId, newStatus);
+            if (newStatus) {
+                ruleEventPort.publishRuleActivated(rule, ecommerceId, resolveRuleType(rule));
+            } else {
+                ruleEventPort.publishRuleDeactivated(rule, ecommerceId, resolveRuleType(rule));
+            }
+            log.debug("Rule status event published: ruleId={}, newStatus={}", ruleId, newStatus);
         } catch (Exception ex) {
             // Log error but don't rollback the transaction (status was already saved)
-            log.error("Failed to emit RuleStatusChangedEvent to RabbitMQ: ruleId={}, newStatus={}", ruleId, newStatus, ex);
+            log.error("Failed to emit rule status event: ruleId={}, newStatus={}", ruleId, newStatus, ex);
         }
 
         return toResponse(saved);
@@ -1064,14 +1054,10 @@ public class RuleService implements RuleUseCase {
                 Instant.now()
             );
             
-            rabbitTemplate.convertAndSend(
-                "loyalty.events",
-                "rule.updated",  // Universal routing key for all rule types
-                event
-            );
-            
-            log.info("Published RuleEvent: eventType={}, ruleId={}, discountTypeCode={}, ecommerceId={}",
-                    eventType, rule.getId(), typeCode, ecommerceId);
+            // Event publishing now handled through ruleEventPort
+            ruleEventPort.publishRuleUpdated(rule, ecommerceId, parseAttributes(rule), resolveRuleType(rule));
+            log.info("Published rule update event: ruleId={}, discountTypeCode={}, ecommerceId={}",
+                    rule.getId(), typeCode, ecommerceId);
         } catch (Exception ex) {
             // Log error but don't rollback transaction (rule was already persisted)
             log.error("Failed to publish RuleEvent: eventType={}, ruleId={}, typeCode={}",
@@ -1086,5 +1072,41 @@ public class RuleService implements RuleUseCase {
         DiscountPriorityEntity priority = discountLimitPriorityRepository.findById(discountPriorityId)
                 .orElse(null);
         return priority != null ? priority.getPriorityLevel() : 1;
+    }
+
+    /**
+     * Helper: Determine rule type (SEASONAL, PRODUCT, CLASSIFICATION) from discount priority
+     */
+    private String resolveRuleType(RuleEntity rule) {
+        // Get discount priority to find the type
+        DiscountPriorityEntity priority = discountLimitPriorityRepository.findById(rule.getDiscountPriorityId())
+                .orElse(null);
+        if (priority != null) {
+            DiscountTypeEntity discountType = discountTypeRepository.findById(priority.getDiscountTypeId())
+                    .orElse(null);
+            if (discountType != null) {
+                return discountType.getCode(); // PRODUCT, SEASONAL, CLASSIFICATION
+            }
+        }
+        return "UNKNOWN";
+    }
+
+    /**
+     * Helper: Parse attributes from a rule into a Map for event publishing
+     */
+    private Map<String, String> parseAttributes(RuleEntity rule) {
+        Map<String, String> attributes = new HashMap<>();
+        
+        // Load attribute values for this rule
+        List<RuleAttributeValueEntity> values = ruleAttributeValueRepository.findByRuleIdOrderByCreatedAtAsc(rule.getId());
+        for (RuleAttributeValueEntity value : values) {
+            RuleAttributeEntity attrDef = ruleAttributeRepository.findById(value.getAttributeId())
+                    .orElse(null);
+            if (attrDef != null) {
+                attributes.put(attrDef.getAttributeName(), value.getValue());
+            }
+        }
+        
+        return attributes;
     }
 }

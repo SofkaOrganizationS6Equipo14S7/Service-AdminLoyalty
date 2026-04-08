@@ -2,47 +2,38 @@ package com.loyalty.service_admin.application.service;
 
 import com.loyalty.service_admin.application.dto.rules.discount.DiscountConfigCreateRequest;
 import com.loyalty.service_admin.application.dto.rules.discount.DiscountConfigResponse;
+import com.loyalty.service_admin.application.port.in.DiscountConfigUseCase;
+import com.loyalty.service_admin.application.port.out.DiscountConfigPersistencePort;
+import com.loyalty.service_admin.application.port.out.DiscountConfigEventPort;
 import com.loyalty.service_admin.domain.entity.DiscountSettingsEntity;
-import com.loyalty.service_admin.domain.repository.DiscountConfigRepository;
 import com.loyalty.service_admin.domain.repository.DiscountLimitPriorityRepository;
 import com.loyalty.service_admin.infrastructure.exception.BadRequestException;
 import com.loyalty.service_admin.infrastructure.exception.ResourceNotFoundException;
-import com.loyalty.service_admin.infrastructure.rabbitmq.DiscountConfigEventPublisher;
 import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 /**
  * Servicio de lógica de negocio para configuración de límite de descuentos.
- * Implementa validaciones y manejo de eventos.
+ * Implementa DiscountConfigUseCase con puertos para persistencia y eventos.
  */
 @Service
 @Slf4j
-public class DiscountConfigService {
+@RequiredArgsConstructor
+@Transactional
+public class DiscountConfigService implements DiscountConfigUseCase {
 
-    private final DiscountConfigRepository discountConfigRepository;
+    private final DiscountConfigPersistencePort persistencePort;
+    private final DiscountConfigEventPort eventPort;
     private final DiscountLimitPriorityRepository priorityRepository;
-    private final DiscountConfigEventPublisher eventPublisher;
 
-    public DiscountConfigService(
-            DiscountConfigRepository discountConfigRepository,
-            DiscountLimitPriorityRepository priorityRepository,
-            DiscountConfigEventPublisher eventPublisher
-    ) {
-        this.discountConfigRepository = discountConfigRepository;
-        this.priorityRepository = priorityRepository;
-        this.eventPublisher = eventPublisher;
-    }
-
-    /**
-     * Crea o actualiza la configuración de límite de descuentos.
-     * Solo una configuración activa por ecommerce.
-     * CRITERIO-4.1, CRITERIO-4.5: Valida maxDiscountCap > 0
-     */
+    @Override
     @Transactional
     public DiscountConfigResponse updateConfig(DiscountConfigCreateRequest request) {
         // Validar currencyCode (ISO 4217)
@@ -51,10 +42,10 @@ public class DiscountConfigService {
         UUID ecommerceId = request.ecommerceId();
 
         // Marcar anterior config como inactiva
-        discountConfigRepository.findActiveByEcommerceId(ecommerceId)
+        persistencePort.findActiveConfigByEcommerce(ecommerceId)
             .ifPresent(oldConfig -> {
                 oldConfig.setIsActive(false);
-                discountConfigRepository.save(oldConfig);
+                persistencePort.saveConfig(oldConfig);
                 log.info("Marked previous config as inactive for ecommerce: {}", ecommerceId);
             });
 
@@ -68,21 +59,19 @@ public class DiscountConfigService {
         newConfig.setIsActive(true);
         newConfig.setVersion(1L);
 
-        DiscountSettingsEntity saved = discountConfigRepository.save(newConfig);
+        DiscountSettingsEntity saved = persistencePort.saveConfig(newConfig);
         log.info("Discount config created for ecommerce: {}", ecommerceId);
 
-        // Publicar evento
-        eventPublisher.publishDiscountConfigUpdated(saved);
+        // Publicar evento via puerto
+        eventPort.publishConfigUpdated(saved, ecommerceId);
 
         return toResponse(saved);
     }
 
-    /**
-     * Obtiene la configuración activa para un ecommerce.
-     */
+    @Override
     @Transactional(readOnly = true)
     public DiscountConfigResponse getActiveConfig(UUID ecommerceId) {
-        DiscountSettingsEntity config = discountConfigRepository.findActiveByEcommerceId(ecommerceId)
+        DiscountSettingsEntity config = persistencePort.findActiveConfigByEcommerce(ecommerceId)
             .orElseThrow(() -> new ResourceNotFoundException(
                 "No existe configuración activa de descuentos para el ecommerce: " + ecommerceId
             ));
@@ -95,7 +84,7 @@ public class DiscountConfigService {
      */
     @Transactional(readOnly = true)
     public DiscountSettingsEntity getActiveConfigEntity(UUID ecommerceId) {
-        return discountConfigRepository.findActiveByEcommerceId(ecommerceId)
+        return persistencePort.findActiveConfigByEcommerce(ecommerceId)
             .orElseThrow(() -> new ResourceNotFoundException(
                 "No existe configuración activa de descuentos para el ecommerce: " + ecommerceId
             ));
