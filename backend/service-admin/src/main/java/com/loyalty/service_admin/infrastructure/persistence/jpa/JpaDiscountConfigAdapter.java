@@ -31,7 +31,7 @@ public class JpaDiscountConfigAdapter implements DiscountConfigPersistencePort {
     @Override
     public Optional<DiscountSettingsEntity> findActiveConfigByEcommerce(UUID ecommerceId) {
         log.debug("Finding active discount config for ecommerce: {}", ecommerceId);
-        return repository.findByEcommerceIdAndIsActiveTrue(ecommerceId);
+        return repository.findActiveByEcommerceId(ecommerceId);
     }
 
     @Override

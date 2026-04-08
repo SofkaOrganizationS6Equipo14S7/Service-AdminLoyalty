@@ -1,7 +1,7 @@
 package com.loyalty.service_admin.infrastructure.messaging;
 
 import com.loyalty.service_admin.application.port.out.DiscountLimitPriorityEventPort;
-import com.loyalty.service_admin.domain.entity.DiscountLimitPriorityEntity;
+import com.loyalty.service_admin.domain.entity.DiscountPriorityEntity;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -25,7 +25,7 @@ public class DiscountLimitPriorityEventAdapter implements DiscountLimitPriorityE
     private final RabbitTemplate rabbitTemplate;
 
     @Override
-    public void publishPriorityUpdated(DiscountLimitPriorityEntity priority, UUID ecommerceId) {
+    public void publishPriorityUpdated(DiscountPriorityEntity priority, UUID ecommerceId) {
         try {
             Map<String, Object> eventData = new HashMap<>();
             eventData.put("priorityId", priority.getId());

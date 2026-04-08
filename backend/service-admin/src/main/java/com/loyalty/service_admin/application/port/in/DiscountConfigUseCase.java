@@ -1,7 +1,7 @@
 package com.loyalty.service_admin.application.port.in;
 
-import com.loyalty.service_admin.application.dto.discount.DiscountConfigCreateRequest;
-import com.loyalty.service_admin.application.dto.discount.DiscountConfigResponse;
+import com.loyalty.service_admin.application.dto.rules.discount.DiscountConfigCreateRequest;
+import com.loyalty.service_admin.application.dto.rules.discount.DiscountConfigResponse;
 
 import java.util.UUID;
 

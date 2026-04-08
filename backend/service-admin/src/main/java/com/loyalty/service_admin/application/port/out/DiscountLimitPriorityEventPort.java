@@ -1,6 +1,6 @@
 package com.loyalty.service_admin.application.port.out;
 
-import com.loyalty.service_admin.domain.entity.DiscountLimitPriorityEntity;
+import com.loyalty.service_admin.domain.entity.DiscountPriorityEntity;
 
 import java.util.UUID;
 
@@ -17,7 +17,7 @@ public interface DiscountLimitPriorityEventPort {
     /**
      * Publicar evento de prioridad creada/actualizada (PRIORITY_UPDATED).
      */
-    void publishPriorityUpdated(DiscountLimitPriorityEntity priority, UUID ecommerceId);
+    void publishPriorityUpdated(DiscountPriorityEntity priority, UUID ecommerceId);
 
     /**
      * Publicar evento de prioridad deletada (PRIORITY_DELETED).

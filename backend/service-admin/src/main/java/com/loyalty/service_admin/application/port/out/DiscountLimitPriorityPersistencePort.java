@@ -1,7 +1,6 @@
 package com.loyalty.service_admin.application.port.out;
 
-import com.loyalty.service_admin.domain.entity.DiscountLimitPriorityEntity;
-import com.loyalty.service_admin.domain.entity.DiscountSettingsEntity;
+import com.loyalty.service_admin.domain.entity.DiscountPriorityEntity;
 
 import java.util.List;
 import java.util.Optional;
@@ -15,19 +14,19 @@ import java.util.UUID;
 public interface DiscountLimitPriorityPersistencePort {
 
     /**
-     * Guardar prioridad de límite de descuento.
+     * Guardar prioridad de descuento.
      */
-    DiscountLimitPriorityEntity savePriority(DiscountLimitPriorityEntity priority);
+    DiscountPriorityEntity savePriority(DiscountPriorityEntity priority);
 
     /**
      * Obtener prioridad por ID.
      */
-    Optional<DiscountLimitPriorityEntity> findPriorityById(UUID priorityId);
+    Optional<DiscountPriorityEntity> findPriorityById(UUID priorityId);
 
     /**
      * Listar prioridades por configuración de descuentos.
      */
-    List<DiscountLimitPriorityEntity> findPrioritiesByConfig(UUID configId);
+    List<DiscountPriorityEntity> findPrioritiesByConfig(UUID configId);
 
     /**
      * Eliminar prioridad por ID.
@@ -35,7 +34,7 @@ public interface DiscountLimitPriorityPersistencePort {
     void deletePriority(UUID priorityId);
 
     /**
-     * Verificar si existe prioridad con el nombre dado en una configuración.
+     * Verificar si existe una prioridad con el nivel específico en una configuración.
      */
-    boolean existsPriorityWithName(UUID configId, String name);
+    boolean existsPriorityWithLevel(UUID configId, Integer priorityLevel);
 }

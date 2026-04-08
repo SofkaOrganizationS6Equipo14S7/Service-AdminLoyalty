@@ -10,6 +10,9 @@ import com.loyalty.service_admin.application.dto.discount.DiscountTypeDTO;
 import com.loyalty.service_admin.application.dto.discount.DiscountPriorityDTO;
 import com.loyalty.service_admin.application.dto.classificationrule.ClassificationRuleResponse;
 import com.loyalty.service_admin.application.dto.events.RuleEvent;
+import com.loyalty.service_admin.application.port.in.RuleUseCase;
+import com.loyalty.service_admin.application.port.out.RulePersistencePort;
+import com.loyalty.service_admin.application.port.out.RuleEventPort;
 import com.loyalty.service_admin.application.validation.ContinuityValidator;
 import com.loyalty.service_admin.application.validation.HierarchyValidator;
 import com.loyalty.service_admin.application.validation.UniquePriorityValidator;
@@ -33,13 +36,22 @@ import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.stream.Collectors;
 
-@Service
+/**
+ * RuleService - Implementación del UseCase para operaciones sobre reglas de descuento.
+ * Implementa RuleUseCase e inyecta puertos (interfaces) para persistencia y eventos.
+ * Mantiene inyecciones de otros repositorios para validaciones complejas (enfoque pragmático).
+ */
+@Service(value = "ruleUseCase")
 @RequiredArgsConstructor
 @Slf4j
 @Transactional
-public class RuleService {
+public class RuleService implements RuleUseCase {
 
-    private final RuleRepository ruleRepository;
+    // Puertos - abstracción de persistencia y eventos
+    private final RulePersistencePort rulePersistencePort;
+    private final RuleEventPort ruleEventPort;
+    
+    // Repositorios mantenidos para validaciones y relaciones complejas
     private final RuleAttributeRepository ruleAttributeRepository;
     private final RuleAttributeValueRepository ruleAttributeValueRepository;
     private final DiscountLimitPriorityRepository discountLimitPriorityRepository;
@@ -47,9 +59,8 @@ public class RuleService {
     private final CustomerTierRepository customerTierRepository;
     private final DiscountTypeRepository discountTypeRepository;
     private final DiscountConfigRepository discountConfigRepository;
-    private final org.springframework.amqp.rabbit.core.RabbitTemplate rabbitTemplate;
     
-    // HU-08: Validators for fidelity ranges validations
+    // Validators
     private final ContinuityValidator continuityValidator;
     private final HierarchyValidator hierarchyValidator;
     private final UniquePriorityValidator uniquePriorityValidator;

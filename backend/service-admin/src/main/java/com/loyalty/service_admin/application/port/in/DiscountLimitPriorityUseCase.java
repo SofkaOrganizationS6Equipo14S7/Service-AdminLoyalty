@@ -1,7 +1,7 @@
 package com.loyalty.service_admin.application.port.in;
 
-import com.loyalty.service_admin.application.dto.discount.DiscountLimitPriorityRequest;
-import com.loyalty.service_admin.application.dto.discount.DiscountLimitPriorityResponse;
+import com.loyalty.service_admin.application.dto.rules.discount.DiscountLimitPriorityRequest;
+import com.loyalty.service_admin.application.dto.rules.discount.DiscountLimitPriorityResponse;
 
 import java.util.UUID;
 

@@ -1,7 +1,7 @@
 package com.loyalty.service_admin.infrastructure.persistence.jpa;
 
 import com.loyalty.service_admin.application.port.out.DiscountLimitPriorityPersistencePort;
-import com.loyalty.service_admin.domain.entity.DiscountLimitPriorityEntity;
+import com.loyalty.service_admin.domain.entity.DiscountPriorityEntity;
 import com.loyalty.service_admin.domain.repository.DiscountLimitPriorityRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,21 +24,21 @@ public class JpaDiscountLimitPriorityAdapter implements DiscountLimitPriorityPer
     private final DiscountLimitPriorityRepository repository;
 
     @Override
-    public DiscountLimitPriorityEntity savePriority(DiscountLimitPriorityEntity priority) {
+    public DiscountPriorityEntity savePriority(DiscountPriorityEntity priority) {
         log.debug("Saving discount limit priority: {}", priority.getId());
         return repository.save(priority);
     }
 
     @Override
-    public Optional<DiscountLimitPriorityEntity> findPriorityById(UUID priorityId) {
+    public Optional<DiscountPriorityEntity> findPriorityById(UUID priorityId) {
         log.debug("Finding discount limit priority by id: {}", priorityId);
         return repository.findById(priorityId);
     }
 
     @Override
-    public List<DiscountLimitPriorityEntity> findPrioritiesByConfig(UUID configId) {
+    public List<DiscountPriorityEntity> findPrioritiesByConfig(UUID configId) {
         log.debug("Finding discount limit priorities by config id: {}", configId);
-        return repository.findByDiscountSettingsIdOrderByLevelAsc(configId);
+        return repository.findByDiscountSettingsIdOrderByPriorityLevel(configId);
     }
 
     @Override
@@ -48,8 +48,8 @@ public class JpaDiscountLimitPriorityAdapter implements DiscountLimitPriorityPer
     }
 
     @Override
-    public boolean existsPriorityWithName(UUID configId, String name) {
-        log.debug("Checking if priority exists with name: {} in config: {}", name, configId);
-        return repository.existsByDiscountSettingsIdAndName(configId, name);
+    public boolean existsPriorityWithLevel(UUID configId, Integer priorityLevel) {
+        log.debug("Checking if priority exists with level: {} in config: {}", priorityLevel, configId);
+        return repository.existsByDiscountSettingsIdAndPriorityLevel(configId, priorityLevel);
     }
 }
