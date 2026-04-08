@@ -9,6 +9,13 @@ import com.loyalty.service_admin.application.dto.rules.RuleAttributeMetadataDTO;
 import com.loyalty.service_admin.application.dto.discount.DiscountTypeDTO;
 import com.loyalty.service_admin.application.dto.discount.DiscountPriorityDTO;
 import com.loyalty.service_admin.application.dto.classificationrule.ClassificationRuleResponse;
+import com.loyalty.service_admin.application.dto.events.RuleEvent;
+import com.loyalty.service_admin.application.port.in.RuleUseCase;
+import com.loyalty.service_admin.application.port.out.RulePersistencePort;
+import com.loyalty.service_admin.application.port.out.RuleEventPort;
+import com.loyalty.service_admin.application.validation.ContinuityValidator;
+import com.loyalty.service_admin.application.validation.HierarchyValidator;
+import com.loyalty.service_admin.application.validation.UniquePriorityValidator;
 import com.loyalty.service_admin.domain.entity.*;
 import com.loyalty.service_admin.domain.repository.*;
 import com.loyalty.service_admin.infrastructure.exception.BadRequestException;
@@ -23,15 +30,28 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.stream.Collectors;
 
-@Service
+/**
+ * RuleService - Implementación del UseCase para operaciones sobre reglas de descuento.
+ * Implementa RuleUseCase e inyecta puertos (interfaces) para persistencia y eventos.
+ * Mantiene inyecciones de otros repositorios para validaciones complejas (enfoque pragmático).
+ */
+@Service(value = "ruleUseCase")
 @RequiredArgsConstructor
 @Slf4j
 @Transactional
-public class RuleService {
+public class RuleService implements RuleUseCase {
 
+    // Puertos - abstracción de persistencia y eventos
+    private final RulePersistencePort rulePersistencePort;
+    private final RuleEventPort ruleEventPort;
+    
+    // Repositorios mantenidos para validaciones y relaciones complejas
     private final RuleRepository ruleRepository;
     private final RuleAttributeRepository ruleAttributeRepository;
     private final RuleAttributeValueRepository ruleAttributeValueRepository;
@@ -39,6 +59,12 @@ public class RuleService {
     private final RuleCustomerTierRepository ruleCustomerTierRepository;
     private final CustomerTierRepository customerTierRepository;
     private final DiscountTypeRepository discountTypeRepository;
+    private final DiscountConfigRepository discountConfigRepository;
+    
+    // Validators
+    private final ContinuityValidator continuityValidator;
+    private final HierarchyValidator hierarchyValidator;
+    private final UniquePriorityValidator uniquePriorityValidator;
 
     public RuleResponse createRule(UUID ecommerceId, RuleCreateRequest request) {
         log.debug("Creating rule for ecommerce: {}", ecommerceId);
@@ -53,7 +79,7 @@ public class RuleService {
         
         String typeCode = discountType.getCode(); // PRODUCT, SEASONAL, CLASSIFICATION
 
-        // ========== HU-06 CRITERIO: PRODUCT RULES VALIDATION ==========
+        // ========== HU-07: PRODUCT RULES UNIQUENESS VALIDATION ==========
         if ("PRODUCT".equals(typeCode)) {
             String productType = request.attributes().get("product_type");
             
@@ -79,6 +105,15 @@ public class RuleService {
             }
         }
 
+        // ========== HU-06 SEASONAL VALIDATION ==========
+        if ("SEASONAL".equals(typeCode)) {
+            LocalDate startDate = LocalDate.parse(request.attributes().get("start_date"));
+            LocalDate endDate = LocalDate.parse(request.attributes().get("end_date"));
+            validateSeasonalDateOverlap(ecommerceId, null, startDate, endDate);
+        }
+
+        // ========== HU-06/HU-07 DISCOUNT LIMITS VALIDATION (APPLIES TO ALL) ==========
+        validateDiscountLimits(ecommerceId, request.discountPercentage());
         RuleEntity rule = RuleEntity.builder()
                 .ecommerceId(ecommerceId)
                 .discountPriorityId(priorityId)
@@ -94,6 +129,9 @@ public class RuleService {
         log.info("Rule created with id: {}", savedRule.getId());
 
         saveAttributeValues(savedRule.getId(), priority.getDiscountTypeId(), request.attributes());
+
+        // SPEC-010: Emit RULE_CREATED event for Engine sync
+        publishRuleEvent("RULE_CREATED", savedRule, ecommerceId, request.attributes(), typeCode);
 
         return toResponse(savedRule);
     }
@@ -134,7 +172,7 @@ public class RuleService {
         
         String typeCode = discountType.getCode();
 
-        // ========== HU-06: PRODUCT RULES UNIQUENESS VALIDATION ON UPDATE ==========
+        // ========== HU-07: PRODUCT RULES UNIQUENESS VALIDATION ON UPDATE ==========
         if ("PRODUCT".equals(typeCode)) {
             String productType = request.attributes().get("product_type");
             
@@ -176,6 +214,15 @@ public class RuleService {
             }
         }
 
+        // ========== HU-06 SEASONAL VALIDATION ==========
+        if ("SEASONAL".equals(typeCode)) {
+            LocalDate startDate = LocalDate.parse(request.attributes().get("start_date"));
+            LocalDate endDate = LocalDate.parse(request.attributes().get("end_date"));
+            validateSeasonalDateOverlap(ecommerceId, ruleId, startDate, endDate); // Pass ruleId to exclude from check
+        }
+
+        // ========== HU-06/HU-07 DISCOUNT LIMITS VALIDATION ==========
+        validateDiscountLimits(ecommerceId, request.discountPercentage());
         rule.setName(request.name());
         rule.setDescription(request.description());
         rule.setDiscountPercentage(request.discountPercentage());
@@ -188,11 +235,15 @@ public class RuleService {
         ruleAttributeValueRepository.deleteByRuleId(ruleId);
         saveAttributeValues(ruleId, priority.getDiscountTypeId(), request.attributes());
 
+        // SPEC-010: Emit RULE_UPDATED event for Engine sync
+        publishRuleEvent("RULE_UPDATED", updated, ecommerceId, request.attributes(), typeCode);
+
         return toResponse(updated);
     }
 
     /**
      * Delete rule (soft delete)
+     * SPEC-010: Emits RULE_DELETED event for Engine sync
      */
     public void deleteRule(UUID ecommerceId, UUID ruleId) {
         RuleEntity rule = ruleRepository.findByIdAndEcommerceId(ruleId, ecommerceId)
@@ -200,8 +251,69 @@ public class RuleService {
 
         rule.setIsActive(false);
         rule.setUpdatedAt(Instant.now());
-        ruleRepository.save(rule);
+        RuleEntity deletedRule = ruleRepository.save(rule);
         log.info("Rule soft deleted: {}", ruleId);
+
+        // Resolve discount type code from priority
+        DiscountPriorityEntity priority = discountLimitPriorityRepository.findById(rule.getDiscountPriorityId())
+                .orElse(null);
+        String typeCode = "UNKNOWN";
+        if (priority != null) {
+            DiscountTypeEntity discountType = discountTypeRepository.findById(priority.getDiscountTypeId())
+                    .orElse(null);
+            typeCode = discountType != null ? discountType.getCode() : "UNKNOWN";
+        }
+
+        // Get last known attributes
+        Map<String, String> attributes = new HashMap<>();
+        List<RuleAttributeValueEntity> attrValues = ruleAttributeValueRepository.findByRuleIdOrderByCreatedAtAsc(ruleId);
+        for (RuleAttributeValueEntity attrValue : attrValues) {
+            RuleAttributeEntity attrDef = ruleAttributeRepository.findById(attrValue.getAttributeId()).orElse(null);
+            if (attrDef != null) {
+                attributes.put(attrDef.getAttributeName(), attrValue.getValue());
+            }
+        }
+
+        // SPEC-010: Emit RULE_DELETED event for Engine sync
+        publishRuleEvent("RULE_DELETED", deletedRule, ecommerceId, attributes, typeCode);
+    }
+
+    /**
+     * Update rule status (active/inactive)
+     * SPEC-008: HU-14 - Cambiar Status de Regla mediante Endpoint Dedicado
+     * 
+     * Emits RuleStatusChangedEvent to RabbitMQ for Engine Service synchronization
+     */
+    public RuleResponse updateRuleStatus(UUID ecommerceId, UUID ruleId, Boolean newStatus) {
+        log.debug("Updating rule status for rule: {} in ecommerce: {}", ruleId, ecommerceId);
+        
+        RuleEntity rule = ruleRepository.findByIdAndEcommerceId(ruleId, ecommerceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Rule not found: " + ruleId));
+
+        // Store previous status for audit trail
+        Boolean previousStatus = rule.getIsActive();
+
+        // Update status and timestamp
+        rule.setIsActive(newStatus);
+        rule.setUpdatedAt(Instant.now());
+        RuleEntity saved = ruleRepository.save(rule);
+        
+        log.info("Rule status updated: ruleId={}, newStatus={}, previousStatus={}", ruleId, newStatus, previousStatus);
+
+        // Emit event via port - uses RuleEventPort abstractions instead of direct RabbitMQ
+        try {
+            if (newStatus) {
+                ruleEventPort.publishRuleActivated(rule, ecommerceId, resolveRuleType(rule));
+            } else {
+                ruleEventPort.publishRuleDeactivated(rule, ecommerceId, resolveRuleType(rule));
+            }
+            log.debug("Rule status event published: ruleId={}, newStatus={}", ruleId, newStatus);
+        } catch (Exception ex) {
+            // Log error but don't rollback the transaction (status was already saved)
+            log.error("Failed to emit rule status event: ruleId={}, newStatus={}", ruleId, newStatus, ex);
+        }
+
+        return toResponse(saved);
     }
 
     /**
@@ -257,6 +369,171 @@ public class RuleService {
                             }
                     );
         }
+    }
+
+    // ============================================================
+    // VALIDATION METHODS - Date Overlap & Discount Limits (HU-06/HU-07)
+    // ============================================================
+
+    /**
+     * Validates that SEASONAL rule dates don't overlap with existing rules
+     * HU-06: Validación de Superposición de Fechas
+     * 
+     * @param ecommerceId    Tenant ID
+     * @param ruleId         Current rule ID (for update, null for create)
+     * @param startDate      Season start date
+     * @param endDate        Season end date
+     * @throws BadRequestException if dates are invalid
+     * @throws ConflictException if overlap detected
+     */
+    private void validateSeasonalDateOverlap(UUID ecommerceId, UUID ruleId, 
+                                             LocalDate startDate, LocalDate endDate) {
+        log.debug("Validating SEASONAL date overlap for ecommerce: {}", ecommerceId);
+        
+        // Validate date order
+        if (startDate.isAfter(endDate)) {
+            throw new BadRequestException("start_date must be before or equal to end_date");
+        }
+        
+        // Query all active SEASONAL rules for this ecommerce
+        List<RuleEntity> activeSeasonalRules = findActiveSeasonalRulesByEcommerce(ecommerceId);
+        
+        for (RuleEntity existingRule : activeSeasonalRules) {
+            // Skip current rule if updating
+            if (ruleId != null && existingRule.getId().equals(ruleId)) {
+                continue;
+            }
+            
+            // Extract dates from existing rule
+            LocalDate existingStart = getAttributeDate(existingRule, "start_date");
+            LocalDate existingEnd = getAttributeDate(existingRule, "end_date");
+            
+            // Check overlap
+            if (datesOverlap(startDate, endDate, existingStart, existingEnd)) {
+                log.warn("Date overlap detected with rule: {} (dates: {} to {})", 
+                    existingRule.getId(), existingStart, existingEnd);
+                throw new ConflictException(
+                    "SEASONAL rule date overlap detected. Existing rule (" + 
+                    existingRule.getId() + ") covers " + existingStart + 
+                    " to " + existingEnd
+                );
+            }
+        }
+        
+        log.debug("SEASONAL date overlap validation passed");
+    }
+
+    /**
+     * Validates that discount percentage doesn't exceed configured limits
+     * HU-06/HU-07: Validación de Límites de Descuento
+     * 
+     * @param ecommerceId        Tenant ID
+     * @param discountPercentage Discount to validate
+     * @throws BadRequestException if discount exceeds max limit
+     * @throws ResourceNotFoundException if discount settings not found
+     */
+    private void validateDiscountLimits(UUID ecommerceId, BigDecimal discountPercentage) {
+        log.debug("Validating discount limits for ecommerce: {}", ecommerceId);
+        
+        // Get discount settings for ecommerce
+        DiscountSettingsEntity settings = discountConfigRepository
+            .findActiveByEcommerceId(ecommerceId)
+            .orElseThrow(() -> new ResourceNotFoundException(
+                "Discount settings not found for ecommerce: " + ecommerceId
+            ));
+        
+        // Validate against max_discount_cap
+        if (discountPercentage.compareTo(settings.getMaxDiscountCap()) > 0) {
+            log.warn("Discount {} exceeds max cap: {}", discountPercentage, settings.getMaxDiscountCap());
+            throw new BadRequestException(
+                "Discount amount $" + discountPercentage + 
+                " exceeds maximum allowed: $" + settings.getMaxDiscountCap()
+            );
+        }
+        
+        log.debug("Discount limits validation passed");
+    }
+
+    /**
+     * Extract date value from rule attributes by name
+     * Helper for date validation
+     * 
+     * @param rule           Rule entity
+     * @param attributeName  Attribute name (e.g., "start_date")
+     * @return LocalDate parsed value
+     * @throws BadRequestException if attribute not found or invalid format
+     */
+    private LocalDate getAttributeDate(RuleEntity rule, String attributeName) {
+        List<RuleAttributeValueEntity> values = 
+            ruleAttributeValueRepository.findByRuleIdOrderByCreatedAtAsc(rule.getId());
+        
+        for (RuleAttributeValueEntity value : values) {
+            RuleAttributeEntity attr = ruleAttributeRepository
+                .findById(value.getAttributeId())
+                .orElse(null);
+            
+            if (attr != null && attr.getAttributeName().equalsIgnoreCase(attributeName)) {
+                try {
+                    // Expected format: YYYY-MM-DD (ISO 8601)
+                    return LocalDate.parse(value.getValue(), DateTimeFormatter.ISO_LOCAL_DATE);
+                } catch (DateTimeParseException e) {
+                    throw new BadRequestException(
+                        "Invalid " + attributeName + " format. Expected YYYY-MM-DD, got: " + value.getValue()
+                    );
+                }
+            }
+        }
+        
+        throw new BadRequestException(
+            "Attribute '" + attributeName + "' not found for rule: " + rule.getId()
+        );
+    }
+
+    /**
+     * Check if two date ranges overlap
+     * Logic: ranges overlap if end1 >= start2 AND end2 >= start1
+     * 
+     * @param s1 First range start
+     * @param e1 First range end
+     * @param s2 Second range start
+     * @param e2 Second range end
+     * @return true if overlap exists
+     */
+    private boolean datesOverlap(LocalDate s1, LocalDate e1, LocalDate s2, LocalDate e2) {
+        return !e1.isBefore(s2) && !e2.isBefore(s1);
+    }
+
+    /**
+     * Query all active SEASONAL rules for ecommerce
+     * Helper for overlap validation
+     * 
+     * @param ecommerceId Tenant ID
+     * @return List of active SEASONAL rules
+     */
+    private List<RuleEntity> findActiveSeasonalRulesByEcommerce(UUID ecommerceId) {
+        // Get all active rules
+        Page<RuleEntity> allRules = ruleRepository
+            .findByEcommerceIdAndIsActiveTrueOrderByCreatedAtDesc(ecommerceId, 
+                org.springframework.data.domain.PageRequest.of(0, Integer.MAX_VALUE));
+        
+        // Filter by SEASONAL type
+        return allRules.stream()
+            .filter(rule -> {
+                try {
+                    DiscountPriorityEntity priority = discountLimitPriorityRepository
+                        .findById(rule.getDiscountPriorityId()).orElse(null);
+                    if (priority == null) return false;
+                    
+                    DiscountTypeEntity type = discountTypeRepository
+                        .findById(priority.getDiscountTypeId()).orElse(null);
+                    
+                    return type != null && "SEASONAL".equals(type.getCode());
+                } catch (Exception e) {
+                    log.error("Error filtering SEASONAL rule", e);
+                    return false;
+                }
+            })
+            .collect(Collectors.toList());
     }
 
     /**
@@ -468,6 +745,30 @@ public class RuleService {
             throw new BadRequestException("metricType must be one of: total_spent, order_count, loyalty_points, custom (CRITERIO-7.4)");
         }
 
+        // HU-08: Validaciones de fidelidad (continuidad, jerarquía, unicidad)
+        log.debug("Applying HU-08 validations for classification rule");
+        List<RuleEntity> activeClassificationRules = ruleRepository.findActiveClassificationRulesByEcommerce(ecommerceId);
+        
+        continuityValidator.validateContinuity(
+                activeClassificationRules,
+                request.minValue(),
+                request.maxValue(),
+                null  // null = creating new rule
+        );
+        
+        hierarchyValidator.validateHierarchy(
+                activeClassificationRules,
+                request.priority(),
+                null
+        );
+        
+        uniquePriorityValidator.validateUniquePriority(
+                activeClassificationRules,
+                request.priority(),
+                null
+        );
+        log.debug("All HU-08 validations passed");
+
         // Crear RuleEntity
         RuleEntity rule = RuleEntity.builder()
                 .ecommerceId(ecommerceId)
@@ -588,6 +889,41 @@ public class RuleService {
                 }
             }
 
+            // HU-08: Re-validar si se actualizaron minValue, maxValue o priority
+            if (request.minValue() != null || request.maxValue() != null || request.priority() != null) {
+                log.debug("Re-applying HU-08 validations for updated classification rule");
+                
+                // Obtener valores finales a validar
+                BigDecimal finalMinValue = request.minValue() != null ? request.minValue() : 
+                        newAttributes.containsKey("minValue") ? new BigDecimal(newAttributes.get("minValue")) : BigDecimal.ZERO;
+                BigDecimal finalMaxValue = request.maxValue() != null ? request.maxValue() : 
+                        newAttributes.containsKey("maxValue") ? new BigDecimal(newAttributes.get("maxValue")) : BigDecimal.ZERO;
+                Integer finalPriority = request.priority() != null ? request.priority() : 
+                        newAttributes.containsKey("priority") ? Integer.parseInt(newAttributes.get("priority")) : 0;
+                
+                List<RuleEntity> activeClassificationRules = ruleRepository.findActiveClassificationRulesByEcommerce(ecommerceId);
+                
+                continuityValidator.validateContinuity(
+                        activeClassificationRules,
+                        finalMinValue,
+                        finalMaxValue,
+                        ruleId  // exclude this rule from validation
+                );
+                
+                hierarchyValidator.validateHierarchy(
+                        activeClassificationRules,
+                        finalPriority,
+                        ruleId
+                );
+                
+                uniquePriorityValidator.validateUniquePriority(
+                        activeClassificationRules,
+                        finalPriority,
+                        ruleId
+                );
+                log.debug("All HU-08 validations passed for update");
+            }
+
             // Guardar atributos actualizados
             ruleAttributeValueRepository.deleteByRuleId(ruleId);
             saveAttributeValues(ruleId, priority.getDiscountTypeId(), newAttributes);
@@ -686,5 +1022,91 @@ public class RuleService {
                     );
                 })
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * SPEC-010: Publish generic RuleEvent for all rule types (FIDELITY, SEASONAL, PRODUCT, CLASSIFICATION)
+     * 
+     * @param eventType "RULE_CREATED" | "RULE_UPDATED" | "RULE_DELETED"
+     * @param rule      The rule entity
+     * @param ecommerceId Tenant ID
+     * @param attributes  Dynamic attributes (product_type, start_date, etc.)
+     * @param typeCode    Discount type code (FIDELITY|SEASONAL|PRODUCT|CLASSIFICATION)
+     */
+    private void publishRuleEvent(String eventType, RuleEntity rule, UUID ecommerceId, 
+                                   Map<String, String> attributes, String typeCode) {
+        try {
+            // Convert attributes Map to JSONB-compatible format
+            Map<String, Object> logicConditions = new HashMap<>(attributes);
+            
+            RuleEvent event = new RuleEvent(
+                eventType,
+                rule.getId(),
+                ecommerceId,
+                rule.getName(),
+                rule.getDescription(),
+                typeCode,
+                rule.getDiscountPercentage(),
+                resolvePriorityLevel(rule.getDiscountPriorityId()),
+                logicConditions,
+                rule.getIsActive(),
+                "INDIVIDUAL",  // SPEC-010: Default appliedWith
+                Instant.now()
+            );
+            
+            // Event publishing now handled through ruleEventPort
+            ruleEventPort.publishRuleUpdated(rule, ecommerceId, parseAttributes(rule), resolveRuleType(rule));
+            log.info("Published rule update event: ruleId={}, discountTypeCode={}, ecommerceId={}",
+                    rule.getId(), typeCode, ecommerceId);
+        } catch (Exception ex) {
+            // Log error but don't rollback transaction (rule was already persisted)
+            log.error("Failed to publish RuleEvent: eventType={}, ruleId={}, typeCode={}",
+                    eventType, rule.getId(), typeCode, ex);
+        }
+    }
+
+    /**
+     * Helper: Resolve priority level from discount priority entity
+     */
+    private Integer resolvePriorityLevel(UUID discountPriorityId) {
+        DiscountPriorityEntity priority = discountLimitPriorityRepository.findById(discountPriorityId)
+                .orElse(null);
+        return priority != null ? priority.getPriorityLevel() : 1;
+    }
+
+    /**
+     * Helper: Determine rule type (SEASONAL, PRODUCT, CLASSIFICATION) from discount priority
+     */
+    private String resolveRuleType(RuleEntity rule) {
+        // Get discount priority to find the type
+        DiscountPriorityEntity priority = discountLimitPriorityRepository.findById(rule.getDiscountPriorityId())
+                .orElse(null);
+        if (priority != null) {
+            DiscountTypeEntity discountType = discountTypeRepository.findById(priority.getDiscountTypeId())
+                    .orElse(null);
+            if (discountType != null) {
+                return discountType.getCode(); // PRODUCT, SEASONAL, CLASSIFICATION
+            }
+        }
+        return "UNKNOWN";
+    }
+
+    /**
+     * Helper: Parse attributes from a rule into a Map for event publishing
+     */
+    private Map<String, String> parseAttributes(RuleEntity rule) {
+        Map<String, String> attributes = new HashMap<>();
+        
+        // Load attribute values for this rule
+        List<RuleAttributeValueEntity> values = ruleAttributeValueRepository.findByRuleIdOrderByCreatedAtAsc(rule.getId());
+        for (RuleAttributeValueEntity value : values) {
+            RuleAttributeEntity attrDef = ruleAttributeRepository.findById(value.getAttributeId())
+                    .orElse(null);
+            if (attrDef != null) {
+                attributes.put(attrDef.getAttributeName(), value.getValue());
+            }
+        }
+        
+        return attributes;
     }
 }

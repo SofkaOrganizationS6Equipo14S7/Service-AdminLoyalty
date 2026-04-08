@@ -52,4 +52,11 @@ public interface ClassificationRuleReplicaRepository extends JpaRepository<Class
     List<ClassificationRuleReplicaEntity> findByEcommerceIdAndDiscountTypeCode(
         UUID ecommerceId, String discountTypeCode
     );
+
+    /**
+     * Find a specific rule by ID and ecommerce for status updates.
+     * Used by RuleStatusEventConsumer to sync status changes from Admin.
+     * SPEC-009: RuleStatusEventConsumer uses this to find rule before updating is_active.
+     */
+    java.util.Optional<ClassificationRuleReplicaEntity> findByIdAndEcommerceId(UUID id, UUID ecommerceId);
 }
