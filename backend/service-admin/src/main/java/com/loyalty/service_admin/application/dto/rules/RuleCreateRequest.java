@@ -14,7 +14,6 @@ public record RuleCreateRequest(
 
         @NotNull(message = "discountPercentage is required")
         @DecimalMin(value = "0.0", inclusive = true, message = "discountPercentage must be >= 0")
-        @DecimalMax(value = "100.0", inclusive = true, message = "discountPercentage must be <= 100")
         BigDecimal discountPercentage,
 
         @NotNull(message = "discountPriorityId is required")
