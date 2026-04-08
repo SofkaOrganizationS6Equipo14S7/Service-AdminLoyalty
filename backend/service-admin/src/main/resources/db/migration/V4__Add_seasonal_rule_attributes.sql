@@ -4,8 +4,10 @@
 -- HU-07: Gestión de Reglas de Clasificación - Atributos dinámicos
 -- Created: 2026-04-07
 -- 
--- NOTE: Attributes stored in camelCase for API consistency
--- (metricType, minValue, maxValue, not metric_type, min_value, max_value)
+-- NOTE: All attributes use camelCase for API consistency
+-- This aligns with DTOs (ClassificationRuleCreateRequest, etc.)
+-- V2 seed also updated to use camelCase exclusively
+-- Example: metricType, minValue, maxValue (not metric_type, min_value, max_value)
 
 -- ============================================================
 -- SEASONAL Rule Attributes

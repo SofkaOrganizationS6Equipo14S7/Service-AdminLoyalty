@@ -66,34 +66,31 @@ ON CONFLICT DO NOTHING;
 -- 3. CUSTOMER TIERS
 -- ==========================================
 
-INSERT INTO customer_tiers (id, ecommerce_id, name, discount_percentage, hierarchy_level, is_active) 
+INSERT INTO customer_tiers (id, ecommerce_id, name, hierarchy_level, is_active) 
 SELECT 
     '550e8400-e29b-41d4-a716-446655440200'::UUID,
     '550e8400-e29b-41d4-a716-446655440000'::UUID,
     'Gold',
-    10.00,
     1,
     TRUE
 FROM discount_types dt WHERE dt.code = 'FIDELITY'
 ON CONFLICT DO NOTHING;
 
-INSERT INTO customer_tiers (id, ecommerce_id, name, discount_percentage, hierarchy_level, is_active) 
+INSERT INTO customer_tiers (id, ecommerce_id, name, hierarchy_level, is_active) 
 SELECT 
     '550e8400-e29b-41d4-a716-446655440201'::UUID,
     '550e8400-e29b-41d4-a716-446655440000'::UUID,
     'Silver',
-    5.00,
     2,
     TRUE
 FROM discount_types dt WHERE dt.code = 'FIDELITY'
 ON CONFLICT DO NOTHING;
 
-INSERT INTO customer_tiers (id, ecommerce_id, name, discount_percentage, hierarchy_level, is_active) 
+INSERT INTO customer_tiers (id, ecommerce_id, name, hierarchy_level, is_active) 
 SELECT 
     '550e8400-e29b-41d4-a716-446655440202'::UUID,
     '550e8400-e29b-41d4-a716-446655440000'::UUID,
     'Bronze',
-    2.00,
     3,
     TRUE
 FROM discount_types dt WHERE dt.code = 'FIDELITY'
@@ -141,7 +138,7 @@ INSERT INTO rule_attributes (id, discount_type_id, attribute_name, attribute_typ
 SELECT 
     '550e8400-e29b-41d4-a716-446655440303'::UUID,
     dt.id,
-    'season_name',
+    'seasonName',
     'VARCHAR',
     FALSE,
     'Nombre de la temporada'
@@ -152,7 +149,7 @@ INSERT INTO rule_attributes (id, discount_type_id, attribute_name, attribute_typ
 SELECT 
     '550e8400-e29b-41d4-a716-446655440304'::UUID,
     dt.id,
-    'max_budget',
+    'maxBudget',
     'NUMERIC',
     FALSE,
     'Presupuesto máximo para esta temporada'
@@ -163,7 +160,7 @@ INSERT INTO rule_attributes (id, discount_type_id, attribute_name, attribute_typ
 SELECT 
     '550e8400-e29b-41d4-a716-446655440305'::UUID,
     dt.id,
-    'target_customer_tier',
+    'targetCustomerTier',
     'VARCHAR',
     FALSE,
     'Tier de cliente objetivo'
@@ -175,7 +172,7 @@ INSERT INTO rule_attributes (id, discount_type_id, attribute_name, attribute_typ
 SELECT 
     '550e8400-e29b-41d4-a716-446655440310'::UUID,
     dt.id,
-    'product_type',
+    'productType',
     'VARCHAR',
     TRUE,
     'Tipo o categoría del producto'
@@ -186,7 +183,7 @@ INSERT INTO rule_attributes (id, discount_type_id, attribute_name, attribute_typ
 SELECT 
     '550e8400-e29b-41d4-a716-446655440311'::UUID,
     dt.id,
-    'min_purchase',
+    'minPurchase',
     'NUMERIC',
     FALSE,
     'Compra mínima requerida'
@@ -197,7 +194,7 @@ INSERT INTO rule_attributes (id, discount_type_id, attribute_name, attribute_typ
 SELECT 
     '550e8400-e29b-41d4-a716-446655440312'::UUID,
     dt.id,
-    'bundle_code',
+    'bundleCode',
     'VARCHAR',
     FALSE,
     'Código de bundle'
@@ -208,7 +205,7 @@ INSERT INTO rule_attributes (id, discount_type_id, attribute_name, attribute_typ
 SELECT 
     '550e8400-e29b-41d4-a716-446655440313'::UUID,
     dt.id,
-    'category_level',
+    'categoryLevel',
     'VARCHAR',
     FALSE,
     'Nivel de categoría (main, sub, detail)'
@@ -219,7 +216,7 @@ INSERT INTO rule_attributes (id, discount_type_id, attribute_name, attribute_typ
 SELECT 
     '550e8400-e29b-41d4-a716-446655440314'::UUID,
     dt.id,
-    'excluded_products',
+    'excludedProducts',
     'VARCHAR',
     FALSE,
     'Productos excluidos (lista JSON como string)'
@@ -231,7 +228,7 @@ INSERT INTO rule_attributes (id, discount_type_id, attribute_name, attribute_typ
 SELECT 
     '550e8400-e29b-41d4-a716-446655440320'::UUID,
     dt.id,
-    'metric_type',
+    'metricType',
     'VARCHAR',
     TRUE,
     'Tipo de métrica (total_spent, order_count, loyalty_points)'
@@ -242,7 +239,7 @@ INSERT INTO rule_attributes (id, discount_type_id, attribute_name, attribute_typ
 SELECT 
     '550e8400-e29b-41d4-a716-446655440321'::UUID,
     dt.id,
-    'min_value',
+    'minValue',
     'NUMERIC',
     TRUE,
     'Valor mínimo del rango'
@@ -253,7 +250,7 @@ INSERT INTO rule_attributes (id, discount_type_id, attribute_name, attribute_typ
 SELECT 
     '550e8400-e29b-41d4-a716-446655440322'::UUID,
     dt.id,
-    'max_value',
+    'maxValue',
     'NUMERIC',
     FALSE,
     'Valor máximo del rango'
@@ -264,7 +261,7 @@ INSERT INTO rule_attributes (id, discount_type_id, attribute_name, attribute_typ
 SELECT 
     '550e8400-e29b-41d4-a716-446655440323'::UUID,
     dt.id,
-    'customer_tier_id',
+    'customerTierId',
     'VARCHAR',
     TRUE,
     'UUID del tier de cliente'
@@ -275,7 +272,7 @@ INSERT INTO rule_attributes (id, discount_type_id, attribute_name, attribute_typ
 SELECT 
     '550e8400-e29b-41d4-a716-446655440324'::UUID,
     dt.id,
-    'hierarchy_level',
+    'hierarchyLevel',
     'NUMERIC',
     FALSE,
     'Nivel en la jerarquía'
@@ -298,7 +295,7 @@ INSERT INTO rule_attributes (id, discount_type_id, attribute_name, attribute_typ
 SELECT 
     '550e8400-e29b-41d4-a716-446655440330'::UUID,
     dt.id,
-    'loyalty_points_required',
+    'loyaltyPointsRequired',
     'NUMERIC',
     TRUE,
     'Puntos de lealtad requeridos'
@@ -309,7 +306,7 @@ INSERT INTO rule_attributes (id, discount_type_id, attribute_name, attribute_typ
 SELECT 
     '550e8400-e29b-41d4-a716-446655440331'::UUID,
     dt.id,
-    'points_multiplier',
+    'pointsMultiplier',
     'NUMERIC',
     FALSE,
     'Multiplicador de puntos ganados'
