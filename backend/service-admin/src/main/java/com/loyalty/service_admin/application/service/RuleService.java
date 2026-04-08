@@ -9,6 +9,9 @@ import com.loyalty.service_admin.application.dto.rules.RuleAttributeMetadataDTO;
 import com.loyalty.service_admin.application.dto.discount.DiscountTypeDTO;
 import com.loyalty.service_admin.application.dto.discount.DiscountPriorityDTO;
 import com.loyalty.service_admin.application.dto.classificationrule.ClassificationRuleResponse;
+import com.loyalty.service_admin.application.validation.ContinuityValidator;
+import com.loyalty.service_admin.application.validation.HierarchyValidator;
+import com.loyalty.service_admin.application.validation.UniquePriorityValidator;
 import com.loyalty.service_admin.domain.entity.*;
 import com.loyalty.service_admin.domain.repository.*;
 import com.loyalty.service_admin.infrastructure.exception.BadRequestException;
@@ -43,6 +46,11 @@ public class RuleService {
     private final CustomerTierRepository customerTierRepository;
     private final DiscountTypeRepository discountTypeRepository;
     private final DiscountConfigRepository discountConfigRepository;
+    
+    // HU-08: Validators for fidelity ranges validations
+    private final ContinuityValidator continuityValidator;
+    private final HierarchyValidator hierarchyValidator;
+    private final UniquePriorityValidator uniquePriorityValidator;
 
     public RuleResponse createRule(UUID ecommerceId, RuleCreateRequest request) {
         log.debug("Creating rule for ecommerce: {}", ecommerceId);
@@ -655,6 +663,30 @@ public class RuleService {
             throw new BadRequestException("metricType must be one of: total_spent, order_count, loyalty_points, custom (CRITERIO-7.4)");
         }
 
+        // HU-08: Validaciones de fidelidad (continuidad, jerarquía, unicidad)
+        log.debug("Applying HU-08 validations for classification rule");
+        List<RuleEntity> activeClassificationRules = ruleRepository.findActiveClassificationRulesByEcommerce(ecommerceId);
+        
+        continuityValidator.validateContinuity(
+                activeClassificationRules,
+                request.minValue(),
+                request.maxValue(),
+                null  // null = creating new rule
+        );
+        
+        hierarchyValidator.validateHierarchy(
+                activeClassificationRules,
+                request.priority(),
+                null
+        );
+        
+        uniquePriorityValidator.validateUniquePriority(
+                activeClassificationRules,
+                request.priority(),
+                null
+        );
+        log.debug("All HU-08 validations passed");
+
         // Crear RuleEntity
         RuleEntity rule = RuleEntity.builder()
                 .ecommerceId(ecommerceId)
@@ -773,6 +805,41 @@ public class RuleService {
                 if (request.minValue().compareTo(request.maxValue()) >= 0) {
                     throw new BadRequestException("minValue must be less than maxValue");
                 }
+            }
+
+            // HU-08: Re-validar si se actualizaron minValue, maxValue o priority
+            if (request.minValue() != null || request.maxValue() != null || request.priority() != null) {
+                log.debug("Re-applying HU-08 validations for updated classification rule");
+                
+                // Obtener valores finales a validar
+                BigDecimal finalMinValue = request.minValue() != null ? request.minValue() : 
+                        newAttributes.containsKey("minValue") ? new BigDecimal(newAttributes.get("minValue")) : BigDecimal.ZERO;
+                BigDecimal finalMaxValue = request.maxValue() != null ? request.maxValue() : 
+                        newAttributes.containsKey("maxValue") ? new BigDecimal(newAttributes.get("maxValue")) : BigDecimal.ZERO;
+                Integer finalPriority = request.priority() != null ? request.priority() : 
+                        newAttributes.containsKey("priority") ? Integer.parseInt(newAttributes.get("priority")) : 0;
+                
+                List<RuleEntity> activeClassificationRules = ruleRepository.findActiveClassificationRulesByEcommerce(ecommerceId);
+                
+                continuityValidator.validateContinuity(
+                        activeClassificationRules,
+                        finalMinValue,
+                        finalMaxValue,
+                        ruleId  // exclude this rule from validation
+                );
+                
+                hierarchyValidator.validateHierarchy(
+                        activeClassificationRules,
+                        finalPriority,
+                        ruleId
+                );
+                
+                uniquePriorityValidator.validateUniquePriority(
+                        activeClassificationRules,
+                        finalPriority,
+                        ruleId
+                );
+                log.debug("All HU-08 validations passed for update");
             }
 
             // Guardar atributos actualizados
