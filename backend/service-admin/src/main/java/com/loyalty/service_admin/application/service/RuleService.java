@@ -46,6 +46,7 @@ public class RuleService {
     private final CustomerTierRepository customerTierRepository;
     private final DiscountTypeRepository discountTypeRepository;
     private final DiscountConfigRepository discountConfigRepository;
+    private final org.springframework.amqp.rabbit.core.RabbitTemplate rabbitTemplate;
     
     // HU-08: Validators for fidelity ranges validations
     private final ContinuityValidator continuityValidator;
@@ -232,6 +233,54 @@ public class RuleService {
         rule.setUpdatedAt(Instant.now());
         ruleRepository.save(rule);
         log.info("Rule soft deleted: {}", ruleId);
+    }
+
+    /**
+     * Update rule status (active/inactive)
+     * SPEC-008: HU-14 - Cambiar Status de Regla mediante Endpoint Dedicado
+     * 
+     * Emits RuleStatusChangedEvent to RabbitMQ for Engine Service synchronization
+     */
+    public RuleResponse updateRuleStatus(UUID ecommerceId, UUID ruleId, Boolean newStatus) {
+        log.debug("Updating rule status for rule: {} in ecommerce: {}", ruleId, ecommerceId);
+        
+        RuleEntity rule = ruleRepository.findByIdAndEcommerceId(ruleId, ecommerceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Rule not found: " + ruleId));
+
+        // Store previous status for audit trail
+        Boolean previousStatus = rule.getIsActive();
+
+        // Update status and timestamp
+        rule.setIsActive(newStatus);
+        rule.setUpdatedAt(Instant.now());
+        RuleEntity saved = ruleRepository.save(rule);
+        
+        log.info("Rule status updated: ruleId={}, newStatus={}, previousStatus={}", ruleId, newStatus, previousStatus);
+
+        // Emit RabbitMQ event for Engine Service
+        try {
+            com.loyalty.service_admin.application.dto.rules.RuleStatusChangedEvent event = 
+                new com.loyalty.service_admin.application.dto.rules.RuleStatusChangedEvent(
+                    rule.getId(),
+                    rule.getEcommerceId(),
+                    newStatus,
+                    previousStatus,
+                    Instant.now()
+                );
+            
+            rabbitTemplate.convertAndSend(
+                "loyalty.events",
+                "rule.status.changed",
+                event
+            );
+            
+            log.debug("RuleStatusChangedEvent emitted to RabbitMQ: ruleId={}, newStatus={}", ruleId, newStatus);
+        } catch (Exception ex) {
+            // Log error but don't rollback the transaction (status was already saved)
+            log.error("Failed to emit RuleStatusChangedEvent to RabbitMQ: ruleId={}, newStatus={}", ruleId, newStatus, ex);
+        }
+
+        return toResponse(saved);
     }
 
     /**

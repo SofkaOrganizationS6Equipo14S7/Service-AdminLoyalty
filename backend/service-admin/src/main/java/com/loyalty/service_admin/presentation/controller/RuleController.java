@@ -6,6 +6,7 @@ import com.loyalty.service_admin.application.dto.rules.RuleCustomerTierDTO;
 import com.loyalty.service_admin.application.dto.rules.RuleResponse;
 import com.loyalty.service_admin.application.dto.rules.RuleResponseWithTiers;
 import com.loyalty.service_admin.application.dto.rules.RuleAttributeMetadataDTO;
+import com.loyalty.service_admin.presentation.dto.rules.RuleStatusUpdateRequest;
 import com.loyalty.service_admin.application.dto.discount.DiscountTypeDTO;
 import com.loyalty.service_admin.application.dto.discount.DiscountPriorityDTO;
 import com.loyalty.service_admin.application.dto.classificationrule.ClassificationRuleCreateRequest;
@@ -148,6 +149,30 @@ public class RuleController {
 
         ruleService.deleteRule(ecommerceId, ruleId);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * SPEC-008: HU-14 - Change rule status (active/inactive) via PATCH endpoint
+     * 
+     * PATCH /api/v1/rules/{ruleId}/status
+     * Body: { "active": true | false }
+     */
+    @PatchMapping("/{ruleId}/status")
+    public ResponseEntity<RuleResponse> updateRuleStatus(
+            @PathVariable UUID ruleId,
+            @Valid @RequestBody RuleStatusUpdateRequest request
+    ) {
+        UUID ecommerceId = securityContextHelper.getCurrentUserEcommerceId();
+        log.info("Updating rule status: ruleId={}, newStatus={}", ruleId, request.active());
+
+        if (ecommerceId == null) {
+            throw new AuthorizationException(
+                "El Usuario no puede actualizar el status de reglas porque no tiene un ecommerceId asignado."
+            );
+        }
+
+        RuleResponse response = ruleService.updateRuleStatus(ecommerceId, ruleId, request.active());
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/{ruleId}/tiers")

@@ -1,6 +1,6 @@
 ---
 id: SPEC-016
-status: APPROVED
+status: IN_PROGRESS
 feature: fidelity-ranges-validations
 created: 2026-04-08
 updated: 2026-04-08
