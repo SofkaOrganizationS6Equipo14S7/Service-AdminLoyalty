@@ -1,6 +1,7 @@
 package com.loyalty.service_engine.infrastructure.config;
 
 import org.springframework.amqp.core.*;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -94,9 +95,13 @@ public class RuleEventConfig {
     /**
      * Binding: rulesDlq ← eventsDlxExchange
      * Routes permanently failed messages for auditing.
+     * Uses @Qualifier to explicitly select the correct DirectExchange bean
+     * when multiple DirectExchange beans exist in the context.
      */
     @Bean
-    public Binding rulesDlqBinding(Queue rulesDlq, DirectExchange eventsDlxExchange) {
+    public Binding rulesDlqBinding(
+            Queue rulesDlq,
+            @Qualifier("eventsDlxExchangeEngine") DirectExchange eventsDlxExchange) {
         return BindingBuilder
                 .bind(rulesDlq)
                 .to(eventsDlxExchange)
