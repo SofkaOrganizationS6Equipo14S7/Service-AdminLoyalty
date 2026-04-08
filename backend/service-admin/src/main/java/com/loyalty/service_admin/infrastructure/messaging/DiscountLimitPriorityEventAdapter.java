@@ -30,8 +30,9 @@ public class DiscountLimitPriorityEventAdapter implements DiscountLimitPriorityE
             Map<String, Object> eventData = new HashMap<>();
             eventData.put("priorityId", priority.getId());
             eventData.put("ecommerceId", ecommerceId);
-            eventData.put("priorityName", priority.getName());
-            eventData.put("level", priority.getLevel());
+            eventData.put("discountTypeId", priority.getDiscountTypeId());
+            eventData.put("priorityLevel", priority.getPriorityLevel());
+            eventData.put("discountSettingId", priority.getDiscountSettingId());
             eventData.put("eventType", "DISCOUNT_PRIORITY_UPDATED");
             eventData.put("timestamp", Instant.now());
 

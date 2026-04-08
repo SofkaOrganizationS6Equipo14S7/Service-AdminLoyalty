@@ -30,8 +30,10 @@ public class DiscountConfigEventAdapter implements DiscountConfigEventPort {
             Map<String, Object> eventData = new HashMap<>();
             eventData.put("configId", config.getId());
             eventData.put("ecommerceId", ecommerceId);
-            eventData.put("capType", config.getCapType());
-            eventData.put("capValue", config.getCapValue());
+            eventData.put("maxDiscountCap", config.getMaxDiscountCap());
+            eventData.put("currencyCode", config.getCurrencyCode());
+            eventData.put("allowStacking", config.getAllowStacking());
+            eventData.put("roundingRule", config.getRoundingRule());
             eventData.put("eventType", "DISCOUNT_CONFIG_UPDATED");
             eventData.put("timestamp", Instant.now());
 

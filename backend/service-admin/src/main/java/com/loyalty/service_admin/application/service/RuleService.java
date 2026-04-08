@@ -52,6 +52,7 @@ public class RuleService implements RuleUseCase {
     private final RuleEventPort ruleEventPort;
     
     // Repositorios mantenidos para validaciones y relaciones complejas
+    private final RuleRepository ruleRepository;
     private final RuleAttributeRepository ruleAttributeRepository;
     private final RuleAttributeValueRepository ruleAttributeValueRepository;
     private final DiscountLimitPriorityRepository discountLimitPriorityRepository;
