@@ -37,7 +37,6 @@ public class CustomerTierService {
         CustomerTierEntity entity = CustomerTierEntity.builder()
             .ecommerceId(request.ecommerceId())
             .name(request.name())
-            .discountPercentage(request.discountPercentage())
             .hierarchyLevel(request.hierarchyLevel())
             .isActive(true)
             .build();
@@ -99,8 +98,9 @@ public class CustomerTierService {
     }
 
     /**
-     * Actualizar un tier (name, discountPercentage, hierarchyLevel)
+     * Actualizar un tier (name, hierarchyLevel)
      * No permite cambiar ecommerceId ni isActive
+     * Descuentos se definen en las rules, no en el tier
      */
     @Transactional
     public CustomerTierResponse update(UUID id, CustomerTierUpdateRequest request) {
@@ -114,7 +114,6 @@ public class CustomerTierService {
         }
 
         entity.setName(request.name());
-        entity.setDiscountPercentage(request.discountPercentage());
         entity.setHierarchyLevel(request.hierarchyLevel());
         // NOTE: isActive is NOT updated here - use activate() or delete() endpoints instead
 
@@ -144,7 +143,6 @@ public class CustomerTierService {
             entity.getId(),
             entity.getEcommerceId(),
             entity.getName(),
-            entity.getDiscountPercentage(),
             entity.getHierarchyLevel(),
             entity.getIsActive(),
             entity.getCreatedAt(),

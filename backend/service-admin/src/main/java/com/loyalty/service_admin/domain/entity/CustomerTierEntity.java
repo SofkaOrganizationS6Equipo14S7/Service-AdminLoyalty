@@ -6,7 +6,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -27,9 +26,6 @@ public class CustomerTierEntity {
 
     @Column(nullable = false, length = 100)
     private String name;
-
-    @Column(name = "discount_percentage", nullable = false, precision = 5, scale = 2)
-    private BigDecimal discountPercentage;
 
     @Column(name = "hierarchy_level", nullable = false)
     private Integer hierarchyLevel;
