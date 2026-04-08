@@ -3,6 +3,7 @@ package com.loyalty.service_admin.infrastructure.config;
 import com.loyalty.service_admin.infrastructure.security.TenantInterceptor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -39,5 +40,20 @@ public class WebMvcConfig implements WebMvcConfigurer {
                     "/api/auth/login",  // login no necesita tenant
                     "/api/auth/register" // registro no necesita tenant
                 );
+    }
+
+    @Override
+    public void addCorsMappings(CorsRegistry registry) {
+        registry.addMapping("/**")
+                .allowedOrigins(
+                    "http://localhost:5173",
+                    "http://localhost:4173",
+                    "http://localhost:3000",
+                    "http://localhost:5174"
+                )
+                .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+                .allowedHeaders("*")
+                .allowCredentials(true)
+                .maxAge(3600);
     }
 }
