@@ -1,0 +1,122 @@
+name: Karate Integration Tests
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'feature/**'
+  pull_request:
+    branches:
+      - main
+      - develop
+      - 'feature/**'
+
+jobs:
+  karate-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout backend
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'maven'
+
+      - name: Start infrastructure
+        working-directory: backend
+        run: docker compose up -d
+
+      - name: Wait for infrastructure to be healthy
+        working-directory: backend
+        run: |
+          echo "Waiting for PostgreSQL Admin (5432)..."
+          for i in $(seq 1 30); do
+            docker compose exec -T postgres-admin pg_isready -U loyalty -d loyalty_admin && break
+            echo "  attempt $i..."
+            sleep 2
+          done
+
+          echo "Waiting for PostgreSQL Engine (5433)..."
+          for i in $(seq 1 30); do
+            docker compose exec -T postgres-engine pg_isready -U loyalty -d loyalty_engine && break
+            echo "  attempt $i..."
+            sleep 2
+          done
+
+          echo "Waiting for RabbitMQ (5672)..."
+          for i in $(seq 1 30); do
+            docker compose exec -T rabbitmq rabbitmq-diagnostics check_port_connectivity && break
+            echo "  attempt $i..."
+            sleep 2
+          done
+
+      - name: Build service-admin
+        working-directory: backend/service-admin
+        run: ./mvnw package -DskipTests -q
+
+      - name: Build service-engine
+        working-directory: backend/service-engine
+        run: ./mvnw package -DskipTests -q
+
+      - name: Start service-admin
+        working-directory: backend/service-admin
+        run: java -jar target/*.jar &
+
+      - name: Start service-engine
+        working-directory: backend/service-engine
+        run: java -jar target/*.jar &
+
+      - name: Wait for services to be ready
+        run: |
+          echo "Waiting for service-admin (8081)..."
+          for i in $(seq 1 60); do
+            if curl -sf -o /dev/null -w '%{http_code}' http://localhost:8081/api/v1/auth/login 2>/dev/null | grep -qE '(200|400|401|405)'; then
+              echo "  service-admin is UP"
+              break
+            fi
+            echo "  attempt $i..."
+            sleep 3
+          done
+
+          echo "Waiting for service-engine (8082)..."
+          for i in $(seq 1 60); do
+            if curl -sf -o /dev/null -w '%{http_code}' http://localhost:8082/api/v1/health 2>/dev/null | grep -qE '(200|400|401|405)'; then
+              echo "  service-engine is UP"
+              break
+            fi
+            echo "  attempt $i..."
+            sleep 3
+          done
+
+      - name: Checkout Karate tests
+        uses: actions/checkout@v4
+        with:
+          repository: SofkaOrganizationS6Equipo14S7/KarateLoyalty
+          path: karate-tests
+
+      - name: Verify Karate project
+        run: |
+          echo "Contents of karate-tests/:"
+          ls -la karate-tests/
+          echo "---"
+          find karate-tests -name 'pom.xml' -maxdepth 3
+          if [ ! -f karate-tests/pom.xml ]; then
+            echo "ERROR: pom.xml not found at karate-tests root"
+            exit 1
+          fi
+
+      - name: Run Karate tests
+        working-directory: karate-tests
+        run: mvn test -Dkarate.env=dev
+
+      - name: Upload Karate Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: karate-reports
+          path: karate-tests/target/karate-reports/

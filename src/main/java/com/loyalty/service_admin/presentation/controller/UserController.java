@@ -1,0 +1,136 @@
+package com.loyalty.service_admin.presentation.controller;
+
+import com.loyalty.service_admin.application.dto.user.UserCreateRequest;
+import com.loyalty.service_admin.application.dto.user.UserResponse;
+import com.loyalty.service_admin.application.dto.user.UserUpdateRequest;
+import com.loyalty.service_admin.application.dto.user.UpdateProfileRequest;
+import com.loyalty.service_admin.application.dto.auth.ChangePasswordRequest;
+import com.loyalty.service_admin.application.dto.auth.LoginResponse;
+import com.loyalty.service_admin.application.port.in.UserCreateUseCase;
+import com.loyalty.service_admin.application.port.in.UserListUseCase;
+import com.loyalty.service_admin.application.port.in.UserGetByIdUseCase;
+import com.loyalty.service_admin.application.port.in.UserUpdateUseCase;
+import com.loyalty.service_admin.application.port.in.UserDeleteUseCase;
+import com.loyalty.service_admin.application.service.UserService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.UUID;
+
+@RestController
+@RequestMapping("/api/v1/users")
+@RequiredArgsConstructor
+@Slf4j
+public class UserController {
+    
+    private final UserCreateUseCase userCreateUseCase;
+    private final UserListUseCase userListUseCase;
+    private final UserGetByIdUseCase userGetByIdUseCase;
+    private final UserUpdateUseCase userUpdateUseCase;
+    private final UserDeleteUseCase userDeleteUseCase;
+    private final UserService userService;
+    
+    /**
+     * @param request user data (role, username, email, password, ecommerceId)
+     * @return HTTP 201 Created with UserResponse
+     */
+    @PostMapping
+    public ResponseEntity<UserResponse> createUser(@Valid @RequestBody UserCreateRequest request) {
+        UserResponse response = userCreateUseCase.createUser(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+    
+    /**
+     * @param ecommerceId filter parameter (optional)
+     * @param pageable pagination information
+     * @return HTTP 200 OK with paginated list of UserResponse
+     */
+    @GetMapping
+    public ResponseEntity<org.springframework.data.domain.Page<UserResponse>> listUsers(
+            @RequestParam(name = "ecommerceId", required = false) UUID ecommerceId,
+            org.springframework.data.domain.Pageable pageable) {
+        org.springframework.data.domain.Page<UserResponse> users = userListUseCase.listUsers(ecommerceId, pageable);
+        return ResponseEntity.ok(users);
+    }
+    
+    /**
+     * @param uid user identifier
+     * @return HTTP 200 OK with UserResponse
+     */
+    @GetMapping("/{uid}")
+    public ResponseEntity<UserResponse> getUser(@PathVariable UUID uid) {
+        UserResponse user = userGetByIdUseCase.getUserById(uid);
+        return ResponseEntity.ok(user);
+    }
+    
+    /**
+     * Actualizar usuario - CRITERIO-1.3, CRITERIO-1.4
+     * @param uid user identifier
+     * @param request user data to update
+     *        Optional fields: username, email, password
+     *        SUPER_ADMIN only: ecommerceId, active
+     *        PROHIBITED (immutable): roleId → returns HTTP 400 if sent
+     * @return HTTP 200 OK with updated UserResponse
+     */
+    @PutMapping("/{uid}")
+    public ResponseEntity<UserResponse> updateUser(
+            @PathVariable UUID uid,
+            @Valid @RequestBody UserUpdateRequest request) {
+        UserResponse updated = userUpdateUseCase.updateUser(uid, request);
+        return ResponseEntity.ok(updated);
+    }
+    
+    /**
+     * Elimina permanentemente un usuario de forma física.
+     *
+     * HU-02.5: Hard Delete de Usuarios
+     * - Requiere autenticación (JWT válido)
+     * - Solo SUPER_ADMIN o STORE_ADMIN pueden eliminar usuarios
+     * - STORE_ADMIN solo puede eliminar usuarios de su ecommerce
+     * - No puede auto-eliminarse
+     *
+     * Respuestas:
+     * - 204 No Content: eliminación exitosa
+     * - 400 Bad Request: intento de auto-eliminación
+     * - 401 Unauthorized: token faltante/expirado
+     * - 403 Forbidden: rol insuficiente o ecommerce distinto
+     * - 404 Not Found: usuario no existe
+     *
+     * @param uid user identifier
+     * @return HTTP 204 No Content
+     * @throws com.loyalty.service_admin.infrastructure.exception.UnauthorizedException si token inválido
+     * @throws com.loyalty.service_admin.infrastructure.exception.BadRequestException si auto-eliminación
+     * @throws com.loyalty.service_admin.infrastructure.exception.AuthorizationException si sin permisos
+     * @throws com.loyalty.service_admin.infrastructure.exception.ResourceNotFoundException si no existe
+     */
+    @DeleteMapping("/{uid}")
+    public ResponseEntity<Void> deleteUser(@PathVariable UUID uid) {
+        userDeleteUseCase.hardDeleteUser(uid);
+        return ResponseEntity.noContent().build();
+    }
+    
+    /**
+     * @param request profile data to update (name, email)
+     * @return HTTP 200 OK with updated UserResponse
+     */
+    @PutMapping("/me")
+    public ResponseEntity<UserResponse> updateProfile(@Valid @RequestBody UpdateProfileRequest request) {
+        UserResponse updated = userService.updateProfile(request);
+        return ResponseEntity.ok(updated);
+    }
+    
+    /**
+     * @param request password change data (currentPassword, newPassword, confirmPassword)
+     * @return HTTP 200 OK with new JWT token
+     */
+    @PutMapping("/me/password")
+    public ResponseEntity<LoginResponse> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
+        LoginResponse response = userService.changePassword(request);
+        return ResponseEntity.ok(response);
+    }
+}
