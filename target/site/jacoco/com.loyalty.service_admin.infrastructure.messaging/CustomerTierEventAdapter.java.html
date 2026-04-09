@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CustomerTierEventAdapter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.infrastructure.messaging</a> &gt; <span class="el_source">CustomerTierEventAdapter.java</span></div><h1>CustomerTierEventAdapter.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.infrastructure.messaging;
+
+import com.loyalty.service_admin.application.port.out.CustomerTierEventPort;
+import com.loyalty.service_admin.domain.entity.CustomerTierEntity;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.stereotype.Component;
+
+import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
+/**
+ * CustomerTierEventAdapter - Adapter de eventos para CustomerTierService.
+ *
+ * Implementa CustomerTierEventPort publicando eventos a RabbitMQ.
+ */
+@Component
+@RequiredArgsConstructor
+<span class="fc" id="L22">@Slf4j</span>
+public class CustomerTierEventAdapter implements CustomerTierEventPort {
+
+    private final RabbitTemplate rabbitTemplate;
+
+    @Override
+    public void publishTierCreated(CustomerTierEntity tier, UUID ecommerceId) {
+<span class="fc" id="L29">        publishTierEvent(&quot;TIER_CREATED&quot;, tier, ecommerceId);</span>
+<span class="fc" id="L30">    }</span>
+
+    @Override
+    public void publishTierUpdated(CustomerTierEntity tier, UUID ecommerceId) {
+<span class="fc" id="L34">        publishTierEvent(&quot;TIER_UPDATED&quot;, tier, ecommerceId);</span>
+<span class="fc" id="L35">    }</span>
+
+    @Override
+    public void publishTierDeleted(UUID tierId, UUID ecommerceId) {
+        try {
+<span class="fc" id="L40">            Map&lt;String, Object&gt; eventData = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L41">            eventData.put(&quot;tierId&quot;, tierId);</span>
+<span class="fc" id="L42">            eventData.put(&quot;ecommerceId&quot;, ecommerceId);</span>
+<span class="fc" id="L43">            eventData.put(&quot;eventType&quot;, &quot;TIER_DELETED&quot;);</span>
+<span class="fc" id="L44">            eventData.put(&quot;timestamp&quot;, Instant.now());</span>
+
+<span class="fc" id="L46">            rabbitTemplate.convertAndSend(&quot;loyalty.events&quot;, &quot;tier.updated&quot;, eventData);</span>
+<span class="fc" id="L47">            log.info(&quot;Published TIER_DELETED event: tierId={}, ecommerceId={}&quot;, tierId, ecommerceId);</span>
+<span class="fc" id="L48">        } catch (Exception ex) {</span>
+<span class="fc" id="L49">            log.error(&quot;Failed to publish TIER_DELETED event: tierId={}, ecommerceId={}&quot;, tierId, ecommerceId, ex);</span>
+<span class="fc" id="L50">        }</span>
+<span class="fc" id="L51">    }</span>
+
+    @Override
+    public void publishTierActivated(CustomerTierEntity tier, UUID ecommerceId) {
+<span class="fc" id="L55">        publishTierEvent(&quot;TIER_ACTIVATED&quot;, tier, ecommerceId);</span>
+<span class="fc" id="L56">    }</span>
+
+    @Override
+    public void publishTierDeactivated(CustomerTierEntity tier, UUID ecommerceId) {
+<span class="fc" id="L60">        publishTierEvent(&quot;TIER_DEACTIVATED&quot;, tier, ecommerceId);</span>
+<span class="fc" id="L61">    }</span>
+
+    private void publishTierEvent(String eventType, CustomerTierEntity tier, UUID ecommerceId) {
+        try {
+<span class="fc" id="L65">            Map&lt;String, Object&gt; eventData = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L66">            eventData.put(&quot;tierId&quot;, tier.getId());</span>
+<span class="fc" id="L67">            eventData.put(&quot;ecommerceId&quot;, ecommerceId);</span>
+<span class="fc" id="L68">            eventData.put(&quot;tierName&quot;, tier.getName());</span>
+<span class="fc" id="L69">            eventData.put(&quot;hierarchyLevel&quot;, tier.getHierarchyLevel());</span>
+<span class="fc" id="L70">            eventData.put(&quot;isActive&quot;, tier.getIsActive());</span>
+<span class="fc" id="L71">            eventData.put(&quot;eventType&quot;, eventType);</span>
+<span class="fc" id="L72">            eventData.put(&quot;timestamp&quot;, Instant.now());</span>
+
+<span class="fc" id="L74">            rabbitTemplate.convertAndSend(&quot;loyalty.events&quot;, &quot;tier.updated&quot;, eventData);</span>
+<span class="fc" id="L75">            log.info(&quot;Published {} event: tierId={}, ecommerceId={}&quot;, eventType, tier.getId(), ecommerceId);</span>
+<span class="fc" id="L76">        } catch (Exception ex) {</span>
+<span class="fc" id="L77">            log.error(&quot;Failed to publish {} event: tierId={}, ecommerceId={}&quot;, eventType, tier.getId(), ecommerceId, ex);</span>
+<span class="fc" id="L78">        }</span>
+<span class="fc" id="L79">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

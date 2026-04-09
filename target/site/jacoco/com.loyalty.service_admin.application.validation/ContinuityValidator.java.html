@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContinuityValidator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.application.validation</a> &gt; <span class="el_source">ContinuityValidator.java</span></div><h1>ContinuityValidator.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.application.validation;
+
+import com.loyalty.service_admin.domain.entity.RuleEntity;
+import com.loyalty.service_admin.domain.entity.RuleAttributeValueEntity;
+import com.loyalty.service_admin.domain.entity.RuleAttributeEntity;
+import com.loyalty.service_admin.domain.repository.RuleAttributeRepository;
+import com.loyalty.service_admin.domain.repository.RuleAttributeValueRepository;
+import com.loyalty.service_admin.infrastructure.exception.BadRequestException;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+
+import java.math.BigDecimal;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+/**
+ * HU-08.1: Valida que no existan huecos entre rangos de clasificación.
+ * 
+ * Lógica:
+ * 1. Obtener todas las reglas activas del ecommerce (tipo CLASSIFICATION)
+ * 2. Ordenar por minValue ascendente
+ * 3. Para la nueva regla (minValue, maxValue), verificar:
+ *    - Que no haya hueco con la regla anterior
+ *    - Que no haya hueco con la regla siguiente
+ * 4. Lanzar BadRequestException si hay hueco
+ * 
+ * Nota: Se ignoran reglas soft-deleted (isActive=false)
+ */
+@Component
+@RequiredArgsConstructor
+<span class="fc" id="L35">@Slf4j</span>
+public class ContinuityValidator {
+
+    private final RuleAttributeValueRepository ruleAttributeValueRepository;
+    private final RuleAttributeRepository ruleAttributeRepository;
+
+    /**
+     * Valida continuidad de rangos sin huecos.
+     * 
+     * @param activeRules lista de reglas activas de clasificación del ecommerce (ya filtradas)
+     * @param minValue minValue de la nueva/actualizada regla
+     * @param maxValue maxValue de la nueva/actualizada regla
+     * @param excludeRuleId UUID de la regla siendo actualizada (null si es creación)
+     * @throws BadRequestException si hay huecos
+     */
+    public void validateContinuity(
+            List&lt;RuleEntity&gt; activeRules,
+            BigDecimal minValue,
+            BigDecimal maxValue,
+            UUID excludeRuleId
+    ) {
+<span class="fc" id="L56">        log.debug(&quot;Validating continuity for range [{}-{}]&quot;, minValue, maxValue);</span>
+
+        // Filtrar reglas activas y excluir la regla siendo actualizada
+<span class="fc" id="L59">        List&lt;RuleEntity&gt; rulesToCheck = activeRules.stream()</span>
+<span class="pc bpc" id="L60" title="1 of 4 branches missed.">                .filter(r -&gt; excludeRuleId == null || !r.getId().equals(excludeRuleId))</span>
+<span class="fc" id="L61">                .toList();</span>
+
+<span class="fc bfc" id="L63" title="All 2 branches covered.">        if (rulesToCheck.isEmpty()) {</span>
+<span class="fc" id="L64">            log.debug(&quot;No existing rules to check continuity against&quot;);</span>
+<span class="fc" id="L65">            return;  // La primera regla siempre es válida</span>
+        }
+
+        // Extraer rangos de todas las reglas
+<span class="fc" id="L69">        List&lt;RangeData&gt; existingRanges = rulesToCheck.stream()</span>
+<span class="fc" id="L70">                .map(this::extractRangeFromRule)</span>
+<span class="pc" id="L71">                .sorted(Comparator.comparing(r -&gt; r.minValue))</span>
+<span class="fc" id="L72">                .collect(Collectors.toList());</span>
+
+<span class="fc" id="L74">        log.debug(&quot;Existing ranges: {}&quot;, existingRanges);</span>
+
+        // Buscar huecos antes
+<span class="fc" id="L77">        RangeData lastRange = existingRanges.get(existingRanges.size() - 1);</span>
+<span class="fc bfc" id="L78" title="All 2 branches covered.">        if (minValue.compareTo(lastRange.maxValue) &gt; 0) {</span>
+<span class="fc" id="L79">            throw new BadRequestException(</span>
+                    &quot;Gap detected: rule with range [&quot; + minValue + &quot;-&quot; + maxValue +
+                            &quot;] has gap with existing rule [&quot; + lastRange.minValue + &quot;-&quot; + lastRange.maxValue + &quot;]&quot;
+            );
+        }
+
+        // Buscar huecos después
+<span class="fc" id="L86">        Optional&lt;RangeData&gt; nextRange = existingRanges.stream()</span>
+<span class="pc bpc" id="L87" title="1 of 2 branches missed.">                .filter(r -&gt; r.minValue.compareTo(maxValue) &gt; 0)</span>
+<span class="pc" id="L88">                .min(Comparator.comparing(r -&gt; r.minValue));</span>
+
+<span class="pc bpc" id="L90" title="3 of 4 branches missed.">        if (nextRange.isPresent() &amp;&amp; nextRange.get().minValue.compareTo(maxValue) &gt; 0) {</span>
+<span class="nc" id="L91">            throw new BadRequestException(</span>
+                    &quot;Gap detected: rule with range [&quot; + minValue + &quot;-&quot; + maxValue +
+<span class="nc" id="L93">                            &quot;] has gap with next rule [&quot; + nextRange.get().minValue + &quot;-&quot; + nextRange.get().maxValue + &quot;]&quot;</span>
+            );
+        }
+
+<span class="fc" id="L97">        log.debug(&quot;Continuity validation passed for range [{}-{}]&quot;, minValue, maxValue);</span>
+<span class="fc" id="L98">    }</span>
+
+    /**
+     * Extrae minValue y maxValue de los atributos de una regla.
+     */
+    private RangeData extractRangeFromRule(RuleEntity rule) {
+<span class="fc" id="L104">        List&lt;RuleAttributeValueEntity&gt; attrs = ruleAttributeValueRepository.findByRuleIdOrderByCreatedAtAsc(rule.getId());</span>
+
+<span class="fc" id="L106">        BigDecimal minValue = attrs.stream()</span>
+<span class="fc" id="L107">                .filter(a -&gt; isAttributeNamed(a, &quot;minValue&quot;))</span>
+<span class="fc" id="L108">                .findFirst()</span>
+<span class="fc" id="L109">                .map(a -&gt; new BigDecimal(a.getValue()))</span>
+<span class="pc" id="L110">                .orElseThrow(() -&gt; new IllegalStateException(&quot;minValue not found for rule &quot; + rule.getId()));</span>
+
+<span class="fc" id="L112">        BigDecimal maxValue = attrs.stream()</span>
+<span class="fc" id="L113">                .filter(a -&gt; isAttributeNamed(a, &quot;maxValue&quot;))</span>
+<span class="fc" id="L114">                .findFirst()</span>
+<span class="fc" id="L115">                .map(a -&gt; new BigDecimal(a.getValue()))</span>
+<span class="pc" id="L116">                .orElseThrow(() -&gt; new IllegalStateException(&quot;maxValue not found for rule &quot; + rule.getId()));</span>
+
+<span class="fc" id="L118">        return new RangeData(minValue, maxValue);</span>
+    }
+
+    /**
+     * Verifica si un atributo tiene el nombre esperado.
+     */
+    private boolean isAttributeNamed(RuleAttributeValueEntity attrValue, String expectedName) {
+<span class="fc" id="L125">        RuleAttributeEntity attr = ruleAttributeRepository.findById(attrValue.getAttributeId()).orElse(null);</span>
+<span class="pc bpc" id="L126" title="1 of 4 branches missed.">        return attr != null &amp;&amp; expectedName.equals(attr.getAttributeName());</span>
+    }
+
+    /**
+     * DTO para almacenar rango (minValue, maxValue).
+     */
+<span class="fc" id="L132">    private record RangeData(BigDecimal minValue, BigDecimal maxValue) {</span>
+        @Override
+        public String toString() {
+<span class="nc" id="L135">            return &quot;[&quot; + minValue + &quot;-&quot; + maxValue + &quot;]&quot;;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

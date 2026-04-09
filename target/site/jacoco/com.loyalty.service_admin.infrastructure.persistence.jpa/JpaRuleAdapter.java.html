@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JpaRuleAdapter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.infrastructure.persistence.jpa</a> &gt; <span class="el_source">JpaRuleAdapter.java</span></div><h1>JpaRuleAdapter.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.infrastructure.persistence.jpa;
+
+import com.loyalty.service_admin.application.port.out.RulePersistencePort;
+import com.loyalty.service_admin.domain.entity.RuleEntity;
+import com.loyalty.service_admin.domain.entity.RuleAttributeEntity;
+import com.loyalty.service_admin.domain.entity.RuleAttributeValueEntity;
+import com.loyalty.service_admin.domain.repository.RuleRepository;
+import com.loyalty.service_admin.domain.repository.RuleAttributeRepository;
+import com.loyalty.service_admin.domain.repository.RuleAttributeValueRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Component;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+/**
+ * JpaRuleAdapter - Adapter de persistencia para RuleService.
+ *
+ * Implementa RulePersistencePort delegando a los repositorios JPA.
+ * Este adapter inyecta los repositorios concretos, desacoplando RuleService de JPA.
+ */
+@Component
+@RequiredArgsConstructor
+<span class="fc" id="L28">@Slf4j</span>
+public class JpaRuleAdapter implements RulePersistencePort {
+
+    private final RuleRepository ruleRepository;
+    private final RuleAttributeRepository ruleAttributeRepository;
+    private final RuleAttributeValueRepository ruleAttributeValueRepository;
+
+    @Override
+    public RuleEntity saveRule(RuleEntity rule) {
+<span class="fc" id="L37">        log.debug(&quot;Saving rule: {}&quot;, rule.getId());</span>
+<span class="fc" id="L38">        return ruleRepository.save(rule);</span>
+    }
+
+    @Override
+    public Optional&lt;RuleEntity&gt; findRuleById(UUID ruleId) {
+<span class="fc" id="L43">        log.debug(&quot;Finding rule by id: {}&quot;, ruleId);</span>
+<span class="fc" id="L44">        return ruleRepository.findById(ruleId);</span>
+    }
+
+    @Override
+    public Optional&lt;RuleEntity&gt; findRuleByIdAndEcommerce(UUID ruleId, UUID ecommerceId) {
+<span class="fc" id="L49">        log.debug(&quot;Finding rule by id and ecommerce: {} - {}&quot;, ruleId, ecommerceId);</span>
+<span class="fc" id="L50">        return ruleRepository.findByIdAndEcommerceId(ruleId, ecommerceId);</span>
+    }
+
+    @Override
+    public Page&lt;RuleEntity&gt; findRulesByEcommerce(UUID ecommerceId, Pageable pageable) {
+<span class="fc" id="L55">        log.debug(&quot;Finding rules by ecommerce: {}&quot;, ecommerceId);</span>
+<span class="fc" id="L56">        return ruleRepository.findByEcommerceIdOrderByCreatedAtDesc(ecommerceId, pageable);</span>
+    }
+
+    @Override
+    public Page&lt;RuleEntity&gt; findActiveRulesByEcommerce(UUID ecommerceId, Pageable pageable) {
+<span class="fc" id="L61">        log.debug(&quot;Finding active rules by ecommerce: {}&quot;, ecommerceId);</span>
+<span class="fc" id="L62">        return ruleRepository.findByEcommerceIdAndIsActiveTrueOrderByCreatedAtDesc(ecommerceId, pageable);</span>
+    }
+
+    @Override
+    public List&lt;RuleEntity&gt; findRulesByStatus(UUID ecommerceId, Boolean isActive) {
+<span class="fc" id="L67">        log.debug(&quot;Finding rules by status: {} - {}&quot;, ecommerceId, isActive);</span>
+<span class="fc bfc" id="L68" title="All 2 branches covered.">        Page&lt;RuleEntity&gt; page = isActive </span>
+<span class="fc" id="L69">            ? ruleRepository.findByEcommerceIdAndIsActiveTrueOrderByCreatedAtDesc(</span>
+                ecommerceId, 
+<span class="fc" id="L71">                org.springframework.data.domain.PageRequest.of(0, Integer.MAX_VALUE))</span>
+<span class="fc" id="L72">            : ruleRepository.findByEcommerceIdOrderByCreatedAtDesc(</span>
+                ecommerceId, 
+<span class="fc" id="L74">                org.springframework.data.domain.PageRequest.of(0, Integer.MAX_VALUE));</span>
+<span class="fc" id="L75">        return page.getContent();</span>
+    }
+
+    @Override
+    public void deleteRule(RuleEntity rule) {
+<span class="fc" id="L80">        log.debug(&quot;Soft-deleting rule: {}&quot;, rule.getId());</span>
+<span class="fc" id="L81">        rule.setIsActive(false);</span>
+<span class="fc" id="L82">        ruleRepository.save(rule);</span>
+<span class="fc" id="L83">    }</span>
+
+    @Override
+    public boolean existsRule(UUID ruleId) {
+<span class="fc" id="L87">        log.debug(&quot;Checking if rule exists: {}&quot;, ruleId);</span>
+<span class="fc" id="L88">        return ruleRepository.existsById(ruleId);</span>
+    }
+
+    @Override
+    public boolean existsActiveRuleWithAttribute(UUID ecommerceId, String attributeName, String attributeValue) {
+<span class="fc" id="L93">        log.debug(&quot;Checking if active rule exists with attribute: {} = {}&quot;, attributeName, attributeValue);</span>
+        
+<span class="fc" id="L95">        Page&lt;RuleEntity&gt; activeRules = ruleRepository.findByEcommerceIdAndIsActiveTrueOrderByCreatedAtDesc(</span>
+            ecommerceId, 
+<span class="fc" id="L97">            org.springframework.data.domain.PageRequest.of(0, Integer.MAX_VALUE)</span>
+        );
+        
+<span class="fc bfc" id="L100" title="All 2 branches covered.">        for (RuleEntity rule : activeRules) {</span>
+<span class="fc" id="L101">            List&lt;RuleAttributeValueEntity&gt; attrs = ruleAttributeValueRepository.findByRuleIdOrderByCreatedAtAsc(rule.getId());</span>
+<span class="fc bfc" id="L102" title="All 2 branches covered.">            for (RuleAttributeValueEntity attr : attrs) {</span>
+<span class="fc" id="L103">                RuleAttributeEntity attrDef = ruleAttributeRepository.findById(attr.getAttributeId()).orElse(null);</span>
+<span class="pc bpc" id="L104" title="1 of 4 branches missed.">                if (attrDef != null &amp;&amp; attributeName.equalsIgnoreCase(attrDef.getAttributeName())) {</span>
+<span class="pc bpc" id="L105" title="1 of 2 branches missed.">                    if (attributeValue.equals(attr.getValue())) {</span>
+<span class="fc" id="L106">                        return true;</span>
+                    }
+                }
+<span class="fc" id="L109">            }</span>
+<span class="fc" id="L110">        }</span>
+<span class="fc" id="L111">        return false;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

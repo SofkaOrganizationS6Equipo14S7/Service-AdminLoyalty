@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RoleController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.presentation.controller</a> &gt; <span class="el_source">RoleController.java</span></div><h1>RoleController.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.presentation.controller;
+
+import com.loyalty.service_admin.application.dto.role.*;
+import com.loyalty.service_admin.application.service.RoleService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.UUID;
+
+/**
+ * Controller para gestión de roles y permisos
+ * HU-08: Roles y Permisos
+ * 
+ * Endpoints:
+ * - CRITERIO-8.1: GET /api/v1/roles - Listar roles
+ * - CRITERIO-8.2: GET /api/v1/roles/{roleId} - Detalle de rol con permisos
+ * - CRITERIO-8.3: GET /api/v1/permissions - Listar permisos
+ * - CRITERIO-8.4: GET /api/v1/permissions?module=X - Filtrar permisos por módulo
+ * - CRITERIO-8.5: POST /api/v1/roles/{roleId}/permissions - Asignar permisos
+ */
+@RestController
+@RequestMapping(&quot;/api/v1&quot;)
+@RequiredArgsConstructor
+<span class="fc" id="L29">@Slf4j</span>
+public class RoleController {
+
+    private final RoleService roleService;
+
+    /**
+     * CRITERIO-8.1: GET /api/v1/roles - Listar todos los roles
+     * Retorna lista de roles disponibles en el sistema
+     */
+    @GetMapping(&quot;/roles&quot;)
+    public ResponseEntity&lt;List&lt;RoleResponse&gt;&gt; listRoles() {
+<span class="fc" id="L40">        log.info(&quot;GET /api/v1/roles - Listing all roles&quot;);</span>
+<span class="fc" id="L41">        List&lt;RoleResponse&gt; roles = roleService.listAllRoles();</span>
+<span class="fc" id="L42">        return ResponseEntity.ok(roles);</span>
+    }
+
+    /**
+     * CRITERIO-8.2: GET /api/v1/roles/{roleId} - Obtener rol con sus permisos
+     * Retorna detalle del rol incluyendo lista de permisos asignados
+     */
+    @GetMapping(&quot;/roles/{roleId}&quot;)
+    public ResponseEntity&lt;RoleWithPermissionsResponse&gt; getRoleDetails(
+            @PathVariable UUID roleId
+    ) {
+<span class="fc" id="L53">        log.info(&quot;GET /api/v1/roles/{} - Getting role details&quot;, roleId);</span>
+<span class="fc" id="L54">        RoleWithPermissionsResponse response = roleService.getRoleWithPermissions(roleId);</span>
+<span class="fc" id="L55">        return ResponseEntity.ok(response);</span>
+    }
+
+    /**
+     * CRITERIO-8.3: GET /api/v1/permissions - Listar todos los permisos
+     * Retorna lista completa de permisos disponibles en el sistema
+     */
+    @GetMapping(&quot;/permissions&quot;)
+    public ResponseEntity&lt;List&lt;PermissionResponse&gt;&gt; listPermissions(
+            @RequestParam(required = false) String module
+    ) {
+<span class="fc bfc" id="L66" title="All 4 branches covered.">        if (module != null &amp;&amp; !module.isEmpty()) {</span>
+            // CRITERIO-8.4: Filtrar por módulo si se proporciona parámetro
+<span class="fc" id="L68">            log.info(&quot;GET /api/v1/permissions - Listing permissions by module: {}&quot;, module);</span>
+<span class="fc" id="L69">            List&lt;PermissionResponse&gt; permissions = roleService.listPermissionsByModule(module);</span>
+<span class="fc" id="L70">            return ResponseEntity.ok(permissions);</span>
+        }
+        
+        // CRITERIO-8.3: Listar todos los permisos
+<span class="fc" id="L74">        log.info(&quot;GET /api/v1/permissions - Listing all permissions&quot;);</span>
+<span class="fc" id="L75">        List&lt;PermissionResponse&gt; permissions = roleService.listAllPermissions();</span>
+<span class="fc" id="L76">        return ResponseEntity.ok(permissions);</span>
+    }
+
+    /**
+     * CRITERIO-8.5: POST /api/v1/roles/{roleId}/permissions - Asignar permisos a un rol
+     * Reemplaza completamente los permisos del rol especificado
+     * Request body: { &quot;permissionIds&quot;: [&quot;uuid1&quot;, &quot;uuid2&quot;, ...] }
+     */
+    @PostMapping(&quot;/roles/{roleId}/permissions&quot;)
+    public ResponseEntity&lt;RoleWithPermissionsResponse&gt; assignPermissionsToRole(
+            @PathVariable UUID roleId,
+            @Valid @RequestBody RolePermissionsAssignRequest request
+    ) {
+<span class="fc" id="L89">        log.info(&quot;POST /api/v1/roles/{}/permissions - Assigning {} permissions&quot;, </span>
+<span class="fc" id="L90">            roleId, request.permissionIds().size());</span>
+        
+<span class="fc" id="L92">        RoleWithPermissionsResponse response = roleService.assignPermissionsToRole(roleId, request);</span>
+<span class="fc" id="L93">        return ResponseEntity.status(HttpStatus.OK).body(response);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

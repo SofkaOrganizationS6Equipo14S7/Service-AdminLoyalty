@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AuthService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.application.service</a> &gt; <span class="el_source">AuthService.java</span></div><h1>AuthService.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.application.service;
+
+import com.loyalty.service_admin.application.dto.auth.LoginRequest;
+import com.loyalty.service_admin.application.dto.auth.LoginResponse;
+import com.loyalty.service_admin.application.dto.user.UserResponse;
+import com.loyalty.service_admin.application.port.in.AuthUseCase;
+import com.loyalty.service_admin.application.port.out.AuthPersistencePort;
+import com.loyalty.service_admin.application.port.out.JwtPort;
+import com.loyalty.service_admin.domain.entity.UserEntity;
+import com.loyalty.service_admin.infrastructure.exception.UnauthorizedException;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.mindrot.jbcrypt.BCrypt;
+import org.springframework.stereotype.Service;
+
+@Service
+@RequiredArgsConstructor
+<span class="fc" id="L18">@Slf4j</span>
+public class AuthService implements AuthUseCase {
+
+    private final AuthPersistencePort authPersistencePort;
+    private final JwtPort jwtPort;
+
+    /**
+     * Autentica usuario con credenciales (username + password)
+     * 
+     * @param request LoginRequest(username, password)
+     * @return LoginResponse con JWT token válido
+     * @throws UnauthorizedException si credenciales son inválidas o usuario inactivo
+     */
+    @Override
+    public LoginResponse login(LoginRequest request) {
+<span class="fc" id="L33">        log.debug(&quot;Intento de login para usuario: {}&quot;, request.username());</span>
+
+<span class="fc" id="L35">        UserEntity user = authPersistencePort.findByUsername(request.username())</span>
+<span class="fc" id="L36">                .orElseThrow(() -&gt; {</span>
+<span class="fc" id="L37">                    log.warn(&quot;Intento de login fallido: usuario {} no encontrado&quot;, request.username());</span>
+<span class="fc" id="L38">                    return new UnauthorizedException(&quot;Credenciales inválidas&quot;);</span>
+                });
+
+<span class="fc bfc" id="L41" title="All 2 branches covered.">        if (!user.getIsActive()) {</span>
+<span class="fc" id="L42">            log.warn(&quot;Intento de login fallido: usuario {} está inactivo&quot;, request.username());</span>
+<span class="fc" id="L43">            throw new UnauthorizedException(&quot;Credenciales inválidas&quot;);</span>
+        }
+
+<span class="fc bfc" id="L46" title="All 2 branches covered.">        if (!BCrypt.checkpw(request.password(), user.getPasswordHash())) {</span>
+<span class="fc" id="L47">            log.warn(&quot;Intento de login fallido: password incorrecto para usuario {}&quot;, request.username());</span>
+<span class="fc" id="L48">            throw new UnauthorizedException(&quot;Credenciales inválidas&quot;);</span>
+        }
+
+<span class="fc" id="L51">        String token = jwtPort.generateToken(</span>
+<span class="fc" id="L52">                user.getUsername(),</span>
+<span class="fc" id="L53">                user.getId(),</span>
+<span class="fc" id="L54">                user.getRole().getName(),</span>
+<span class="fc" id="L55">                user.getEcommerceId()</span>
+        );
+
+<span class="fc" id="L58">        log.info(&quot;Login exitoso para usuario: {} con role: {} y ecommerce_id: {}&quot;,</span>
+<span class="fc" id="L59">                user.getUsername(), user.getRole().getName(), user.getEcommerceId());</span>
+
+<span class="fc" id="L61">        return new LoginResponse(token, &quot;Bearer&quot;, user.getUsername(), user.getRole().getName());</span>
+    }
+
+    /**
+     * Obtiene datos del usuario autenticado validando el token JWT
+     * 
+     * @param token JWT token
+     * @return UserResponse con datos del usuario
+     * @throws UnauthorizedException si token inválido o usuario no existe/inactivo
+     */
+    @Override
+    public UserResponse getCurrentUser(String token) {
+<span class="fc" id="L73">        log.debug(&quot;Solicitando datos del usuario autenticado...&quot;);</span>
+
+        try {
+<span class="fc bfc" id="L76" title="All 2 branches covered.">            if (!jwtPort.validateToken(token)) {</span>
+<span class="fc" id="L77">                log.warn(&quot;Token JWT inválido o expirado&quot;);</span>
+<span class="fc" id="L78">                throw new UnauthorizedException(&quot;Token no válido o expirado&quot;);</span>
+            }
+
+<span class="fc" id="L81">            String username = jwtPort.getUsernameFromToken(token);</span>
+
+<span class="fc" id="L83">            UserEntity user = authPersistencePort.findByUsername(username)</span>
+<span class="fc" id="L84">                    .orElseThrow(() -&gt; {</span>
+<span class="fc" id="L85">                        log.warn(&quot;Usuario {} no encontrado en BD&quot;, username);</span>
+<span class="fc" id="L86">                        return new UnauthorizedException(&quot;Usuario no válido&quot;);</span>
+                    });
+
+<span class="fc bfc" id="L89" title="All 2 branches covered.">            if (!user.getIsActive()) {</span>
+<span class="fc" id="L90">                log.warn(&quot;Usuario {} fue desactivado después de emitir token&quot;, username);</span>
+<span class="fc" id="L91">                throw new UnauthorizedException(&quot;Usuario desactivado&quot;);</span>
+            }
+
+<span class="fc" id="L94">            log.info(&quot;Usuario actual retornado: {}&quot;, username);</span>
+
+<span class="fc" id="L96">            return new UserResponse(</span>
+<span class="fc" id="L97">                    user.getId(),</span>
+<span class="fc" id="L98">                    user.getUsername(),</span>
+<span class="fc" id="L99">                    user.getRoleId(),</span>
+<span class="fc" id="L100">                    user.getRole().getName(),</span>
+<span class="fc" id="L101">                    user.getEmail(),</span>
+<span class="fc" id="L102">                    user.getEcommerceId(),</span>
+<span class="fc" id="L103">                    user.getIsActive(),</span>
+<span class="fc" id="L104">                    user.getCreatedAt(),</span>
+<span class="fc" id="L105">                    user.getUpdatedAt()</span>
+            );
+<span class="fc" id="L107">        } catch (UnauthorizedException e) {</span>
+<span class="fc" id="L108">            throw e;</span>
+<span class="nc" id="L109">        } catch (Exception e) {</span>
+<span class="nc" id="L110">            log.error(&quot;Error inesperado en getCurrentUser: {}&quot;, e.getMessage());</span>
+<span class="nc" id="L111">            throw new UnauthorizedException(&quot;Token no válido o expirado&quot;);</span>
+        }
+    }
+
+    /**
+     * Logout stateless (solo confirmación del lado servidor)
+     * 
+     * @param token JWT token
+     */
+    @Override
+    public void logout(String token) {
+<span class="fc" id="L122">        log.debug(&quot;Logout realizado...&quot;);</span>
+
+        try {
+<span class="fc bfc" id="L125" title="All 2 branches covered.">            if (jwtPort.validateToken(token)) {</span>
+<span class="fc" id="L126">                String username = jwtPort.getUsernameFromToken(token);</span>
+<span class="fc" id="L127">                log.info(&quot;Logout exitoso para usuario: {}&quot;, username);</span>
+<span class="fc" id="L128">            } else {</span>
+<span class="fc" id="L129">                log.warn(&quot;Logout con token inválido&quot;);</span>
+            }
+<span class="nc" id="L131">        } catch (Exception e) {</span>
+<span class="nc" id="L132">            log.warn(&quot;Logout con token inválido: {}&quot;, e.getMessage());</span>
+<span class="fc" id="L133">        }</span>
+<span class="fc" id="L134">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

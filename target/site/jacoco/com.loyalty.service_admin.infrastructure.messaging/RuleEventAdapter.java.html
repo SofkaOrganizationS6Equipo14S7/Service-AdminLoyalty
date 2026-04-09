@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RuleEventAdapter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.infrastructure.messaging</a> &gt; <span class="el_source">RuleEventAdapter.java</span></div><h1>RuleEventAdapter.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.infrastructure.messaging;
+
+import com.loyalty.service_admin.application.port.out.RuleEventPort;
+import com.loyalty.service_admin.application.dto.events.RuleEvent;
+import com.loyalty.service_admin.domain.entity.RuleEntity;
+import com.loyalty.service_admin.domain.entity.DiscountPriorityEntity;
+import com.loyalty.service_admin.domain.repository.DiscountLimitPriorityRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.stereotype.Component;
+
+import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
+/**
+ * RuleEventAdapter - Adapter de eventos para RuleService.
+ *
+ * Implementa RuleEventPort publicando eventos a RabbitMQ.
+ * Desacopla RuleService de la implementación concreta de RabbitMQ.
+ */
+@Component
+@RequiredArgsConstructor
+<span class="fc" id="L26">@Slf4j</span>
+public class RuleEventAdapter implements RuleEventPort {
+
+    private final RabbitTemplate rabbitTemplate;
+    private final DiscountLimitPriorityRepository priorityRepository;
+
+    @Override
+    public void publishRuleCreated(
+            RuleEntity rule,
+            UUID ecommerceId,
+            Map&lt;String, String&gt; attributes,
+            String ruleType
+    ) {
+<span class="fc" id="L39">        publishRuleEvent(&quot;RULE_CREATED&quot;, rule, ecommerceId, attributes, ruleType);</span>
+<span class="fc" id="L40">    }</span>
+
+    @Override
+    public void publishRuleUpdated(
+            RuleEntity rule,
+            UUID ecommerceId,
+            Map&lt;String, String&gt; attributes,
+            String ruleType
+    ) {
+<span class="fc" id="L49">        publishRuleEvent(&quot;RULE_UPDATED&quot;, rule, ecommerceId, attributes, ruleType);</span>
+<span class="fc" id="L50">    }</span>
+
+    @Override
+    public void publishRuleDeleted(UUID ruleId, UUID ecommerceId, String ruleType) {
+        try {
+<span class="fc" id="L55">            Map&lt;String, Object&gt; eventData = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L56">            eventData.put(&quot;ruleId&quot;, ruleId);</span>
+<span class="fc" id="L57">            eventData.put(&quot;ecommerceId&quot;, ecommerceId);</span>
+<span class="fc" id="L58">            eventData.put(&quot;ruleType&quot;, ruleType);</span>
+<span class="fc" id="L59">            eventData.put(&quot;eventType&quot;, &quot;RULE_DELETED&quot;);</span>
+<span class="fc" id="L60">            eventData.put(&quot;timestamp&quot;, Instant.now());</span>
+
+<span class="fc" id="L62">            rabbitTemplate.convertAndSend(&quot;loyalty.events&quot;, &quot;rule.updated&quot;, eventData);</span>
+<span class="fc" id="L63">            log.info(&quot;Published RULE_DELETED event: ruleId={}, ecommerceId={}&quot;, ruleId, ecommerceId);</span>
+<span class="fc" id="L64">        } catch (Exception ex) {</span>
+<span class="fc" id="L65">            log.error(&quot;Failed to publish RULE_DELETED event: ruleId={}, ecommerceId={}&quot;, ruleId, ecommerceId, ex);</span>
+<span class="fc" id="L66">        }</span>
+<span class="fc" id="L67">    }</span>
+
+    @Override
+    public void publishRuleActivated(RuleEntity rule, UUID ecommerceId, String ruleType) {
+<span class="fc" id="L71">        publishRuleEvent(&quot;RULE_ACTIVATED&quot;, rule, ecommerceId, new HashMap&lt;&gt;(), ruleType);</span>
+<span class="fc" id="L72">    }</span>
+
+    @Override
+    public void publishRuleDeactivated(RuleEntity rule, UUID ecommerceId, String ruleType) {
+<span class="fc" id="L76">        publishRuleEvent(&quot;RULE_DEACTIVATED&quot;, rule, ecommerceId, new HashMap&lt;&gt;(), ruleType);</span>
+<span class="fc" id="L77">    }</span>
+
+    @Override
+    public void publishTiersAssignedToRule(UUID ruleId, UUID ecommerceId, Iterable&lt;UUID&gt; tierIds) {
+        try {
+<span class="fc" id="L82">            Map&lt;String, Object&gt; eventData = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L83">            eventData.put(&quot;ruleId&quot;, ruleId);</span>
+<span class="fc" id="L84">            eventData.put(&quot;ecommerceId&quot;, ecommerceId);</span>
+<span class="fc" id="L85">            eventData.put(&quot;tierIds&quot;, tierIds);</span>
+<span class="fc" id="L86">            eventData.put(&quot;eventType&quot;, &quot;TIERS_ASSIGNED_TO_RULE&quot;);</span>
+<span class="fc" id="L87">            eventData.put(&quot;timestamp&quot;, Instant.now());</span>
+
+<span class="fc" id="L89">            rabbitTemplate.convertAndSend(&quot;loyalty.events&quot;, &quot;rule.updated&quot;, eventData);</span>
+<span class="fc" id="L90">            log.info(&quot;Published TIERS_ASSIGNED_TO_RULE event: ruleId={}, ecommerceId={}&quot;, ruleId, ecommerceId);</span>
+<span class="fc" id="L91">        } catch (Exception ex) {</span>
+<span class="fc" id="L92">            log.error(&quot;Failed to publish TIERS_ASSIGNED_TO_RULE event: ruleId={}, ecommerceId={}&quot;, ruleId, ecommerceId, ex);</span>
+<span class="fc" id="L93">        }</span>
+<span class="fc" id="L94">    }</span>
+
+    @Override
+    public void publishTierRemovedFromRule(UUID ruleId, UUID ecommerceId, UUID tierId) {
+        try {
+<span class="fc" id="L99">            Map&lt;String, Object&gt; eventData = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L100">            eventData.put(&quot;ruleId&quot;, ruleId);</span>
+<span class="fc" id="L101">            eventData.put(&quot;ecommerceId&quot;, ecommerceId);</span>
+<span class="fc" id="L102">            eventData.put(&quot;tierId&quot;, tierId);</span>
+<span class="fc" id="L103">            eventData.put(&quot;eventType&quot;, &quot;TIER_REMOVED_FROM_RULE&quot;);</span>
+<span class="fc" id="L104">            eventData.put(&quot;timestamp&quot;, Instant.now());</span>
+
+<span class="fc" id="L106">            rabbitTemplate.convertAndSend(&quot;loyalty.events&quot;, &quot;rule.updated&quot;, eventData);</span>
+<span class="fc" id="L107">            log.info(&quot;Published TIER_REMOVED_FROM_RULE event: ruleId={}, tierId={}&quot;, ruleId, tierId);</span>
+<span class="fc" id="L108">        } catch (Exception ex) {</span>
+<span class="fc" id="L109">            log.error(&quot;Failed to publish TIER_REMOVED_FROM_RULE event: ruleId={}, tierId={}&quot;, ruleId, tierId, ex);</span>
+<span class="fc" id="L110">        }</span>
+<span class="fc" id="L111">    }</span>
+
+    @Override
+    public void publishClassificationRuleCreated(UUID tierId, UUID ecommerceId, Map&lt;String, String&gt; attributes) {
+        try {
+<span class="fc" id="L116">            Map&lt;String, Object&gt; eventData = new HashMap&lt;&gt;(attributes);</span>
+<span class="fc" id="L117">            eventData.put(&quot;tierId&quot;, tierId);</span>
+<span class="fc" id="L118">            eventData.put(&quot;ecommerceId&quot;, ecommerceId);</span>
+<span class="fc" id="L119">            eventData.put(&quot;eventType&quot;, &quot;CLASSIFICATION_RULE_CREATED&quot;);</span>
+<span class="fc" id="L120">            eventData.put(&quot;timestamp&quot;, Instant.now());</span>
+
+<span class="fc" id="L122">            rabbitTemplate.convertAndSend(&quot;loyalty.events&quot;, &quot;rule.updated&quot;, eventData);</span>
+<span class="fc" id="L123">            log.info(&quot;Published CLASSIFICATION_RULE_CREATED event: tierId={}, ecommerceId={}&quot;, tierId, ecommerceId);</span>
+<span class="fc" id="L124">        } catch (Exception ex) {</span>
+<span class="fc" id="L125">            log.error(&quot;Failed to publish CLASSIFICATION_RULE_CREATED event: tierId={}, ecommerceId={}&quot;, tierId, ecommerceId, ex);</span>
+<span class="fc" id="L126">        }</span>
+<span class="fc" id="L127">    }</span>
+
+    @Override
+    public void publishClassificationRuleUpdated(UUID tierId, UUID ecommerceId, Map&lt;String, String&gt; attributes) {
+        try {
+<span class="fc" id="L132">            Map&lt;String, Object&gt; eventData = new HashMap&lt;&gt;(attributes);</span>
+<span class="fc" id="L133">            eventData.put(&quot;tierId&quot;, tierId);</span>
+<span class="fc" id="L134">            eventData.put(&quot;ecommerceId&quot;, ecommerceId);</span>
+<span class="fc" id="L135">            eventData.put(&quot;eventType&quot;, &quot;CLASSIFICATION_RULE_UPDATED&quot;);</span>
+<span class="fc" id="L136">            eventData.put(&quot;timestamp&quot;, Instant.now());</span>
+
+<span class="fc" id="L138">            rabbitTemplate.convertAndSend(&quot;loyalty.events&quot;, &quot;rule.updated&quot;, eventData);</span>
+<span class="fc" id="L139">            log.info(&quot;Published CLASSIFICATION_RULE_UPDATED event: tierId={}, ecommerceId={}&quot;, tierId, ecommerceId);</span>
+<span class="fc" id="L140">        } catch (Exception ex) {</span>
+<span class="fc" id="L141">            log.error(&quot;Failed to publish CLASSIFICATION_RULE_UPDATED event: tierId={}, ecommerceId={}&quot;, tierId, ecommerceId, ex);</span>
+<span class="fc" id="L142">        }</span>
+<span class="fc" id="L143">    }</span>
+
+    @Override
+    public void publishClassificationRuleDeleted(UUID tierId, UUID ruleId, UUID ecommerceId) {
+        try {
+<span class="fc" id="L148">            Map&lt;String, Object&gt; eventData = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L149">            eventData.put(&quot;tierId&quot;, tierId);</span>
+<span class="fc" id="L150">            eventData.put(&quot;ruleId&quot;, ruleId);</span>
+<span class="fc" id="L151">            eventData.put(&quot;ecommerceId&quot;, ecommerceId);</span>
+<span class="fc" id="L152">            eventData.put(&quot;eventType&quot;, &quot;CLASSIFICATION_RULE_DELETED&quot;);</span>
+<span class="fc" id="L153">            eventData.put(&quot;timestamp&quot;, Instant.now());</span>
+
+<span class="fc" id="L155">            rabbitTemplate.convertAndSend(&quot;loyalty.events&quot;, &quot;rule.updated&quot;, eventData);</span>
+<span class="fc" id="L156">            log.info(&quot;Published CLASSIFICATION_RULE_DELETED event: tierId={}, ruleId={}&quot;, tierId, ruleId);</span>
+<span class="fc" id="L157">        } catch (Exception ex) {</span>
+<span class="fc" id="L158">            log.error(&quot;Failed to publish CLASSIFICATION_RULE_DELETED event: tierId={}, ruleId={}&quot;, tierId, ruleId, ex);</span>
+<span class="fc" id="L159">        }</span>
+<span class="fc" id="L160">    }</span>
+
+    // ===== PRIVATE HELPERS =====
+
+    private void publishRuleEvent(
+            String eventType,
+            RuleEntity rule,
+            UUID ecommerceId,
+            Map&lt;String, String&gt; attributes,
+            String typeCode
+    ) {
+        try {
+<span class="fc" id="L172">            Map&lt;String, Object&gt; logicConditions = new HashMap&lt;&gt;(attributes);</span>
+
+<span class="fc" id="L174">            RuleEvent event = new RuleEvent(</span>
+                eventType,
+<span class="fc" id="L176">                rule.getId(),</span>
+                ecommerceId,
+<span class="fc" id="L178">                rule.getName(),</span>
+<span class="fc" id="L179">                rule.getDescription(),</span>
+                typeCode,
+<span class="fc" id="L181">                rule.getDiscountPercentage(),</span>
+<span class="fc" id="L182">                resolvePriorityLevel(rule.getDiscountPriorityId()),</span>
+                logicConditions,
+<span class="fc" id="L184">                rule.getIsActive(),</span>
+                &quot;INDIVIDUAL&quot;,
+<span class="fc" id="L186">                Instant.now()</span>
+            );
+
+<span class="fc" id="L189">            rabbitTemplate.convertAndSend(&quot;loyalty.events&quot;, &quot;rule.updated&quot;, event);</span>
+<span class="fc" id="L190">            log.info(&quot;Published RuleEvent: eventType={}, ruleId={}, discountTypeCode={}, ecommerceId={}&quot;,</span>
+<span class="fc" id="L191">                eventType, rule.getId(), typeCode, ecommerceId);</span>
+<span class="fc" id="L192">        } catch (Exception ex) {</span>
+<span class="fc" id="L193">            log.error(&quot;Failed to publish RuleEvent: eventType={}, ruleId={}, typeCode={}&quot;,</span>
+<span class="fc" id="L194">                eventType, rule.getId(), typeCode, ex);</span>
+<span class="fc" id="L195">        }</span>
+<span class="fc" id="L196">    }</span>
+
+    private Integer resolvePriorityLevel(UUID discountPriorityId) {
+<span class="fc" id="L199">        DiscountPriorityEntity priority = priorityRepository.findById(discountPriorityId).orElse(null);</span>
+<span class="fc bfc" id="L200" title="All 2 branches covered.">        return priority != null ? priority.getPriorityLevel() : 1;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

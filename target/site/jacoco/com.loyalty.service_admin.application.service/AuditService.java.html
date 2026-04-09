@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AuditService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.application.service</a> &gt; <span class="el_source">AuditService.java</span></div><h1>AuditService.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.application.service;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.loyalty.service_admin.domain.entity.AuditLogEntity;
+import com.loyalty.service_admin.domain.entity.UserEntity;
+import com.loyalty.service_admin.domain.repository.AuditLogRepository;
+import com.loyalty.service_admin.infrastructure.security.SecurityContextHelper;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Map;
+import java.util.UUID;
+
+@Service
+@RequiredArgsConstructor
+<span class="fc" id="L19">@Slf4j</span>
+public class AuditService {
+    
+    private final AuditLogRepository auditLogRepository;
+    private final SecurityContextHelper securityContextHelper;
+    private final ObjectMapper objectMapper;
+
+    private String toJson(Map&lt;String, Object&gt; data) {
+        try {
+<span class="fc" id="L28">            return objectMapper.writeValueAsString(data);</span>
+<span class="fc" id="L29">        } catch (JsonProcessingException e) {</span>
+<span class="fc" id="L30">            log.warn(&quot;Error serializando audit value a JSON&quot;, e);</span>
+<span class="fc" id="L31">            return &quot;{\&quot;error\&quot;:\&quot;serialization_failed\&quot;}&quot;;</span>
+        }
+    }
+    
+    @Transactional
+    public void auditProfileUpdate(UUID userId, String email) {
+<span class="fc" id="L37">        AuditLogEntity auditLog = AuditLogEntity.builder()</span>
+<span class="fc" id="L38">                .userId(userId)</span>
+<span class="fc" id="L39">                .action(&quot;PROFILE_UPDATE&quot;)</span>
+<span class="fc" id="L40">                .entityName(&quot;USER_PROFILE&quot;)</span>
+<span class="fc" id="L41">                .entityId(userId)</span>
+<span class="fc bfc" id="L42" title="All 2 branches covered.">                .newValue(toJson(Map.of(&quot;email&quot;, email != null ? email : &quot;&quot;)))</span>
+<span class="fc" id="L43">                .build();</span>
+        
+<span class="fc" id="L45">        auditLogRepository.save(auditLog);</span>
+<span class="fc" id="L46">        log.debug(&quot;Auditoría registrada: PROFILE_UPDATE para usuario {}&quot;, userId);</span>
+<span class="fc" id="L47">    }</span>
+    
+    @Transactional
+    public void auditPasswordChange(UUID userId, String description) {
+<span class="fc" id="L51">        AuditLogEntity auditLog = AuditLogEntity.builder()</span>
+<span class="fc" id="L52">                .userId(userId)</span>
+<span class="fc" id="L53">                .action(&quot;PASSWORD_CHANGE&quot;)</span>
+<span class="fc" id="L54">                .entityName(&quot;USER_PASSWORD&quot;)</span>
+<span class="fc" id="L55">                .entityId(userId)</span>
+<span class="pc bpc" id="L56" title="1 of 2 branches missed.">                .newValue(toJson(Map.of(&quot;description&quot;, description != null ? description : &quot;Password changed&quot;)))</span>
+<span class="fc" id="L57">                .build();</span>
+        
+<span class="fc" id="L59">        auditLogRepository.save(auditLog);</span>
+<span class="fc" id="L60">        log.debug(&quot;Auditoría registrada: PASSWORD_CHANGE para usuario {}&quot;, userId);</span>
+<span class="fc" id="L61">    }</span>
+    
+    @Transactional
+    public void auditRoleChange(UUID userId, Object oldRole, Object newRole) {
+<span class="fc" id="L65">        AuditLogEntity auditLog = AuditLogEntity.builder()</span>
+<span class="fc" id="L66">                .userId(userId)</span>
+<span class="fc" id="L67">                .action(&quot;ROLE_CHANGE&quot;)</span>
+<span class="fc" id="L68">                .entityName(&quot;USER_ROLE&quot;)</span>
+<span class="fc" id="L69">                .entityId(userId)</span>
+<span class="fc bfc" id="L70" title="All 2 branches covered.">                .oldValue(toJson(Map.of(&quot;role&quot;, oldRole != null ? oldRole.toString() : &quot;&quot;)))</span>
+<span class="fc bfc" id="L71" title="All 2 branches covered.">                .newValue(toJson(Map.of(&quot;role&quot;, newRole != null ? newRole.toString() : &quot;&quot;)))</span>
+<span class="fc" id="L72">                .build();</span>
+        
+<span class="fc" id="L74">        auditLogRepository.save(auditLog);</span>
+<span class="fc" id="L75">        log.debug(&quot;Auditoría registrada: ROLE_CHANGE para usuario {}&quot;, userId);</span>
+<span class="fc" id="L76">    }</span>
+    
+    @Transactional
+    public void auditEcommerceChange(UUID userId, UUID oldEcommerceId, UUID newEcommerceId) {
+<span class="fc" id="L80">        AuditLogEntity auditLog = AuditLogEntity.builder()</span>
+<span class="fc" id="L81">                .userId(userId)</span>
+<span class="fc" id="L82">                .action(&quot;ECOMMERCE_CHANGE&quot;)</span>
+<span class="fc" id="L83">                .entityName(&quot;USER_ECOMMERCE&quot;)</span>
+<span class="fc" id="L84">                .entityId(userId)</span>
+<span class="pc bpc" id="L85" title="1 of 2 branches missed.">                .oldValue(toJson(Map.of(&quot;ecommerceId&quot;, oldEcommerceId != null ? oldEcommerceId.toString() : &quot;&quot;)))</span>
+<span class="pc bpc" id="L86" title="1 of 2 branches missed.">                .newValue(toJson(Map.of(&quot;ecommerceId&quot;, newEcommerceId != null ? newEcommerceId.toString() : &quot;&quot;)))</span>
+<span class="fc" id="L87">                .build();</span>
+        
+<span class="fc" id="L89">        auditLogRepository.save(auditLog);</span>
+<span class="fc" id="L90">        log.debug(&quot;Auditoría registrada: ECOMMERCE_CHANGE para usuario {}&quot;, userId);</span>
+<span class="fc" id="L91">    }</span>
+    
+    @Transactional
+    public void auditUserDeletion(UserEntity user, UUID actorUid) {
+<span class="fc" id="L95">        AuditLogEntity auditLog = AuditLogEntity.builder()</span>
+<span class="fc" id="L96">                .userId(user.getId())</span>
+<span class="fc" id="L97">                .ecommerceId(user.getEcommerceId())</span>
+<span class="fc" id="L98">                .action(&quot;USER_DELETE&quot;)</span>
+<span class="fc" id="L99">                .entityName(&quot;USER&quot;)</span>
+<span class="fc" id="L100">                .entityId(user.getId())</span>
+<span class="fc" id="L101">                .oldValue(toJson(Map.of(</span>
+<span class="fc" id="L102">                    &quot;username&quot;, user.getUsername(),</span>
+<span class="pc bpc" id="L103" title="1 of 2 branches missed.">                    &quot;email&quot;, user.getEmail() != null ? user.getEmail() : &quot;&quot;,</span>
+<span class="pc bpc" id="L104" title="1 of 2 branches missed.">                    &quot;role_name&quot;, user.getRole() != null ? user.getRole().getName() : &quot;&quot;,</span>
+<span class="pc bpc" id="L105" title="1 of 2 branches missed.">                    &quot;ecommerce_id&quot;, user.getEcommerceId() != null ? user.getEcommerceId().toString() : &quot;&quot;</span>
+                )))
+<span class="fc" id="L107">                .newValue(toJson(Map.of(</span>
+<span class="fc" id="L108">                    &quot;actor_uid&quot;, actorUid.toString(),</span>
+                    &quot;action&quot;, &quot;USER_DELETE&quot;
+                )))
+<span class="fc" id="L111">                .build();</span>
+        
+<span class="fc" id="L113">        auditLogRepository.save(auditLog);</span>
+<span class="fc" id="L114">        log.info(&quot;Auditoría registrada: USER_DELETE para usuario {} por actor {}&quot;, user.getId(), actorUid);</span>
+<span class="fc" id="L115">    }</span>
+    
+    @Transactional
+    public void auditUserCreation(UserEntity user, UUID actorUid) {
+<span class="fc" id="L119">        AuditLogEntity auditLog = AuditLogEntity.builder()</span>
+<span class="fc" id="L120">                .userId(user.getId())</span>
+<span class="fc" id="L121">                .ecommerceId(user.getEcommerceId())</span>
+<span class="fc" id="L122">                .action(&quot;USER_CREATE&quot;)</span>
+<span class="fc" id="L123">                .entityName(&quot;USER&quot;)</span>
+<span class="fc" id="L124">                .entityId(user.getId())</span>
+<span class="fc" id="L125">                .newValue(toJson(Map.of(</span>
+<span class="fc" id="L126">                    &quot;username&quot;, user.getUsername(),</span>
+<span class="pc bpc" id="L127" title="1 of 2 branches missed.">                    &quot;email&quot;, user.getEmail() != null ? user.getEmail() : &quot;&quot;,</span>
+<span class="pc bpc" id="L128" title="1 of 2 branches missed.">                    &quot;role_name&quot;, user.getRole() != null ? user.getRole().getName() : &quot;&quot;,</span>
+<span class="pc bpc" id="L129" title="1 of 2 branches missed.">                    &quot;ecommerce_id&quot;, user.getEcommerceId() != null ? user.getEcommerceId().toString() : &quot;&quot;,</span>
+<span class="fc" id="L130">                    &quot;actor_uid&quot;, actorUid.toString()</span>
+                )))
+<span class="fc" id="L132">                .build();</span>
+        
+<span class="fc" id="L134">        auditLogRepository.save(auditLog);</span>
+<span class="fc" id="L135">        log.info(&quot;Auditoría registrada: USER_CREATE para usuario {} por actor {}&quot;, user.getId(), actorUid);</span>
+<span class="fc" id="L136">    }</span>
+    
+    @Transactional
+    public void auditUserUpdate(UserEntity user, UUID actorUid) {
+<span class="fc" id="L140">        AuditLogEntity auditLog = AuditLogEntity.builder()</span>
+<span class="fc" id="L141">                .userId(user.getId())</span>
+<span class="fc" id="L142">                .ecommerceId(user.getEcommerceId())</span>
+<span class="fc" id="L143">                .action(&quot;USER_UPDATE&quot;)</span>
+<span class="fc" id="L144">                .entityName(&quot;USER&quot;)</span>
+<span class="fc" id="L145">                .entityId(user.getId())</span>
+<span class="fc" id="L146">                .newValue(toJson(Map.of(</span>
+<span class="fc" id="L147">                    &quot;username&quot;, user.getUsername(),</span>
+<span class="pc bpc" id="L148" title="1 of 2 branches missed.">                    &quot;email&quot;, user.getEmail() != null ? user.getEmail() : &quot;&quot;,</span>
+<span class="pc bpc" id="L149" title="1 of 2 branches missed.">                    &quot;role_name&quot;, user.getRole() != null ? user.getRole().getName() : &quot;&quot;,</span>
+<span class="pc bpc" id="L150" title="1 of 2 branches missed.">                    &quot;ecommerce_id&quot;, user.getEcommerceId() != null ? user.getEcommerceId().toString() : &quot;&quot;,</span>
+<span class="fc" id="L151">                    &quot;actor_uid&quot;, actorUid.toString()</span>
+                )))
+<span class="fc" id="L153">                .build();</span>
+        
+<span class="fc" id="L155">        auditLogRepository.save(auditLog);</span>
+<span class="fc" id="L156">        log.info(&quot;Auditoría registrada: USER_UPDATE para usuario {} por actor {}&quot;, user.getId(), actorUid);</span>
+<span class="fc" id="L157">    }</span>
+}
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

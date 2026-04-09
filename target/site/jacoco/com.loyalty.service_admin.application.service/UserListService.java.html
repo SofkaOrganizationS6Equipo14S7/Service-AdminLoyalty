@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserListService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.application.service</a> &gt; <span class="el_source">UserListService.java</span></div><h1>UserListService.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.application.service;
+
+import com.loyalty.service_admin.application.dto.user.UserResponse;
+import com.loyalty.service_admin.application.port.in.UserListUseCase;
+import com.loyalty.service_admin.application.port.out.UserListPersistencePort;
+import com.loyalty.service_admin.domain.entity.UserEntity;
+import com.loyalty.service_admin.infrastructure.exception.AuthorizationException;
+import com.loyalty.service_admin.infrastructure.exception.UnauthorizedException;
+import com.loyalty.service_admin.infrastructure.security.SecurityContextHelper;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.UUID;
+
+/**
+ * Implementación del caso de uso: Listado de Usuarios.
+ *
+ * Responsabilidades:
+ * - Validar autenticación
+ * - Aplicar filtrado según rol
+ * - Implementar paginación
+ * - Retornar Page&lt;UserResponse&gt;
+ *
+ * Patrón: Inyecta puertos (NO implementaciones concretas).
+ */
+@Service
+@RequiredArgsConstructor
+<span class="fc" id="L32">@Slf4j</span>
+public class UserListService implements UserListUseCase {
+    
+    private final UserListPersistencePort userListPersistencePort;
+    private final SecurityContextHelper securityContextHelper;
+    
+    /**
+     * Lista usuarios del sistema con soporte para paginación y filtrado.
+     *
+     * Workflow:
+     * 1. Validar usuario autenticado
+     * 2. Obtener rol del usuario
+     * 3. Aplicar filtrado según rol:
+     *    - SUPER_ADMIN: listar todos (o filtrar por ecommerce si se proporciona)
+     *    - STORE_ADMIN: listar solo usuarios de su ecommerce
+     *    - STANDARD: lanzar AuthorizationException
+     * 4. Retornar Page&lt;UserResponse&gt; paginada
+     *
+     * @param ecommerceId filtro opcional por ecommerce
+     * @param pageable información de paginación
+     * @return Page&lt;UserResponse&gt; con usuarios paginados
+     * @throws UnauthorizedException si usuario no autenticado
+     * @throws AuthorizationException si STANDARD intenta listar o acceso cruzado
+     */
+    @Transactional(readOnly = true)
+    @Override
+    public Page&lt;UserResponse&gt; listUsers(UUID ecommerceId, Pageable pageable) {
+        // 1. Validar usuario autenticado
+        String currentRole;
+        UUID currentUserEcommerceId;
+        
+        try {
+<span class="fc" id="L64">            currentRole = securityContextHelper.getCurrentUserRole();</span>
+<span class="fc" id="L65">            currentUserEcommerceId = securityContextHelper.getCurrentUserEcommerceId();</span>
+<span class="fc" id="L66">        } catch (Exception e) {</span>
+<span class="fc" id="L67">            log.warn(&quot;Error obteniendo usuario autenticado: {}&quot;, e.getMessage());</span>
+<span class="fc" id="L68">            throw new UnauthorizedException(&quot;Usuario no autenticado&quot;);</span>
+<span class="fc" id="L69">        }</span>
+        
+<span class="fc bfc" id="L71" title="All 2 branches covered.">        if (currentRole == null) {</span>
+<span class="fc" id="L72">            log.warn(&quot;Usuario autenticado sin rol válido&quot;);</span>
+<span class="fc" id="L73">            throw new UnauthorizedException(&quot;Usuario no autenticado&quot;);</span>
+        }
+        
+        // 2. Aplicar filtrado según rol
+        Page&lt;UserEntity&gt; result;
+        
+<span class="fc bfc" id="L79" title="All 2 branches covered.">        if (&quot;SUPER_ADMIN&quot;.equals(currentRole)) {</span>
+            // SUPER_ADMIN: listar todos (o filtrar by param)
+<span class="fc bfc" id="L81" title="All 2 branches covered.">            if (ecommerceId != null) {</span>
+<span class="fc" id="L82">                result = userListPersistencePort.findByEcommerceId(ecommerceId, pageable);</span>
+            } else {
+<span class="fc" id="L84">                result = userListPersistencePort.findAll(pageable);</span>
+            }
+<span class="fc bfc" id="L86" title="All 2 branches covered.">        } else if (&quot;STORE_ADMIN&quot;.equals(currentRole)) {</span>
+            // STORE_ADMIN: listar solo de su ecommerce
+<span class="pc bpc" id="L88" title="1 of 4 branches missed.">            if (ecommerceId != null &amp;&amp; !ecommerceId.equals(currentUserEcommerceId)) {</span>
+<span class="fc" id="L89">                log.warn(&quot;STORE_ADMIN intenta acceso cruzado: user ecommerce={}, requested={}&quot;, </span>
+                        currentUserEcommerceId, ecommerceId);
+<span class="fc" id="L91">                throw new AuthorizationException(&quot;No tiene permiso para acceder a este ecommerce&quot;);</span>
+            }
+<span class="fc" id="L93">            result = userListPersistencePort.findByEcommerceId(currentUserEcommerceId, pageable);</span>
+        } else {
+            // STANDARD: no puede listar usuarios
+<span class="fc" id="L96">            log.warn(&quot;Usuario STANDARD intenta listar usuarios&quot;);</span>
+<span class="fc" id="L97">            throw new AuthorizationException(&quot;No tiene permiso para listar usuarios&quot;);</span>
+        }
+        
+        // 3. Convertir a UserResponse
+<span class="fc" id="L101">        return result.map(this::toResponse);</span>
+    }
+    
+    private UserResponse toResponse(UserEntity user) {
+<span class="fc" id="L105">        return new UserResponse(</span>
+<span class="fc" id="L106">                user.getId(),</span>
+<span class="fc" id="L107">                user.getUsername(),</span>
+<span class="fc" id="L108">                user.getRoleId(),</span>
+<span class="pc bpc" id="L109" title="1 of 2 branches missed.">                user.getRole() != null ? user.getRole().getName() : null,</span>
+<span class="fc" id="L110">                user.getEmail(),</span>
+<span class="fc" id="L111">                user.getEcommerceId(),</span>
+<span class="fc" id="L112">                user.getIsActive(),</span>
+<span class="fc" id="L113">                user.getCreatedAt(),</span>
+<span class="fc" id="L114">                user.getUpdatedAt()</span>
+        );
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

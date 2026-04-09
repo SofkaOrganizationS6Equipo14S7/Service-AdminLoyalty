@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ApiKeyService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.application.service</a> &gt; <span class="el_source">ApiKeyService.java</span></div><h1>ApiKeyService.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.application.service;
+
+import com.loyalty.service_admin.application.dto.apikey.ApiKeyCreatedResponse;
+import com.loyalty.service_admin.application.dto.apikey.ApiKeyEventPayload;
+import com.loyalty.service_admin.application.dto.apikey.ApiKeyListResponse;
+import com.loyalty.service_admin.application.port.in.ApiKeyUseCase;
+import com.loyalty.service_admin.application.port.out.ApiKeyEventPort;
+import com.loyalty.service_admin.application.port.out.ApiKeyPersistencePort;
+import com.loyalty.service_admin.domain.entity.ApiKeyEntity;
+import com.loyalty.service_admin.infrastructure.exception.ApiKeyNotFoundException;
+import com.loyalty.service_admin.infrastructure.util.HashingUtil;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+/**
+ * Implementación del use case de API Keys usando Arquitectura Hexagonal.
+ * 
+ * Responsabilidades:
+ * - Orquestar la lógica de negocio de creación, listado y eliminación de API Keys
+ * - Delegar persistencia al puerto out (ApiKeyPersistencePort)
+ * - Delegar eventos al puerto out (ApiKeyEventPort)
+ * - Validar existencia de ecommerce (delegado a EcommerceService)
+ * - Garantizar que la lógica es testeable sin Spring Context
+ * 
+ * Reglas de Negocio:
+ * - API Keys se generan como UUID v4
+ * - En BD se guardan como SHA-256 (nunca plaintext)
+ * - En respuesta 201 se devuelven sin enmascarar (una sola vez)
+ * - En respuesta GET se devuelven enmascaradas (****XXXX)
+ * - Expiración: 365 días desde creación
+ * - Eventos siempre se publican (con o sin persistencia)
+ */
+@Service
+@RequiredArgsConstructor
+<span class="fc" id="L42">@Slf4j</span>
+public class ApiKeyService implements ApiKeyUseCase {
+    
+    private final ApiKeyPersistencePort persistencePort;
+    private final ApiKeyEventPort eventPort;
+    private final EcommerceService ecommerceService;
+    
+    @Override
+    @Transactional
+    public ApiKeyCreatedResponse createApiKey(UUID ecommerceId) {
+        // Validar que el ecommerce existe
+<span class="fc" id="L53">        ecommerceService.validateEcommerceExists(ecommerceId);</span>
+        
+        // Generar plainkey (UUID v4)
+<span class="fc" id="L56">        String plainKeyValue = UUID.randomUUID().toString();</span>
+<span class="fc" id="L57">        String hashedKeyValue = HashingUtil.sha256(plainKeyValue);</span>
+        
+        // Crear entidad
+<span class="fc" id="L60">        ApiKeyEntity entity = new ApiKeyEntity();</span>
+<span class="fc" id="L61">        entity.setHashedKey(hashedKeyValue);</span>
+<span class="fc" id="L62">        entity.setEcommerceId(ecommerceId);</span>
+<span class="fc" id="L63">        entity.setIsActive(true);</span>
+<span class="fc" id="L64">        entity.setExpiresAt(Instant.now().plus(java.time.Duration.ofDays(365)));</span>
+        
+        // Persistir a través del puerto
+<span class="fc" id="L67">        ApiKeyEntity saved = persistencePort.save(entity);</span>
+        
+        // Publicar evento
+<span class="fc" id="L70">        ApiKeyEventPayload event = new ApiKeyEventPayload(</span>
+            &quot;API_KEY_CREATED&quot;,
+<span class="fc" id="L72">            saved.getId().toString(),</span>
+            hashedKeyValue,
+<span class="fc" id="L74">            ecommerceId.toString(),</span>
+<span class="fc" id="L75">            Instant.now()</span>
+        );
+<span class="fc" id="L77">        eventPort.publishApiKeyCreated(event);</span>
+        
+<span class="fc" id="L79">        log.info(&quot;API Key created for ecommerce: {}, keyId: {}&quot;, ecommerceId, saved.getId());</span>
+        
+        // Retornar response con plainkey (SIN enmascarar)
+<span class="fc" id="L82">        return toApiKeyCreatedResponse(saved, plainKeyValue);</span>
+    }
+    
+    @Override
+    @Transactional(readOnly = true)
+    public List&lt;ApiKeyListResponse&gt; getApiKeysByEcommerce(UUID ecommerceId) {
+        // Validar que el ecommerce existe
+<span class="fc" id="L89">        ecommerceService.validateEcommerceExists(ecommerceId);</span>
+        
+        // Consultar a través del puerto
+<span class="fc" id="L92">        List&lt;ApiKeyEntity&gt; keys = persistencePort.findByEcommerceId(ecommerceId);</span>
+        
+        // Mapear a responses con masking
+<span class="fc" id="L95">        return keys.stream()</span>
+<span class="fc" id="L96">            .map(this::toApiKeyListResponse)</span>
+<span class="fc" id="L97">            .collect(Collectors.toList());</span>
+    }
+    
+    @Override
+    @Transactional
+    public void deleteApiKey(UUID ecommerceId, UUID keyId) {
+        // Validar que el ecommerce existe
+<span class="fc" id="L104">        ecommerceService.validateEcommerceExists(ecommerceId);</span>
+        
+        // Recuperar la key a través del puerto
+<span class="fc" id="L107">        ApiKeyEntity key = persistencePort.findById(keyId)</span>
+<span class="fc" id="L108">            .orElseThrow(() -&gt; new ApiKeyNotFoundException(&quot;API Key no encontrada&quot;));</span>
+        
+        // Validar que pertenece al ecommerce
+<span class="fc bfc" id="L111" title="All 2 branches covered.">        if (!key.getEcommerceId().equals(ecommerceId)) {</span>
+<span class="fc" id="L112">            throw new ApiKeyNotFoundException(&quot;API Key no pertenece a este ecommerce&quot;);</span>
+        }
+        
+        // Publicar evento ANTES de eliminar
+<span class="fc" id="L116">        ApiKeyEventPayload event = new ApiKeyEventPayload(</span>
+            &quot;API_KEY_DELETED&quot;,
+<span class="fc" id="L118">            key.getId().toString(),</span>
+<span class="fc" id="L119">            key.getHashedKey(),</span>
+<span class="fc" id="L120">            ecommerceId.toString(),</span>
+<span class="fc" id="L121">            Instant.now()</span>
+        );
+<span class="fc" id="L123">        eventPort.publishApiKeyDeleted(event);</span>
+        
+        // Eliminar a través del puerto
+<span class="fc" id="L126">        persistencePort.deleteById(keyId);</span>
+        
+<span class="fc" id="L128">        log.info(&quot;API Key deleted for ecommerce: {}, keyId: {}&quot;, ecommerceId, keyId);</span>
+<span class="fc" id="L129">    }</span>
+    
+    /**
+     * Convierte entidad a response con plainkey sin enmascarar.
+     * Se usa en response 201 Create (una sola ocasión para copiar la clave).
+     */
+    private ApiKeyCreatedResponse toApiKeyCreatedResponse(ApiKeyEntity entity, String plainKeyValue) {
+<span class="fc" id="L136">        return new ApiKeyCreatedResponse(</span>
+<span class="fc" id="L137">            entity.getId(),</span>
+            plainKeyValue,
+<span class="fc" id="L139">            entity.getExpiresAt(),</span>
+<span class="fc" id="L140">            entity.getEcommerceId(),</span>
+<span class="fc" id="L141">            entity.getCreatedAt(),</span>
+<span class="fc" id="L142">            entity.getUpdatedAt()</span>
+        );
+    }
+    
+    /**
+     * Convierte entidad a response con masking.
+     * Se usa en response 200 Get (listado de claves).
+     */
+    private ApiKeyListResponse toApiKeyListResponse(ApiKeyEntity entity) {
+<span class="fc" id="L151">        return new ApiKeyListResponse(</span>
+<span class="fc" id="L152">            entity.getId(),</span>
+<span class="fc" id="L153">            maskKey(entity.getHashedKey()),</span>
+<span class="fc" id="L154">            entity.getExpiresAt(),</span>
+<span class="fc" id="L155">            entity.getIsActive(),</span>
+<span class="fc" id="L156">            entity.getCreatedAt(),</span>
+<span class="fc" id="L157">            entity.getUpdatedAt()</span>
+        );
+    }
+    
+    /**
+     * Enmascara una clave para mostrar solo los últimos 4 caracteres.
+     * Formato: ****XXXX (donde XXXX son los últimos 4 caracteres)
+     */
+    private String maskKey(String keyString) {
+<span class="pc bpc" id="L166" title="2 of 4 branches missed.">        if (keyString == null || keyString.length() &lt; 4) {</span>
+<span class="nc" id="L167">            return &quot;****&quot;;</span>
+        }
+<span class="fc" id="L169">        String lastFour = keyString.substring(keyString.length() - 4);</span>
+<span class="fc" id="L170">        return &quot;****&quot; + lastFour;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DiscountSettingsEntity.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.domain.entity</a> &gt; <span class="el_source">DiscountSettingsEntity.java</span></div><h1>DiscountSettingsEntity.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.domain.entity;
+
+import com.loyalty.service_admin.domain.model.RoundingRule;
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+
+@Entity
+@Table(name = &quot;discount_settings&quot;, indexes = {
+    @Index(name = &quot;idx_discount_settings_ecommerce&quot;, columnList = &quot;ecommerce_id&quot;)
+})
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class DiscountSettingsEntity {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+
+    @Column(name = &quot;ecommerce_id&quot;, nullable = false)
+    private UUID ecommerceId;
+
+    @Column(name = &quot;max_discount_cap&quot;, nullable = false, precision = 12, scale = 4)
+    private BigDecimal maxDiscountCap;
+
+    @Column(name = &quot;currency_code&quot;, nullable = false, length = 3)
+    private String currencyCode = &quot;USD&quot;;
+
+    @Column(name = &quot;allow_stacking&quot;)
+    private Boolean allowStacking = true;
+
+    @Column(name = &quot;rounding_rule&quot;, nullable = false, length = 20)
+    private String roundingRule = &quot;ROUND_HALF_UP&quot;;
+
+    @Column(name = &quot;is_active&quot;, nullable = false)
+    private Boolean isActive = true;
+
+    @Column(name = &quot;version&quot;, nullable = false)
+    private Long version = 1L;
+
+    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    @JoinColumn(name = &quot;discount_setting_id&quot;)
+    private List&lt;DiscountPriorityEntity&gt; priorities = new ArrayList&lt;&gt;();
+
+    @Column(name = &quot;created_at&quot;, nullable = false, updatable = false)
+    private Instant createdAt;
+
+    @Column(name = &quot;updated_at&quot;, nullable = false)
+    private Instant updatedAt;
+
+    public void replacePriorities(List&lt;DiscountPriorityEntity&gt; newPriorities) {
+<span class="fc" id="L62">        this.priorities.clear();</span>
+<span class="fc bfc" id="L63" title="All 2 branches covered.">        if (newPriorities != null) {</span>
+<span class="fc" id="L64">            this.priorities.addAll(newPriorities);</span>
+        }
+<span class="fc" id="L66">    }</span>
+
+    public List&lt;DiscountPriorityEntity&gt; getPriorities() {
+<span class="fc" id="L69">        return this.priorities;</span>
+    }
+
+    public Long getVersion() {
+<span class="fc" id="L73">        return this.version;</span>
+    }
+
+    @PrePersist
+    protected void onCreate() {
+<span class="fc" id="L78">        createdAt = Instant.now();</span>
+<span class="fc" id="L79">        updatedAt = Instant.now();</span>
+<span class="fc" id="L80">    }</span>
+
+    @PreUpdate
+    protected void onUpdate() {
+<span class="fc" id="L84">        updatedAt = Instant.now();</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">        version = (version != null ? version : 1L) + 1;</span>
+<span class="fc" id="L86">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

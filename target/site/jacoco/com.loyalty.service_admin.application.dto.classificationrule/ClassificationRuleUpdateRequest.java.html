@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ClassificationRuleUpdateRequest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.application.dto.classificationrule</a> &gt; <span class="el_source">ClassificationRuleUpdateRequest.java</span></div><h1>ClassificationRuleUpdateRequest.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.application.dto.classificationrule;
+
+import jakarta.validation.constraints.*;
+
+import java.math.BigDecimal;
+
+/**
+ * CRITERIO-7.7: Request para actualizar classification_rule
+ */
+public record ClassificationRuleUpdateRequest(
+        @Size(min = 3, max = 100)
+        String name,
+        
+        @Size(max = 500)
+        String description,
+        
+        @DecimalMin(&quot;0.01&quot;)
+        @DecimalMax(&quot;100.00&quot;)
+        BigDecimal discountPercentage,
+        
+        String metricType,
+        
+        BigDecimal minValue,
+        
+        BigDecimal maxValue,
+        
+        Integer priority
+) {
+    /**
+     * Validar estructura si se proporcionan valores
+     */
+<span class="fc" id="L32">    public ClassificationRuleUpdateRequest {</span>
+        // Solo validar si ambos están presentes
+<span class="pc bpc" id="L34" title="2 of 6 branches missed.">        if (minValue != null &amp;&amp; maxValue != null &amp;&amp; minValue.compareTo(maxValue) &gt;= 0) {</span>
+<span class="nc" id="L35">            throw new IllegalArgumentException(&quot;minValue must be less than maxValue&quot;);</span>
+        }
+        
+<span class="pc bpc" id="L38" title="3 of 4 branches missed.">        if (metricType != null &amp;&amp; !metricType.isBlank()) {</span>
+<span class="nc" id="L39">            String upper = metricType.toUpperCase();</span>
+<span class="nc bnc" id="L40" title="All 4 branches missed.">            if (!(&quot;TOTAL_SPENT&quot;.equals(upper) || &quot;ORDER_COUNT&quot;.equals(upper) || </span>
+<span class="nc bnc" id="L41" title="All 4 branches missed.">                  &quot;LOYALTY_POINTS&quot;.equals(upper) || &quot;CUSTOM&quot;.equals(upper))) {</span>
+<span class="nc" id="L42">                throw new IllegalArgumentException(&quot;metricType must be one of: total_spent, order_count, loyalty_points, custom&quot;);</span>
+            }
+        }
+<span class="fc" id="L45">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

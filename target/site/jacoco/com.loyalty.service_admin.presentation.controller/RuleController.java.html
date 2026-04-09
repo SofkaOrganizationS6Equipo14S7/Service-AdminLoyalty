@@ -1,0 +1,322 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RuleController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.presentation.controller</a> &gt; <span class="el_source">RuleController.java</span></div><h1>RuleController.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.presentation.controller;
+
+import com.loyalty.service_admin.application.dto.rules.AssignCustomerTiersRequest;
+import com.loyalty.service_admin.application.dto.rules.RuleCreateRequest;
+import com.loyalty.service_admin.application.dto.rules.RuleCustomerTierDTO;
+import com.loyalty.service_admin.application.dto.rules.RuleResponse;
+import com.loyalty.service_admin.application.dto.rules.RuleResponseWithTiers;
+import com.loyalty.service_admin.application.dto.rules.RuleAttributeMetadataDTO;
+import com.loyalty.service_admin.presentation.dto.rules.RuleStatusUpdateRequest;
+import com.loyalty.service_admin.application.dto.discount.DiscountTypeDTO;
+import com.loyalty.service_admin.application.dto.discount.DiscountPriorityDTO;
+import com.loyalty.service_admin.application.dto.classificationrule.ClassificationRuleCreateRequest;
+import com.loyalty.service_admin.application.dto.classificationrule.ClassificationRuleUpdateRequest;
+import com.loyalty.service_admin.application.dto.classificationrule.ClassificationRuleResponse;
+import com.loyalty.service_admin.application.port.in.RuleUseCase;
+import com.loyalty.service_admin.infrastructure.security.SecurityContextHelper;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import com.loyalty.service_admin.infrastructure.exception.AuthorizationException;
+
+import java.util.List;
+import java.util.UUID;
+
+@RestController
+@RequestMapping(&quot;/api/v1/rules&quot;)
+<span class="fc" id="L35">@Slf4j</span>
+@RequiredArgsConstructor
+@PreAuthorize(&quot;isAuthenticated()&quot;)
+public class RuleController {
+
+    private final RuleUseCase ruleUseCase;
+    private final SecurityContextHelper securityContextHelper;
+
+    @GetMapping(&quot;/discount-types&quot;)
+    public ResponseEntity&lt;List&lt;DiscountTypeDTO&gt;&gt; listDiscountTypes() {
+<span class="fc" id="L45">        log.info(&quot;Fetching all discount types&quot;);</span>
+<span class="fc" id="L46">        List&lt;DiscountTypeDTO&gt; types = ruleUseCase.getAllDiscountTypes();</span>
+<span class="fc" id="L47">        return ResponseEntity.ok(types);</span>
+    }
+
+    @GetMapping(&quot;/attributes&quot;)
+    public ResponseEntity&lt;List&lt;RuleAttributeMetadataDTO&gt;&gt; getAvailableAttributes(
+            @RequestParam UUID discountTypeId
+    ) {
+<span class="fc" id="L54">        log.info(&quot;Fetching available attributes for discount type: {}&quot;, discountTypeId);</span>
+<span class="fc" id="L55">        List&lt;RuleAttributeMetadataDTO&gt; attributes = ruleUseCase.getAvailableAttributesForDiscountType(discountTypeId);</span>
+<span class="fc" id="L56">        return ResponseEntity.ok(attributes);</span>
+    }
+
+    @GetMapping(&quot;/discount-priorities&quot;)
+    public ResponseEntity&lt;List&lt;DiscountPriorityDTO&gt;&gt; getDiscountPrioritiesByType(
+            @RequestParam UUID discountTypeId
+    ) {
+<span class="fc" id="L63">        log.info(&quot;Fetching discount priorities for type: {}&quot;, discountTypeId);</span>
+<span class="fc" id="L64">        List&lt;DiscountPriorityDTO&gt; priorities = ruleUseCase.getDiscountPrioritiesByType(discountTypeId);</span>
+<span class="fc" id="L65">        return ResponseEntity.ok(priorities);</span>
+    }
+
+
+    @PostMapping
+    public ResponseEntity&lt;RuleResponse&gt; createRule(@Valid @RequestBody RuleCreateRequest request) {
+<span class="fc" id="L71">        UUID ecommerceId = securityContextHelper.getCurrentUserEcommerceId();</span>
+<span class="fc" id="L72">        log.info(&quot;Creating rule for ecommerce: {}&quot;, ecommerceId);</span>
+
+<span class="fc bfc" id="L74" title="All 2 branches covered.">        if (ecommerceId == null) {</span>
+<span class="fc" id="L75">            throw new AuthorizationException(</span>
+                &quot;El Usuario no puede crear reglas porque no tiene un ecommerceId asignado.&quot;
+            );
+        }
+
+<span class="fc" id="L80">        RuleResponse response = ruleUseCase.createRule(ecommerceId, request);</span>
+<span class="fc" id="L81">        return ResponseEntity.status(HttpStatus.CREATED).body(response);</span>
+    }
+
+    @GetMapping
+    public ResponseEntity&lt;Page&lt;RuleResponse&gt;&gt; listRules(
+            @RequestParam(defaultValue = &quot;0&quot;) int page,
+            @RequestParam(defaultValue = &quot;20&quot;) int size,
+            @RequestParam(required = false) Boolean active
+    ) {
+<span class="fc" id="L90">        UUID ecommerceId = securityContextHelper.getCurrentUserEcommerceId();</span>
+<span class="fc" id="L91">        Pageable pageable = PageRequest.of(page, size);</span>
+
+<span class="fc" id="L93">        Page&lt;RuleResponse&gt; response = ruleUseCase.listRules(ecommerceId, active, pageable);</span>
+<span class="fc" id="L94">        return ResponseEntity.ok(response);</span>
+    }
+
+    @GetMapping(&quot;/{ruleId}&quot;)
+    public ResponseEntity&lt;RuleResponseWithTiers&gt; getRuleById(@PathVariable UUID ruleId) {
+<span class="fc" id="L99">        UUID ecommerceId = securityContextHelper.getCurrentUserEcommerceId();</span>
+<span class="fc" id="L100">        log.info(&quot;Fetching rule: {}&quot;, ruleId);</span>
+
+<span class="fc" id="L102">        RuleResponse baseResponse = ruleUseCase.getRuleById(ecommerceId, ruleId);</span>
+<span class="fc" id="L103">        List&lt;RuleCustomerTierDTO&gt; tiers = ruleUseCase.getRuleAssignedTiers(ecommerceId, ruleId);</span>
+
+<span class="fc" id="L105">        RuleResponseWithTiers response = new RuleResponseWithTiers(</span>
+<span class="fc" id="L106">                baseResponse.id(),</span>
+<span class="fc" id="L107">                baseResponse.ecommerceId(),</span>
+<span class="fc" id="L108">                baseResponse.discountPriorityId(),</span>
+<span class="fc" id="L109">                baseResponse.name(),</span>
+<span class="fc" id="L110">                baseResponse.description(),</span>
+<span class="fc" id="L111">                baseResponse.discountPercentage(),</span>
+<span class="fc" id="L112">                baseResponse.isActive(),</span>
+<span class="fc" id="L113">                baseResponse.attributes(),</span>
+                tiers,
+<span class="fc" id="L115">                baseResponse.createdAt(),</span>
+<span class="fc" id="L116">                baseResponse.updatedAt()</span>
+        );
+<span class="fc" id="L118">        return ResponseEntity.ok(response);</span>
+    }
+
+    @PutMapping(&quot;/{ruleId}&quot;)
+    public ResponseEntity&lt;RuleResponse&gt; updateRule(
+            @PathVariable UUID ruleId,
+            @Valid @RequestBody RuleCreateRequest request
+    ) {
+<span class="fc" id="L126">        UUID ecommerceId = securityContextHelper.getCurrentUserEcommerceId();</span>
+<span class="fc" id="L127">        log.info(&quot;Updating rule: {}&quot;, ruleId);</span>
+
+<span class="fc bfc" id="L129" title="All 2 branches covered.">        if (ecommerceId == null) {</span>
+<span class="fc" id="L130">            throw new AuthorizationException(</span>
+                &quot;El Usuario no puede actualizar reglas porque no tiene un ecommerceId asignado.&quot;
+            );
+        }
+
+<span class="fc" id="L135">        RuleResponse response = ruleUseCase.updateRule(ecommerceId, ruleId, request);</span>
+<span class="fc" id="L136">        return ResponseEntity.ok(response);</span>
+    }
+
+    @DeleteMapping(&quot;/{ruleId}&quot;)
+    public ResponseEntity&lt;Void&gt; deleteRule(@PathVariable UUID ruleId) {
+<span class="fc" id="L141">        UUID ecommerceId = securityContextHelper.getCurrentUserEcommerceId();</span>
+<span class="fc" id="L142">        log.info(&quot;Deleting rule: {}&quot;, ruleId);</span>
+
+<span class="fc bfc" id="L144" title="All 2 branches covered.">        if (ecommerceId == null) {</span>
+<span class="fc" id="L145">            throw new AuthorizationException(</span>
+                &quot;El Usuario no puede eliminar reglas porque no tiene un ecommerceId asignado.&quot;
+            );
+        }
+
+<span class="fc" id="L150">        ruleUseCase.deleteRule(ecommerceId, ruleId);</span>
+<span class="fc" id="L151">        return ResponseEntity.noContent().build();</span>
+    }
+
+    /**
+     * SPEC-008: HU-14 - Change rule status (active/inactive) via PATCH endpoint
+     * 
+     * PATCH /api/v1/rules/{ruleId}/status
+     * Body: { &quot;active&quot;: true | false }
+     */
+    @PatchMapping(&quot;/{ruleId}/status&quot;)
+    public ResponseEntity&lt;RuleResponse&gt; updateRuleStatus(
+            @PathVariable UUID ruleId,
+            @Valid @RequestBody RuleStatusUpdateRequest request
+    ) {
+<span class="fc" id="L165">        UUID ecommerceId = securityContextHelper.getCurrentUserEcommerceId();</span>
+<span class="fc" id="L166">        log.info(&quot;Updating rule status: ruleId={}, newStatus={}&quot;, ruleId, request.active());</span>
+
+<span class="fc bfc" id="L168" title="All 2 branches covered.">        if (ecommerceId == null) {</span>
+<span class="fc" id="L169">            throw new AuthorizationException(</span>
+                &quot;El Usuario no puede actualizar el status de reglas porque no tiene un ecommerceId asignado.&quot;
+            );
+        }
+
+<span class="fc" id="L174">        RuleResponse response = ruleUseCase.updateRuleStatus(ecommerceId, ruleId, request.active());</span>
+<span class="fc" id="L175">        return ResponseEntity.ok(response);</span>
+    }
+
+    @PostMapping(&quot;/{ruleId}/tiers&quot;)
+    public ResponseEntity&lt;RuleResponseWithTiers&gt; assignCustomerTiersToRule(
+            @PathVariable UUID ruleId,
+            @Valid @RequestBody AssignCustomerTiersRequest request
+    ) {
+<span class="fc" id="L183">        UUID ecommerceId = securityContextHelper.getCurrentUserEcommerceId();</span>
+<span class="fc" id="L184">        log.info(&quot;Assigning {} tiers to rule: {}&quot;, request.customerTierIds().size(), ruleId);</span>
+
+<span class="fc bfc" id="L186" title="All 2 branches covered.">        if (ecommerceId == null) {</span>
+<span class="fc" id="L187">            throw new AuthorizationException(</span>
+                &quot;El Usuario no puede crear tiers porque no tiene un ecommerceId asignado.&quot;
+            );
+        }
+
+<span class="fc" id="L192">        RuleResponseWithTiers response = ruleUseCase.assignCustomerTiersToRule(ecommerceId, ruleId, request.customerTierIds());</span>
+<span class="fc" id="L193">        return ResponseEntity.status(HttpStatus.CREATED).body(response);</span>
+    }
+
+    @GetMapping(&quot;/{ruleId}/tiers&quot;)
+    public ResponseEntity&lt;List&lt;RuleCustomerTierDTO&gt;&gt; getRuleAssignedTiers(@PathVariable UUID ruleId) {
+<span class="fc" id="L198">        UUID ecommerceId = securityContextHelper.getCurrentUserEcommerceId();</span>
+<span class="fc" id="L199">        log.info(&quot;Fetching assigned tiers for rule: {}&quot;, ruleId);</span>
+
+<span class="fc" id="L201">        List&lt;RuleCustomerTierDTO&gt; tiers = ruleUseCase.getRuleAssignedTiers(ecommerceId, ruleId);</span>
+<span class="fc" id="L202">        return ResponseEntity.ok(tiers);</span>
+    }
+
+    /**
+     * HU-07 CRITERIO-7.3: Eliminar tier de una rule
+     * DELETE /api/v1/rules/{ruleId}/tiers/{tierId}
+     */
+    @DeleteMapping(&quot;/{ruleId}/tiers/{tierId}&quot;)
+    public ResponseEntity&lt;Void&gt; deleteCustomerTierFromRule(
+            @PathVariable UUID ruleId,
+            @PathVariable UUID tierId
+    ) {
+<span class="fc" id="L214">        UUID ecommerceId = securityContextHelper.getCurrentUserEcommerceId();</span>
+<span class="fc" id="L215">        log.info(&quot;Deleting tier {} from rule: {}&quot;, tierId, ruleId);</span>
+
+<span class="fc bfc" id="L217" title="All 2 branches covered.">        if (ecommerceId == null) {</span>
+<span class="fc" id="L218">            throw new AuthorizationException(</span>
+                &quot;El Usuario no puede eliminar tiers porque no tiene un ecommerceId asignado.&quot;
+            );
+        }
+
+<span class="fc" id="L223">        ruleUseCase.deleteCustomerTierFromRule(ecommerceId, ruleId, tierId);</span>
+<span class="fc" id="L224">        return ResponseEntity.noContent().build();</span>
+    }
+
+    // ========== HU-07: NESTED ENDPOINTS FOR CLASSIFICATION RULES ==========
+
+    /**
+     * HU-07 CRITERIO-7.3, 7.4: Crear classification_rule para un customer_tier
+     * POST /api/v1/rules/customer-tiers/{tierId}
+     * 
+     * Request incluye: metricType, minValue, maxValue, priority
+     * Internamente crea un RuleEntity con type=CLASSIFICATION
+     */
+    @PostMapping(&quot;/customer-tiers/{tierId}&quot;)
+    public ResponseEntity&lt;ClassificationRuleResponse&gt; createClassificationRuleForTier(
+            @PathVariable UUID tierId,
+            @Valid @RequestBody ClassificationRuleCreateRequest request
+    ) {
+<span class="fc" id="L241">        UUID ecommerceId = securityContextHelper.getCurrentUserEcommerceId();</span>
+<span class="fc" id="L242">        log.info(&quot;POST /api/v1/rules/customer-tiers/{} - Creating classification rule. metricType={}&quot;, </span>
+<span class="fc" id="L243">            tierId, request.metricType());</span>
+
+<span class="fc bfc" id="L245" title="All 2 branches covered.">        if (ecommerceId == null) {</span>
+<span class="fc" id="L246">            throw new AuthorizationException(</span>
+                &quot;El Usuario no puede crear reglas porque no tiene un ecommerceId asignado.&quot;
+            );
+        }
+
+<span class="fc" id="L251">        ClassificationRuleResponse response = ruleUseCase.createClassificationRuleForTier(ecommerceId, tierId, request);</span>
+<span class="fc" id="L252">        return ResponseEntity.status(HttpStatus.CREATED).body(response);</span>
+    }
+
+    /**
+     * HU-07 CRITERIO-7.6: Listar classification_rules de un tier
+     * GET /api/v1/rules/customer-tiers/{tierId}
+     */
+    @GetMapping(&quot;/customer-tiers/{tierId}&quot;)
+    public ResponseEntity&lt;List&lt;ClassificationRuleResponse&gt;&gt; listClassificationRulesForTier(
+            @PathVariable UUID tierId
+    ) {
+<span class="fc" id="L263">        UUID ecommerceId = securityContextHelper.getCurrentUserEcommerceId();</span>
+<span class="fc" id="L264">        log.info(&quot;GET /api/v1/rules/customer-tiers/{} - Listing classification rules&quot;, tierId);</span>
+
+<span class="fc bfc" id="L266" title="All 2 branches covered.">        if (ecommerceId == null) {</span>
+<span class="fc" id="L267">            throw new AuthorizationException(</span>
+                &quot;El Usuario no puede listar reglas porque no tiene un ecommerceId asignado.&quot;
+            );
+        }
+
+<span class="fc" id="L272">        List&lt;ClassificationRuleResponse&gt; response = ruleUseCase.listClassificationRulesForTier(ecommerceId, tierId);</span>
+<span class="fc" id="L273">        return ResponseEntity.ok(response);</span>
+    }
+
+    /**
+     * HU-07 CRITERIO-7.7: Actualizar classification_rule
+     * PUT /api/v1/rules/customer-tiers/{tierId}/{ruleId}
+     */
+    @PutMapping(&quot;/customer-tiers/{tierId}/{ruleId}&quot;)
+    public ResponseEntity&lt;ClassificationRuleResponse&gt; updateClassificationRuleForTier(
+            @PathVariable UUID tierId,
+            @PathVariable UUID ruleId,
+            @Valid @RequestBody ClassificationRuleUpdateRequest request
+    ) {
+<span class="fc" id="L286">        UUID ecommerceId = securityContextHelper.getCurrentUserEcommerceId();</span>
+<span class="fc" id="L287">        log.info(&quot;PUT /api/v1/rules/customer-tiers/{}/{} - Updating classification rule&quot;, tierId, ruleId);</span>
+
+<span class="fc bfc" id="L289" title="All 2 branches covered.">        if (ecommerceId == null) {</span>
+<span class="fc" id="L290">            throw new AuthorizationException(</span>
+                &quot;El Usuario no puede actualizar reglas porque no tiene un ecommerceId asignado.&quot;
+            );
+        }
+
+<span class="fc" id="L295">        ClassificationRuleResponse response = ruleUseCase.updateClassificationRuleForTier(ecommerceId, tierId, ruleId, request);</span>
+<span class="fc" id="L296">        return ResponseEntity.ok(response);</span>
+    }
+
+    /**
+     * HU-07 CRITERIO-7.8: Eliminar classification_rule (soft delete)
+     * DELETE /api/v1/rules/customer-tiers/{tierId}/{ruleId}
+     */
+    @DeleteMapping(&quot;/customer-tiers/{tierId}/{ruleId}&quot;)
+    public ResponseEntity&lt;Void&gt; deleteClassificationRuleForTier(
+            @PathVariable UUID tierId,
+            @PathVariable UUID ruleId
+    ) {
+<span class="fc" id="L308">        UUID ecommerceId = securityContextHelper.getCurrentUserEcommerceId();</span>
+<span class="fc" id="L309">        log.info(&quot;DELETE /api/v1/rules/customer-tiers/{}/{} - Soft deleting classification rule&quot;, tierId, ruleId);</span>
+
+<span class="fc bfc" id="L311" title="All 2 branches covered.">        if (ecommerceId == null) {</span>
+<span class="fc" id="L312">            throw new AuthorizationException(</span>
+                &quot;El Usuario no puede eliminar reglas porque no tiene un ecommerceId asignado.&quot;
+            );
+        }
+
+<span class="fc" id="L317">        ruleUseCase.deleteClassificationRuleForTier(ecommerceId, tierId, ruleId);</span>
+<span class="fc" id="L318">        return ResponseEntity.noContent().build();</span>
+    }
+}
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

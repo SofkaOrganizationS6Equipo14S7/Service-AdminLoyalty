@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JpaEcommerceAdapter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.infrastructure.persistence.jpa</a> &gt; <span class="el_source">JpaEcommerceAdapter.java</span></div><h1>JpaEcommerceAdapter.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.infrastructure.persistence.jpa;
+
+import com.loyalty.service_admin.application.port.out.EcommercePersistencePort;
+import com.loyalty.service_admin.domain.entity.EcommerceEntity;
+import com.loyalty.service_admin.domain.entity.UserEntity;
+import com.loyalty.service_admin.domain.entity.ApiKeyEntity;
+import com.loyalty.service_admin.domain.repository.EcommerceRepository;
+import com.loyalty.service_admin.domain.repository.UserRepository;
+import com.loyalty.service_admin.domain.repository.ApiKeyRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+@Service
+@RequiredArgsConstructor
+<span class="fc" id="L24">@Slf4j</span>
+public class JpaEcommerceAdapter implements EcommercePersistencePort {
+    
+    private final EcommerceRepository ecommerceRepository;
+    private final UserRepository userRepository;
+    private final ApiKeyRepository apiKeyRepository;
+    
+    // ==================== Operaciones CRUD en Ecommerce ====================
+
+    @Override
+    @Transactional
+    public EcommerceEntity save(EcommerceEntity entity) {
+<span class="fc" id="L36">        log.debug(&quot;Persistiendo ecommerce: uid={}, name={}, slug={}&quot;, </span>
+<span class="fc" id="L37">                entity.getId(), entity.getName(), entity.getSlug());</span>
+<span class="fc" id="L38">        return ecommerceRepository.save(entity);</span>
+    }
+    
+    @Override
+    @Transactional(readOnly = true)
+    public Optional&lt;EcommerceEntity&gt; findById(UUID id) {
+<span class="fc" id="L44">        log.debug(&quot;Buscando ecommerce por uid: {}&quot;, id);</span>
+<span class="fc" id="L45">        return ecommerceRepository.findById(id);</span>
+    }
+    
+    @Override
+    @Transactional(readOnly = true)
+    public Page&lt;EcommerceEntity&gt; findAll(Specification&lt;EcommerceEntity&gt; spec, Pageable pageable) {
+<span class="fc" id="L51">        log.debug(&quot;Listando ecommerces con especificación, page={}, size={}&quot;, </span>
+<span class="fc" id="L52">                pageable.getPageNumber(), pageable.getPageSize());</span>
+<span class="fc" id="L53">        return ecommerceRepository.findAll(spec, pageable);</span>
+    }
+    
+    @Override
+    @Transactional(readOnly = true)
+    public boolean existsBySlug(String slug) {
+<span class="fc" id="L59">        log.debug(&quot;Verificando si slug existe: {}&quot;, slug);</span>
+<span class="fc" id="L60">        return ecommerceRepository.existsBySlug(slug);</span>
+    }
+    
+    @Override
+    @Transactional(readOnly = true)
+    public boolean existsById(UUID id) {
+<span class="fc" id="L66">        log.debug(&quot;Verificando si ecommerce existe: {}&quot;, id);</span>
+<span class="fc" id="L67">        return ecommerceRepository.existsById(id);</span>
+    }
+    
+    // ==================== Cascada: Usuarios ====================
+
+    @Override
+    @Transactional(readOnly = true)
+    public List&lt;UserEntity&gt; findUsersByEcommerceId(UUID ecommerceId) {
+<span class="fc" id="L75">        log.debug(&quot;Buscando usuarios vinculados al ecommerce: {}&quot;, ecommerceId);</span>
+<span class="fc" id="L76">        return userRepository.findByEcommerceId(ecommerceId);</span>
+    }
+    
+    @Override
+    @Transactional
+    public void inactivateUsers(List&lt;UserEntity&gt; users) {
+<span class="fc bfc" id="L82" title="All 4 branches covered.">        if (users == null || users.isEmpty()) {</span>
+<span class="fc" id="L83">            log.debug(&quot;No hay usuarios para inactivar&quot;);</span>
+<span class="fc" id="L84">            return;</span>
+        }
+        
+<span class="fc" id="L87">        log.info(&quot;Inactivando {} usuarios por cascada de ecommerce&quot;, users.size());</span>
+<span class="fc" id="L88">        users.forEach(user -&gt; {</span>
+<span class="fc" id="L89">            user.setIsActive(false);</span>
+<span class="fc" id="L90">            log.debug(&quot;Usuario marcado como inactivo: uid={}, username={}&quot;, user.getId(), user.getUsername());</span>
+<span class="fc" id="L91">        });</span>
+        
+<span class="fc" id="L93">        userRepository.saveAll(users);</span>
+<span class="fc" id="L94">        log.info(&quot;Usuarios inactivados exitosamente: count={}&quot;, users.size());</span>
+<span class="fc" id="L95">    }</span>
+    
+    // ==================== Cascada: API Keys ====================
+    
+    @Override
+    @Transactional(readOnly = true)
+    public List&lt;ApiKeyEntity&gt; findApiKeysByEcommerceId(UUID ecommerceId) {
+<span class="fc" id="L102">        log.debug(&quot;Buscando API Keys vinculadas al ecommerce: {}&quot;, ecommerceId);</span>
+<span class="fc" id="L103">        return apiKeyRepository.findByEcommerceId(ecommerceId);</span>
+    }
+    
+    @Override
+    @Transactional
+    public void deactivateApiKeys(List&lt;ApiKeyEntity&gt; keys) {
+<span class="fc bfc" id="L109" title="All 4 branches covered.">        if (keys == null || keys.isEmpty()) {</span>
+<span class="fc" id="L110">            log.debug(&quot;No hay API Keys para desactivar&quot;);</span>
+<span class="fc" id="L111">            return;</span>
+        }
+        
+<span class="fc" id="L114">        log.info(&quot;Desactivando {} API Keys por cascada de ecommerce&quot;, keys.size());</span>
+<span class="fc" id="L115">        keys.forEach(key -&gt; {</span>
+<span class="fc" id="L116">            key.setIsActive(false);</span>
+<span class="fc" id="L117">            log.debug(&quot;API Key marcada como inactiva: uid={}&quot;, key.getId());</span>
+<span class="fc" id="L118">        });</span>
+        
+<span class="fc" id="L120">        apiKeyRepository.saveAll(keys);</span>
+<span class="fc" id="L121">        log.info(&quot;API Keys desactivadas exitosamente: count={}&quot;, keys.size());</span>
+<span class="fc" id="L122">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

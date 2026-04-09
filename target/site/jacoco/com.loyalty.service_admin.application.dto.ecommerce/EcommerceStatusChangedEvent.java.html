@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EcommerceStatusChangedEvent.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.application.dto.ecommerce</a> &gt; <span class="el_source">EcommerceStatusChangedEvent.java</span></div><h1>EcommerceStatusChangedEvent.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.application.dto.ecommerce;
+
+import java.time.Instant;
+
+/**
+ * Payload de evento para cambio de status de ecommerce vía RabbitMQ.
+ * 
+ * SPEC-001: Registro y Gestión de Ecommerces
+ * HU-13.3: Actualizar estado de un ecommerce
+ * 
+ * Cascada de desactivación:
+ * Cuando un ecommerce cambia a INACTIVE, este evento se publica a un Fanout Exchange
+ * para que múltiples consumidores reaccionen:
+ * - service-admin: invalida JWT de usuarios y sesiones activas
+ * - service-engine: invalida API Keys en caché Caffeine
+ * 
+ * Formato JSON para RabbitMQ:
+ * {
+ *   &quot;eventType&quot;: &quot;ECOMMERCE_STATUS_CHANGED&quot;,
+ *   &quot;ecommerceId&quot;: &quot;550e8400-e29b-41d4-a716-446655440000&quot;,
+ *   &quot;newStatus&quot;: &quot;INACTIVE&quot;,
+ *   &quot;oldStatus&quot;: &quot;ACTIVE&quot;,
+ *   &quot;timestamp&quot;: &quot;2026-03-29T11:00:00Z&quot;
+ * }
+ */
+<span class="fc" id="L26">public record EcommerceStatusChangedEvent(</span>
+    String eventType,           // &quot;ECOMMERCE_STATUS_CHANGED&quot;
+    String ecommerceId,         // UUID del ecommerce
+    String newStatus,           // ACTIVE o INACTIVE
+    String oldStatus,           // ACTIVE o INACTIVE (status anterior)
+    Instant timestamp           // Momento del evento (UTC)
+) {
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

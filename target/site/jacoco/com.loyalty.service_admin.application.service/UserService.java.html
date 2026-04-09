@@ -1,0 +1,386 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.application.service</a> &gt; <span class="el_source">UserService.java</span></div><h1>UserService.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.application.service;
+
+import com.loyalty.service_admin.application.dto.user.UserCreateRequest;
+import com.loyalty.service_admin.application.dto.user.UserResponse;
+import com.loyalty.service_admin.application.dto.user.UserUpdateRequest;
+import com.loyalty.service_admin.application.dto.user.UpdateProfileRequest;
+import com.loyalty.service_admin.application.dto.auth.ChangePasswordRequest;
+import com.loyalty.service_admin.application.dto.auth.LoginResponse;
+import com.loyalty.service_admin.domain.entity.UserEntity;
+import com.loyalty.service_admin.domain.entity.RoleEntity;
+import com.loyalty.service_admin.domain.repository.UserRepository;
+import com.loyalty.service_admin.domain.repository.RoleRepository;
+import com.loyalty.service_admin.infrastructure.exception.AuthorizationException;
+import com.loyalty.service_admin.infrastructure.exception.BadRequestException;
+import com.loyalty.service_admin.infrastructure.exception.ConflictException;
+import com.loyalty.service_admin.infrastructure.exception.ResourceNotFoundException;
+import com.loyalty.service_admin.infrastructure.exception.UnauthorizedException;
+import com.loyalty.service_admin.infrastructure.security.SecurityContextHelper;
+import com.loyalty.service_admin.infrastructure.security.JwtProvider;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+@Service
+@RequiredArgsConstructor
+<span class="fc" id="L32">@Slf4j</span>
+public class UserService {
+    
+    private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
+    private final EcommerceService ecommerceService;
+    private final BCryptPasswordEncoder passwordEncoder;
+    private final SecurityContextHelper securityContextHelper;
+    private final JwtProvider jwtProvider;
+    private final AuditService auditService;
+    private final PasswordValidator passwordValidator;
+
+    @Transactional
+    public UserResponse createUser(UserCreateRequest request) {
+<span class="fc" id="L46">        String currentRole = securityContextHelper.getCurrentUserRole();</span>
+<span class="fc" id="L47">        UUID currentUserEcommerceId = securityContextHelper.getCurrentUserEcommerceId();</span>
+        
+<span class="fc bfc" id="L49" title="All 4 branches covered.">        if (!&quot;SUPER_ADMIN&quot;.equals(currentRole) &amp;&amp; !&quot;STORE_ADMIN&quot;.equals(currentRole)) {</span>
+<span class="fc" id="L50">            log.warn(&quot;Intento de crear usuario sin permisos. Role actual: {}&quot;, currentRole);</span>
+<span class="fc" id="L51">            throw new AuthorizationException(</span>
+                &quot;Solo SUPER_ADMIN o STORE_ADMIN pueden crear usuarios&quot;
+            );
+        }
+        
+<span class="fc" id="L56">        RoleEntity roleEntity = roleRepository.findById(request.roleId())</span>
+<span class="fc" id="L57">                .orElseThrow(() -&gt; {</span>
+<span class="fc" id="L58">                    log.warn(&quot;Intento de crear usuario con roleId inválido: {}&quot;, request.roleId());</span>
+<span class="fc" id="L59">                    return new BadRequestException(&quot;El roleId proporcionado no existe&quot;);</span>
+                });
+        
+<span class="fc" id="L62">        String roleName = roleEntity.getName();</span>
+        
+<span class="fc bfc" id="L64" title="All 2 branches covered.">        if (&quot;SUPER_ADMIN&quot;.equals(roleName)) {</span>
+<span class="pc bpc" id="L65" title="1 of 2 branches missed.">            if (request.ecommerceId() != null) {</span>
+<span class="fc" id="L66">                log.warn(&quot;Intento de crear SUPER_ADMIN con ecommerce_id: {}&quot;, request.ecommerceId());</span>
+<span class="fc" id="L67">                throw new BadRequestException(</span>
+                    &quot;SUPER_ADMIN no puede tener ecommerce_id asignado&quot;
+                );
+            }
+        } else {
+<span class="fc bfc" id="L72" title="All 2 branches covered.">            if (request.ecommerceId() == null) {</span>
+<span class="fc" id="L73">                log.warn(&quot;Intento de crear usuario {} sin ecommerce_id&quot;, roleName);</span>
+<span class="fc" id="L74">                throw new BadRequestException(</span>
+<span class="fc" id="L75">                    String.format(&quot;%s requiere ecommerce_id obligatorio&quot;, roleName)</span>
+                );
+            }
+            
+<span class="fc" id="L79">            ecommerceService.validateEcommerceExists(request.ecommerceId());</span>
+        }
+        
+<span class="fc bfc" id="L82" title="All 2 branches covered.">        if (&quot;STORE_ADMIN&quot;.equals(currentRole)) {</span>
+<span class="pc bpc" id="L83" title="1 of 2 branches missed.">            if (!currentUserEcommerceId.equals(request.ecommerceId())) {</span>
+<span class="fc" id="L84">                log.warn(&quot;STORE_ADMIN intenta crear usuario en otro ecommerce. Own: {}, Requested: {}&quot;, </span>
+<span class="fc" id="L85">                        currentUserEcommerceId, request.ecommerceId());</span>
+<span class="fc" id="L86">                throw new AuthorizationException(</span>
+                    &quot;Solo puede crear usuarios dentro de su ecommerce&quot;
+                );
+            }
+        }
+        
+<span class="fc bfc" id="L92" title="All 2 branches covered.">        if (userRepository.findByUsername(request.username()).isPresent()) {</span>
+<span class="fc" id="L93">            log.warn(&quot;Intento de crear usuario con username duplicado: {}&quot;, request.username());</span>
+<span class="fc" id="L94">            throw new ConflictException(&quot;El username ya existe. Use otro.&quot;);</span>
+        }
+        
+<span class="fc bfc" id="L97" title="All 2 branches covered.">        if (userRepository.findByEmail(request.email()).isPresent()) {</span>
+<span class="fc" id="L98">            log.warn(&quot;Intento de crear usuario con email duplicado: {}&quot;, request.email());</span>
+<span class="fc" id="L99">            throw new ConflictException(&quot;El email ya existe. Use otro.&quot;);</span>
+        }
+        
+<span class="fc bfc" id="L102" title="All 2 branches covered.">        if (!passwordValidator.isValid(request.password())) {</span>
+<span class="fc" id="L103">            String errorMsg = passwordValidator.getErrorMessage(request.password());</span>
+<span class="fc" id="L104">            log.warn(&quot;Intento de crear usuario con contraseña débil: {}. Username: {}&quot;, errorMsg, request.username());</span>
+<span class="fc" id="L105">            throw new BadRequestException(errorMsg);</span>
+        }
+        
+<span class="fc" id="L108">        UserEntity user = UserEntity.builder()</span>
+<span class="fc" id="L109">                .username(request.username())</span>
+<span class="fc" id="L110">                .email(request.email())</span>
+<span class="fc" id="L111">                .passwordHash(passwordEncoder.encode(request.password()))</span>
+<span class="fc" id="L112">                .roleId(roleEntity.getId())</span>
+<span class="fc" id="L113">                .role(roleEntity)</span>
+<span class="fc" id="L114">                .ecommerceId(request.ecommerceId())</span>
+<span class="fc" id="L115">                .isActive(true)</span>
+<span class="fc" id="L116">                .build();</span>
+        
+<span class="fc" id="L118">        UserEntity saved = userRepository.save(user);</span>
+<span class="fc" id="L119">        log.info(&quot;Usuario creado exitosamente: uid={}, username={}, role={}, ecommerce={}&quot;, </span>
+<span class="fc" id="L120">                saved.getId(), saved.getUsername(), saved.getRoleId(), saved.getEcommerceId());</span>
+        
+<span class="fc" id="L122">        return toResponse(saved);</span>
+    }
+    
+    @Transactional(readOnly = true)
+    public List&lt;UserResponse&gt; listUsers(UUID ecommerceIdParam) {
+<span class="fc bfc" id="L127" title="All 2 branches covered.">        if (securityContextHelper.isCurrentUserSuperAdmin()) {</span>
+            // Super admin: retorna todos (o filtra por param)
+            List&lt;UserEntity&gt; users;
+<span class="fc bfc" id="L130" title="All 2 branches covered.">            if (ecommerceIdParam != null) {</span>
+<span class="fc" id="L131">                users = userRepository.findByEcommerceId(ecommerceIdParam);</span>
+            } else {
+<span class="fc" id="L133">                users = userRepository.findAll();</span>
+            }
+<span class="fc" id="L135">            return users.stream()</span>
+<span class="fc" id="L136">                    .map(this::toResponse)</span>
+<span class="fc" id="L137">                    .collect(Collectors.toList());</span>
+        } else {
+<span class="fc" id="L139">            UUID userEcommerceId = securityContextHelper.getCurrentUserEcommerceId();</span>
+            
+<span class="pc bpc" id="L141" title="1 of 4 branches missed.">            if (ecommerceIdParam != null &amp;&amp; !ecommerceIdParam.equals(userEcommerceId)) {</span>
+<span class="fc" id="L142">                log.warn(&quot;Intento de acceso cruzado: user ecommerce={}, requested={}&quot;, </span>
+                        userEcommerceId, ecommerceIdParam);
+<span class="fc" id="L144">                throw new AuthorizationException(</span>
+                    &quot;No tiene permiso para acceder a este ecommerce&quot;
+                );
+            }
+            
+<span class="fc" id="L149">            List&lt;UserEntity&gt; users = userRepository.findByEcommerceId(userEcommerceId);</span>
+<span class="fc" id="L150">            return users.stream()</span>
+<span class="fc" id="L151">                    .map(this::toResponse)</span>
+<span class="fc" id="L152">                    .collect(Collectors.toList());</span>
+        }
+    }
+    
+    @Transactional(readOnly = true)
+    public UserResponse getUserByUid(UUID uid) {
+<span class="fc" id="L158">        UserEntity user = userRepository.findById(uid)</span>
+<span class="fc" id="L159">                .orElseThrow(() -&gt; new ResourceNotFoundException(&quot;Usuario no encontrado&quot;));</span>
+        
+<span class="fc bfc" id="L161" title="All 2 branches covered.">        if (!securityContextHelper.isCurrentUserSuperAdmin()) {</span>
+<span class="fc" id="L162">            UUID userEcommerce = securityContextHelper.getCurrentUserEcommerceId();</span>
+<span class="pc bpc" id="L163" title="1 of 2 branches missed.">            if (!userEcommerce.equals(user.getEcommerceId())) {</span>
+<span class="fc" id="L164">                log.warn(&quot;Intento de acceso cruzado a usuario: user ecommerce={}, target ecommerce={}&quot;, </span>
+<span class="fc" id="L165">                        userEcommerce, user.getEcommerceId());</span>
+<span class="fc" id="L166">                throw new AuthorizationException(</span>
+                    &quot;No tiene permiso para acceder a este usuario&quot;
+                );
+            }
+        }
+        
+<span class="fc" id="L172">        return toResponse(user);</span>
+    }
+    
+    @Transactional
+    public UserResponse updateUser(UUID uid, UserUpdateRequest request) {
+<span class="fc" id="L177">        String currentRole = securityContextHelper.getCurrentUserRole();</span>
+<span class="fc" id="L178">        UUID currentUserUid = securityContextHelper.getCurrentUserUid();</span>
+<span class="fc" id="L179">        UUID currentUserEcommerceId = securityContextHelper.getCurrentUserEcommerceId();</span>
+        
+<span class="fc" id="L181">        UserEntity user = userRepository.findById(uid)</span>
+<span class="pc" id="L182">                .orElseThrow(() -&gt; new ResourceNotFoundException(&quot;Usuario no encontrado&quot;));</span>
+        
+<span class="fc" id="L184">        boolean canAct = securityContextHelper.canActOnUser(user.getEcommerceId(), uid);</span>
+<span class="fc bfc" id="L185" title="All 2 branches covered.">        if (!canAct) {</span>
+<span class="fc" id="L186">            log.warn(&quot;Intento de acceso prohibido a usuario. Current: role={}, uid={}. Target: uid={}, ecommerce={}&quot;, </span>
+<span class="fc" id="L187">                    currentRole, currentUserUid, uid, user.getEcommerceId());</span>
+<span class="fc" id="L188">            throw new AuthorizationException(</span>
+                &quot;No tiene permiso para editar este usuario&quot;
+            );
+        }
+        
+<span class="fc bfc" id="L193" title="All 2 branches covered.">        if (request.roleId() != null) {</span>
+<span class="fc" id="L194">            log.warn(&quot;Intento de cambiar roleId del usuario uid={}. New roleId={}. Operación RECHAZADA.&quot;, </span>
+<span class="fc" id="L195">                    uid, request.roleId());</span>
+<span class="fc" id="L196">            throw new BadRequestException(</span>
+                &quot;No se puede cambiar el roleId de un usuario. El rol es inmutable.&quot;
+            );
+        }
+        
+<span class="fc bfc" id="L201" title="All 2 branches covered.">        if (!currentRole.equals(&quot;SUPER_ADMIN&quot;)) {</span>
+<span class="fc bfc" id="L202" title="All 2 branches covered.">            if (request.ecommerceId() != null) {</span>
+<span class="fc" id="L203">                log.warn(&quot;Intento de cambiar ecommerce_id by user with role={}. UID={}&quot;, currentRole, currentUserUid);</span>
+<span class="fc" id="L204">                throw new AuthorizationException(</span>
+                    &quot;No puede cambiar su ecommerce_id&quot;
+                );
+            }
+            
+<span class="pc bpc" id="L209" title="1 of 2 branches missed.">            if (request.active() != null) {</span>
+<span class="fc" id="L210">                log.warn(&quot;Intento de cambiar active by user with role={}. UID={}&quot;, currentRole, currentUserUid);</span>
+<span class="fc" id="L211">                throw new AuthorizationException(</span>
+                    &quot;No puede cambiar su estado de activación&quot;
+                );
+            }
+        }
+        
+<span class="pc bpc" id="L217" title="1 of 4 branches missed.">        if (request.username() != null &amp;&amp; !request.username().isEmpty() &amp;&amp;</span>
+<span class="pc bpc" id="L218" title="1 of 2 branches missed.">                !request.username().equals(user.getUsername())) {</span>
+<span class="fc bfc" id="L219" title="All 2 branches covered.">            if (userRepository.findByUsername(request.username()).isPresent()) {</span>
+<span class="fc" id="L220">                log.warn(&quot;Intento de cambiar a username duplicado: {}&quot;, request.username());</span>
+<span class="fc" id="L221">                throw new ConflictException(&quot;Username ya existe en el sistema&quot;);</span>
+            }
+<span class="fc" id="L223">            user.setUsername(request.username());</span>
+        }
+        
+<span class="pc bpc" id="L226" title="3 of 4 branches missed.">        if (request.email() != null &amp;&amp; !request.email().isEmpty() &amp;&amp;</span>
+<span class="nc bnc" id="L227" title="All 2 branches missed.">                !request.email().equals(user.getEmail())) {</span>
+<span class="nc bnc" id="L228" title="All 2 branches missed.">            if (userRepository.findByEmail(request.email()).isPresent()) {</span>
+<span class="nc" id="L229">                log.warn(&quot;Intento de cambiar a email duplicado: {}&quot;, request.email());</span>
+<span class="nc" id="L230">                throw new ConflictException(&quot;Email ya existe en el sistema&quot;);</span>
+            }
+<span class="nc" id="L232">            user.setEmail(request.email());</span>
+        }
+        
+<span class="pc bpc" id="L235" title="3 of 4 branches missed.">        if (request.password() != null &amp;&amp; !request.password().isEmpty()) {</span>
+<span class="nc" id="L236">            user.setPasswordHash(passwordEncoder.encode(request.password()));</span>
+        }
+        
+<span class="pc bpc" id="L239" title="1 of 4 branches missed.">        if (request.ecommerceId() != null &amp;&amp; currentRole.equals(&quot;SUPER_ADMIN&quot;)) {</span>
+<span class="pc bpc" id="L240" title="1 of 2 branches missed.">            if (!request.ecommerceId().equals(user.getEcommerceId())) {</span>
+<span class="fc" id="L241">                ecommerceService.validateEcommerceExists(request.ecommerceId());</span>
+<span class="fc" id="L242">                user.setEcommerceId(request.ecommerceId());</span>
+<span class="fc" id="L243">                log.info(&quot;Ecommerce cambiado para usuario uid={}: {} -&gt; {}&quot;, </span>
+<span class="fc" id="L244">                        uid, user.getEcommerceId(), request.ecommerceId());</span>
+            }
+        }
+        
+<span class="pc bpc" id="L248" title="1 of 4 branches missed.">        if (request.active() != null &amp;&amp; currentRole.equals(&quot;SUPER_ADMIN&quot;)) {</span>
+<span class="fc" id="L249">            user.setIsActive(request.active());</span>
+        }
+        
+<span class="fc" id="L252">        UserEntity updated = userRepository.save(user);</span>
+<span class="fc" id="L253">        log.info(&quot;Usuario actualizado: uid={}, username={}, ecommerce={}, active={}&quot;, </span>
+<span class="fc" id="L254">                updated.getId(), updated.getUsername(), updated.getEcommerceId(), updated.getIsActive());</span>
+        
+<span class="fc" id="L256">        return toResponse(updated);</span>
+    }
+    
+    @Transactional
+    public void deleteUser(UUID uid) {
+<span class="fc" id="L261">        String currentRole = securityContextHelper.getCurrentUserRole();</span>
+<span class="fc" id="L262">        UUID currentUserUid = securityContextHelper.getCurrentUserUid();</span>
+        
+<span class="fc" id="L264">        UserEntity user = userRepository.findById(uid)</span>
+<span class="pc" id="L265">                .orElseThrow(() -&gt; new ResourceNotFoundException(&quot;Usuario no encontrado&quot;));</span>
+        
+<span class="fc bfc" id="L267" title="All 2 branches covered.">        if (currentUserUid.equals(uid)) {</span>
+<span class="fc" id="L268">            log.warn(&quot;Intento de auto-eliminación por usuario: uid={}, role={}&quot;, uid, currentRole);</span>
+<span class="fc" id="L269">            throw new BadRequestException(&quot;No puede eliminarse a sí mismo&quot;);</span>
+        }
+        
+<span class="fc" id="L272">        boolean canAct = securityContextHelper.canActOnUser(user.getEcommerceId(), uid);</span>
+<span class="fc bfc" id="L273" title="All 2 branches covered.">        if (!canAct) {</span>
+<span class="fc" id="L274">            log.warn(&quot;Intento de eliminación prohibida. Current: role={}, uid={}. Target: uid={}, ecommerce={}&quot;, </span>
+<span class="fc" id="L275">                    currentRole, currentUserUid, uid, user.getEcommerceId());</span>
+<span class="fc" id="L276">            throw new AuthorizationException(</span>
+                &quot;No tiene permiso para eliminar este usuario&quot;
+            );
+        }
+        
+        // Registrar auditoría antes de eliminar (CRITERIO-2.5.1)
+<span class="fc" id="L282">        auditService.auditUserDeletion(user, currentUserUid);</span>
+        
+        // Hard delete: eliminar físicamente de la BD (CRITERIO-2.5.1)
+<span class="fc" id="L285">        userRepository.delete(user);</span>
+<span class="fc" id="L286">        log.info(&quot;Hard delete ejecutado: uid={}, username={}, ecommerce={}, actor={}&quot;, </span>
+<span class="fc" id="L287">                user.getId(), user.getUsername(), user.getEcommerceId(), currentUserUid);</span>
+<span class="fc" id="L288">    }</span>
+    
+    @Transactional
+    public UserResponse updateProfile(UpdateProfileRequest request) {
+<span class="fc" id="L292">        UUID currentUserUid = securityContextHelper.getCurrentUserUid();</span>
+        
+<span class="fc" id="L294">        UserEntity user = userRepository.findById(currentUserUid)</span>
+<span class="pc" id="L295">                .orElseThrow(() -&gt; new ResourceNotFoundException(&quot;Usuario no encontrado&quot;));</span>
+        
+<span class="pc bpc" id="L297" title="2 of 4 branches missed.">        if (request.email() != null &amp;&amp; !request.email().isBlank() &amp;&amp; </span>
+<span class="fc bfc" id="L298" title="All 2 branches covered.">                !request.email().equals(user.getEmail())) {</span>
+            // Validar unicidad global (no limitada al ecommerce) - CRITERIO-3.3
+<span class="fc bfc" id="L300" title="All 2 branches covered.">            if (userRepository.findByEmail(request.email()).isPresent()) {</span>
+<span class="fc" id="L301">                log.warn(&quot;Intento de cambiar a email duplicado globalmente: {}. Usuario actual: {}&quot;, </span>
+<span class="fc" id="L302">                        request.email(), currentUserUid);</span>
+<span class="fc" id="L303">                throw new ConflictException(&quot;El email ya está en uso&quot;); // CRITERIO-3.3 message</span>
+            }
+<span class="fc" id="L305">            user.setEmail(request.email());</span>
+        }
+        
+<span class="fc" id="L308">        UserEntity updated = userRepository.save(user);</span>
+<span class="fc" id="L309">        log.info(&quot;Perfil actualizado para usuario: uid={}, email={}, changed_by={}&quot;, </span>
+<span class="fc" id="L310">                updated.getId(), updated.getEmail(), currentUserUid);</span>
+        
+        // Registrar en tabla de auditoría (SPEC-004 RN-08)
+<span class="fc" id="L313">        auditService.auditProfileUpdate(updated.getId(), updated.getEmail());</span>
+        
+<span class="fc" id="L315">        return toResponse(updated);</span>
+    }
+    
+    @Transactional
+    public LoginResponse changePassword(ChangePasswordRequest request) {
+<span class="fc" id="L320">        UUID currentUserUid = securityContextHelper.getCurrentUserUid();</span>
+        
+<span class="fc" id="L322">        UserEntity user = userRepository.findById(currentUserUid)</span>
+<span class="pc" id="L323">                .orElseThrow(() -&gt; new ResourceNotFoundException(&quot;Usuario no encontrado&quot;));</span>
+        
+<span class="fc bfc" id="L325" title="All 2 branches covered.">        if (!passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {</span>
+<span class="fc" id="L326">            log.warn(&quot;Intento de cambio de contraseña fallido: contraseña actual incorrecta. Usuario: {}&quot;, currentUserUid);</span>
+<span class="fc" id="L327">            throw new UnauthorizedException(&quot;Contraseña actual incorrecta&quot;); // CRITERIO-3.4</span>
+        }
+        
+<span class="fc bfc" id="L330" title="All 2 branches covered.">        if (!request.newPassword().equals(request.confirmPassword())) {</span>
+<span class="fc" id="L331">            log.warn(&quot;Intento de cambio de contraseña: nuevas contraseñas no coinciden. Usuario: {}&quot;, currentUserUid);</span>
+<span class="fc" id="L332">            throw new BadRequestException(&quot;Las nuevas contraseñas no coinciden&quot;); // CRITERIO-3.2</span>
+        }
+        
+<span class="fc bfc" id="L335" title="All 2 branches covered.">        if (!passwordValidator.isValid(request.newPassword())) {</span>
+<span class="fc" id="L336">            String errorMsg = passwordValidator.getErrorMessage(request.newPassword());</span>
+<span class="fc" id="L337">            log.warn(&quot;Intento de cambio con contraseña débil: {}. Usuario: {}&quot;, errorMsg, currentUserUid);</span>
+<span class="fc" id="L338">            throw new BadRequestException(errorMsg);</span>
+        }
+        
+<span class="fc bfc" id="L341" title="All 2 branches covered.">        if (passwordEncoder.matches(request.newPassword(), user.getPasswordHash())) {</span>
+<span class="fc" id="L342">            log.warn(&quot;Intento de reutilizar misma contraseña. Usuario: {}&quot;, currentUserUid);</span>
+<span class="fc" id="L343">            throw new ConflictException(&quot;La nueva contraseña no puede ser igual a la actual&quot;);</span>
+        }
+        
+<span class="fc" id="L346">        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));</span>
+<span class="fc" id="L347">        UserEntity updated = userRepository.save(user);</span>
+        
+<span class="fc" id="L349">        log.info(&quot;Contraseña cambiada exitosamente para usuario: uid={}, changed_by={}&quot;, </span>
+<span class="fc" id="L350">                updated.getId(), currentUserUid);</span>
+        
+<span class="fc" id="L352">        auditService.auditPasswordChange(updated.getId(), null);</span>
+        
+<span class="fc" id="L354">        String newToken = jwtProvider.generateTokenFull(</span>
+<span class="fc" id="L355">                updated.getId(),</span>
+<span class="fc" id="L356">                updated.getUsername(),</span>
+<span class="fc" id="L357">                updated.getId(),</span>
+<span class="fc" id="L358">                updated.getRole().getName(),</span>
+<span class="fc" id="L359">                updated.getEcommerceId()</span>
+        );
+        
+<span class="fc" id="L362">        LoginResponse response = new LoginResponse(</span>
+                newToken,
+                &quot;Bearer&quot;,
+<span class="fc" id="L365">                updated.getUsername(),</span>
+<span class="fc" id="L366">                updated.getRole().getName()</span>
+        );
+        
+<span class="fc" id="L369">        return response;</span>
+    }
+    
+    private UserResponse toResponse(UserEntity user) {
+<span class="fc" id="L373">        return new UserResponse(</span>
+<span class="fc" id="L374">                user.getId(),</span>
+<span class="fc" id="L375">                user.getUsername(),</span>
+<span class="fc" id="L376">                user.getRoleId(),</span>
+<span class="fc" id="L377">                user.getRole().getName(),</span>
+<span class="fc" id="L378">                user.getEmail(),</span>
+<span class="fc" id="L379">                user.getEcommerceId(),</span>
+<span class="fc" id="L380">                user.getIsActive(),</span>
+<span class="fc" id="L381">                user.getCreatedAt(),</span>
+<span class="fc" id="L382">                user.getUpdatedAt()</span>
+        );
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

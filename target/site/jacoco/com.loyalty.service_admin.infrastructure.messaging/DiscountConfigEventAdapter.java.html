@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DiscountConfigEventAdapter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.infrastructure.messaging</a> &gt; <span class="el_source">DiscountConfigEventAdapter.java</span></div><h1>DiscountConfigEventAdapter.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.infrastructure.messaging;
+
+import com.loyalty.service_admin.application.port.out.DiscountConfigEventPort;
+import com.loyalty.service_admin.domain.entity.DiscountSettingsEntity;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.stereotype.Component;
+
+import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
+/**
+ * DiscountConfigEventAdapter - Adapter de eventos para DiscountConfigService.
+ *
+ * Implementa DiscountConfigEventPort publicando eventos a RabbitMQ.
+ */
+@Component
+@RequiredArgsConstructor
+<span class="fc" id="L22">@Slf4j</span>
+public class DiscountConfigEventAdapter implements DiscountConfigEventPort {
+
+    private final RabbitTemplate rabbitTemplate;
+
+    @Override
+    public void publishConfigUpdated(DiscountSettingsEntity config, UUID ecommerceId) {
+        try {
+<span class="fc" id="L30">            Map&lt;String, Object&gt; eventData = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L31">            eventData.put(&quot;configId&quot;, config.getId());</span>
+<span class="fc" id="L32">            eventData.put(&quot;ecommerceId&quot;, ecommerceId);</span>
+<span class="fc" id="L33">            eventData.put(&quot;maxDiscountCap&quot;, config.getMaxDiscountCap());</span>
+<span class="fc" id="L34">            eventData.put(&quot;currencyCode&quot;, config.getCurrencyCode());</span>
+<span class="fc" id="L35">            eventData.put(&quot;allowStacking&quot;, config.getAllowStacking());</span>
+<span class="fc" id="L36">            eventData.put(&quot;roundingRule&quot;, config.getRoundingRule());</span>
+<span class="fc" id="L37">            eventData.put(&quot;eventType&quot;, &quot;DISCOUNT_CONFIG_UPDATED&quot;);</span>
+<span class="fc" id="L38">            eventData.put(&quot;timestamp&quot;, Instant.now());</span>
+
+<span class="fc" id="L40">            rabbitTemplate.convertAndSend(&quot;discount-exchange&quot;, &quot;discount.config.updated&quot;, eventData);</span>
+<span class="fc" id="L41">            log.info(&quot;Published DISCOUNT_CONFIG_UPDATED event: configId={}, ecommerceId={}&quot;, config.getId(), ecommerceId);</span>
+<span class="fc" id="L42">        } catch (Exception ex) {</span>
+<span class="fc" id="L43">            log.error(&quot;Failed to publish DISCOUNT_CONFIG_UPDATED event: configId={}, ecommerceId={}&quot;, config.getId(), ecommerceId, ex);</span>
+<span class="fc" id="L44">        }</span>
+<span class="fc" id="L45">    }</span>
+
+    @Override
+    public void publishConfigDeleted(UUID configId, UUID ecommerceId) {
+        try {
+<span class="fc" id="L50">            Map&lt;String, Object&gt; eventData = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L51">            eventData.put(&quot;configId&quot;, configId);</span>
+<span class="fc" id="L52">            eventData.put(&quot;ecommerceId&quot;, ecommerceId);</span>
+<span class="fc" id="L53">            eventData.put(&quot;eventType&quot;, &quot;DISCOUNT_CONFIG_DELETED&quot;);</span>
+<span class="fc" id="L54">            eventData.put(&quot;timestamp&quot;, Instant.now());</span>
+
+<span class="fc" id="L56">            rabbitTemplate.convertAndSend(&quot;discount-exchange&quot;, &quot;discount.config.updated&quot;, eventData);</span>
+<span class="fc" id="L57">            log.info(&quot;Published DISCOUNT_CONFIG_DELETED event: configId={}, ecommerceId={}&quot;, configId, ecommerceId);</span>
+<span class="fc" id="L58">        } catch (Exception ex) {</span>
+<span class="fc" id="L59">            log.error(&quot;Failed to publish DISCOUNT_CONFIG_DELETED event: configId={}, ecommerceId={}&quot;, configId, ecommerceId, ex);</span>
+<span class="fc" id="L60">        }</span>
+<span class="fc" id="L61">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

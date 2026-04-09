@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JpaUserCreateAdapter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.infrastructure.persistence.jpa</a> &gt; <span class="el_source">JpaUserCreateAdapter.java</span></div><h1>JpaUserCreateAdapter.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.infrastructure.persistence.jpa;
+
+import com.loyalty.service_admin.application.port.out.UserCreatePersistencePort;
+import com.loyalty.service_admin.domain.entity.UserEntity;
+import com.loyalty.service_admin.domain.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+
+/**
+ * Adapter JPA que implementa el puerto de persistencia para creación de usuarios.
+ *
+ * Responsabilidad: Delegar operaciones CRUD al JpaRepository.
+ * Aquí SÍ es permitido inyectar UserRepository (es un adapter).
+ */
+@Component
+@RequiredArgsConstructor
+<span class="fc" id="L18">@Slf4j</span>
+public class JpaUserCreateAdapter implements UserCreatePersistencePort {
+    
+    private final UserRepository userRepository;
+    
+    @Override
+    public boolean existsByUsername(String username) {
+<span class="fc" id="L25">        return userRepository.findByUsername(username).isPresent();</span>
+    }
+    
+    @Override
+    public boolean existsByEmail(String email) {
+<span class="fc" id="L30">        return userRepository.findByEmail(email).isPresent();</span>
+    }
+    
+    @Override
+    public UserEntity save(UserEntity user) {
+<span class="fc" id="L35">        UserEntity saved = userRepository.save(user);</span>
+<span class="fc" id="L36">        log.debug(&quot;Usuario creado en BD: uid={}, username={}&quot;, saved.getId(), saved.getUsername());</span>
+<span class="fc" id="L37">        return saved;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

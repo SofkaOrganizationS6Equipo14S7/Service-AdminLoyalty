@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JpaDiscountConfigAdapter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.infrastructure.persistence.jpa</a> &gt; <span class="el_source">JpaDiscountConfigAdapter.java</span></div><h1>JpaDiscountConfigAdapter.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.infrastructure.persistence.jpa;
+
+import com.loyalty.service_admin.application.port.out.DiscountConfigPersistencePort;
+import com.loyalty.service_admin.domain.entity.DiscountSettingsEntity;
+import com.loyalty.service_admin.domain.repository.DiscountConfigRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+
+import java.util.Optional;
+import java.util.UUID;
+
+/**
+ * JpaDiscountConfigAdapter - Adapter de persistencia para DiscountConfigService.
+ *
+ * Implementa DiscountConfigPersistencePort delegando a DiscountConfigRepository.
+ */
+@Component
+@RequiredArgsConstructor
+<span class="fc" id="L20">@Slf4j</span>
+public class JpaDiscountConfigAdapter implements DiscountConfigPersistencePort {
+
+    private final DiscountConfigRepository repository;
+
+    @Override
+    public DiscountSettingsEntity saveConfig(DiscountSettingsEntity config) {
+<span class="fc" id="L27">        log.debug(&quot;Saving discount config: {}&quot;, config.getId());</span>
+<span class="fc" id="L28">        return repository.save(config);</span>
+    }
+
+    @Override
+    public Optional&lt;DiscountSettingsEntity&gt; findActiveConfigByEcommerce(UUID ecommerceId) {
+<span class="fc" id="L33">        log.debug(&quot;Finding active discount config for ecommerce: {}&quot;, ecommerceId);</span>
+<span class="fc" id="L34">        return repository.findActiveByEcommerceId(ecommerceId);</span>
+    }
+
+    @Override
+    public Optional&lt;DiscountSettingsEntity&gt; findConfigById(UUID configId) {
+<span class="fc" id="L39">        log.debug(&quot;Finding discount config by id: {}&quot;, configId);</span>
+<span class="fc" id="L40">        return repository.findById(configId);</span>
+    }
+
+    @Override
+    public boolean existsActiveConfigForEcommerce(UUID ecommerceId) {
+<span class="fc" id="L45">        log.debug(&quot;Checking if active discount config exists for ecommerce: {}&quot;, ecommerceId);</span>
+<span class="fc" id="L46">        return repository.existsByEcommerceIdAndIsActiveTrue(ecommerceId);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

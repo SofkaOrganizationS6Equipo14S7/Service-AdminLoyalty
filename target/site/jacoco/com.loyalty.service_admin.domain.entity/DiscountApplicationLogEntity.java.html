@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DiscountApplicationLogEntity.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.domain.entity</a> &gt; <span class="el_source">DiscountApplicationLogEntity.java</span></div><h1>DiscountApplicationLogEntity.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.domain.entity;
+
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.UUID;
+
+@Entity
+@Table(name = &quot;discount_application_log&quot;, indexes = {
+    @Index(name = &quot;idx_discount_log_ecommerce&quot;, columnList = &quot;ecommerce_id&quot;)
+})
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class DiscountApplicationLogEntity {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+
+    @Column(name = &quot;ecommerce_id&quot;, nullable = false)
+    private UUID ecommerceId;
+
+    @Column(name = &quot;external_order_id&quot;, length = 255)
+    private String externalOrderId;
+
+    @Column(name = &quot;original_amount&quot;, nullable = false, precision = 12, scale = 4)
+    private BigDecimal originalAmount;
+
+    @Column(name = &quot;discount_applied&quot;, nullable = false, precision = 12, scale = 2)
+    private BigDecimal discountApplied;
+
+    @Column(name = &quot;final_amount&quot;, nullable = false, precision = 12, scale = 2)
+    private BigDecimal finalAmount;
+
+    @Column(name = &quot;applied_rules_details&quot;, columnDefinition = &quot;jsonb&quot;)
+    private String appliedRulesDetails;
+
+    @Column(name = &quot;created_at&quot;, nullable = false, updatable = false)
+    private Instant createdAt;
+
+    @PrePersist
+    protected void onCreate() {
+<span class="fc" id="L49">        createdAt = Instant.now();</span>
+<span class="fc" id="L50">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

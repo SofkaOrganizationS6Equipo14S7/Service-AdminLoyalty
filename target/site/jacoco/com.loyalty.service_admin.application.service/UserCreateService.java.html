@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserCreateService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.application.service</a> &gt; <span class="el_source">UserCreateService.java</span></div><h1>UserCreateService.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.application.service;
+
+import com.loyalty.service_admin.application.dto.user.UserCreateRequest;
+import com.loyalty.service_admin.application.dto.user.UserResponse;
+import com.loyalty.service_admin.application.port.in.UserCreateUseCase;
+import com.loyalty.service_admin.application.port.out.UserCreatePersistencePort;
+import com.loyalty.service_admin.domain.entity.RoleEntity;
+import com.loyalty.service_admin.domain.entity.UserEntity;
+import com.loyalty.service_admin.domain.repository.RoleRepository;
+import com.loyalty.service_admin.infrastructure.exception.AuthorizationException;
+import com.loyalty.service_admin.infrastructure.exception.BadRequestException;
+import com.loyalty.service_admin.infrastructure.exception.ConflictException;
+import com.loyalty.service_admin.infrastructure.exception.UnauthorizedException;
+import com.loyalty.service_admin.infrastructure.security.SecurityContextHelper;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.UUID;
+
+/**
+ * Implementación del caso de uso: Creación de Usuarios.
+ *
+ * Responsabilidades:
+ * - Validar autorización (rol, ecommerce)
+ * - Validar unicidad de email y username
+ * - Validar existencia de role y ecommerce
+ * - Hash password usando BCrypt
+ * - Registrar auditoría de creación
+ * - Retornar UserResponse
+ *
+ * Patrón: Inyecta puertos (NO implementaciones concretas).
+ */
+@Service
+@RequiredArgsConstructor
+<span class="fc" id="L38">@Slf4j</span>
+public class UserCreateService implements UserCreateUseCase {
+    
+    private final UserCreatePersistencePort userCreatePersistencePort;
+    private final SecurityContextHelper securityContextHelper;
+    private final RoleRepository roleRepository;
+    private final EcommerceService ecommerceService;
+    private final AuditService auditService;
+    private final PasswordValidator passwordValidator;
+    private final BCryptPasswordEncoder passwordEncoder;
+    
+    /**
+     * Crea un nuevo usuario en el sistema.
+     *
+     * Workflow:
+     * 1. Validar usuario autenticado
+     * 2. Validar autorización (rol)
+     * 3. Validar que role existe
+     * 4. Validar existencia del ecommerce
+     * 5. Validar que email NO existe
+     * 6. Validar que username NO existe
+     * 7. Validar password
+     * 8. Hash password y crear usuario
+     * 9. Registrar auditoría
+     * 10. Retornar UserResponse
+     *
+     * @param request datos del usuario a crear
+     * @return UserResponse con datos creados
+     * @throws UnauthorizedException si usuario no autenticado
+     * @throws AuthorizationException si rol insuficiente
+     * @throws BadRequestException si validación falla
+     * @throws ConflictException si email o username existen
+     */
+    @Transactional
+    @Override
+    public UserResponse createUser(UserCreateRequest request) {
+        // 1. Validar usuario autenticado
+        String currentRole;
+        UUID currentUserEcommerceId;
+        UUID currentUserUid;
+        
+        try {
+<span class="fc" id="L80">            currentRole = securityContextHelper.getCurrentUserRole();</span>
+<span class="fc" id="L81">            currentUserEcommerceId = securityContextHelper.getCurrentUserEcommerceId();</span>
+<span class="fc" id="L82">            currentUserUid = securityContextHelper.getCurrentUserUid();</span>
+<span class="fc" id="L83">        } catch (Exception e) {</span>
+<span class="fc" id="L84">            log.warn(&quot;Error obteniendo usuario autenticado: {}&quot;, e.getMessage());</span>
+<span class="fc" id="L85">            throw new UnauthorizedException(&quot;Usuario no autenticado&quot;);</span>
+<span class="fc" id="L86">        }</span>
+        
+<span class="fc bfc" id="L88" title="All 2 branches covered.">        if (currentRole == null) {</span>
+<span class="fc" id="L89">            log.warn(&quot;Usuario autenticado sin rol válido&quot;);</span>
+<span class="fc" id="L90">            throw new UnauthorizedException(&quot;Usuario no autenticado&quot;);</span>
+        }
+        
+        // 2. Validar autorización (solo SUPER_ADMIN o STORE_ADMIN)
+<span class="fc bfc" id="L94" title="All 4 branches covered.">        if (!&quot;SUPER_ADMIN&quot;.equals(currentRole) &amp;&amp; !&quot;STORE_ADMIN&quot;.equals(currentRole)) {</span>
+<span class="fc" id="L95">            log.warn(&quot;Intento de crear usuario sin permisos. Role actual: {}&quot;, currentRole);</span>
+<span class="fc" id="L96">            throw new AuthorizationException(&quot;Solo SUPER_ADMIN o STORE_ADMIN pueden crear usuarios&quot;);</span>
+        }
+        
+        // 3. Validar que el role existe
+<span class="fc" id="L100">        RoleEntity roleEntity = roleRepository.findById(request.roleId())</span>
+<span class="fc" id="L101">                .orElseThrow(() -&gt; {</span>
+<span class="fc" id="L102">                    log.warn(&quot;Intento de crear usuario con roleId inválido: {}&quot;, request.roleId());</span>
+<span class="fc" id="L103">                    return new BadRequestException(&quot;El roleId proporcionado no existe&quot;);</span>
+                });
+        
+<span class="fc" id="L106">        String roleName = roleEntity.getName();</span>
+        
+        // 4. Validar existencia del ecommerce
+<span class="fc bfc" id="L109" title="All 2 branches covered.">        if (&quot;SUPER_ADMIN&quot;.equals(roleName)) {</span>
+<span class="pc bpc" id="L110" title="1 of 2 branches missed.">            if (request.ecommerceId() != null) {</span>
+<span class="fc" id="L111">                log.warn(&quot;Intento de crear SUPER_ADMIN con ecommerce_id: {}&quot;, request.ecommerceId());</span>
+<span class="fc" id="L112">                throw new BadRequestException(&quot;SUPER_ADMIN no puede tener ecommerce_id asignado&quot;);</span>
+            }
+        } else {
+<span class="fc bfc" id="L115" title="All 2 branches covered.">            if (request.ecommerceId() == null) {</span>
+<span class="fc" id="L116">                log.warn(&quot;Intento de crear usuario {} sin ecommerce_id&quot;, roleName);</span>
+<span class="fc" id="L117">                throw new BadRequestException(String.format(&quot;%s requiere ecommerce_id obligatorio&quot;, roleName));</span>
+            }
+            
+<span class="fc" id="L120">            ecommerceService.validateEcommerceExists(request.ecommerceId());</span>
+            
+            // Validar que STORE_ADMIN solo crea en su ecommerce
+<span class="fc bfc" id="L123" title="All 2 branches covered.">            if (&quot;STORE_ADMIN&quot;.equals(currentRole)) {</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">                if (!currentUserEcommerceId.equals(request.ecommerceId())) {</span>
+<span class="fc" id="L125">                    log.warn(&quot;STORE_ADMIN intenta crear usuario en otro ecommerce. Own: {}, Requested: {}&quot;, </span>
+<span class="fc" id="L126">                            currentUserEcommerceId, request.ecommerceId());</span>
+<span class="fc" id="L127">                    throw new AuthorizationException(&quot;Solo puede crear usuarios dentro de su ecommerce&quot;);</span>
+                }
+            }
+        }
+        
+        // 5. Validar que email NO existe
+<span class="fc bfc" id="L133" title="All 2 branches covered.">        if (userCreatePersistencePort.existsByEmail(request.email())) {</span>
+<span class="fc" id="L134">            log.warn(&quot;Intento de crear usuario con email duplicado: {}&quot;, request.email());</span>
+<span class="fc" id="L135">            throw new ConflictException(&quot;El email ya existe. Use otro.&quot;);</span>
+        }
+        
+        // 6. Validar que username NO existe
+<span class="fc bfc" id="L139" title="All 2 branches covered.">        if (userCreatePersistencePort.existsByUsername(request.username())) {</span>
+<span class="fc" id="L140">            log.warn(&quot;Intento de crear usuario con username duplicado: {}&quot;, request.username());</span>
+<span class="fc" id="L141">            throw new ConflictException(&quot;El username ya existe. Use otro.&quot;);</span>
+        }
+        
+        // 7. Validar password
+<span class="fc bfc" id="L145" title="All 2 branches covered.">        if (!passwordValidator.isValid(request.password())) {</span>
+<span class="fc" id="L146">            String errorMsg = passwordValidator.getErrorMessage(request.password());</span>
+<span class="fc" id="L147">            log.warn(&quot;Intento de crear usuario con contraseña débil: {}. Username: {}&quot;, errorMsg, request.username());</span>
+<span class="fc" id="L148">            throw new BadRequestException(errorMsg);</span>
+        }
+        
+        // 8. Hash password y crear usuario
+<span class="fc" id="L152">        UserEntity user = UserEntity.builder()</span>
+<span class="fc" id="L153">                .username(request.username())</span>
+<span class="fc" id="L154">                .email(request.email())</span>
+<span class="fc" id="L155">                .passwordHash(passwordEncoder.encode(request.password()))</span>
+<span class="fc" id="L156">                .roleId(roleEntity.getId())</span>
+<span class="fc" id="L157">                .role(roleEntity)</span>
+<span class="fc" id="L158">                .ecommerceId(request.ecommerceId())</span>
+<span class="fc" id="L159">                .isActive(true)</span>
+<span class="fc" id="L160">                .build();</span>
+        
+<span class="fc" id="L162">        UserEntity saved = userCreatePersistencePort.save(user);</span>
+<span class="fc" id="L163">        log.info(&quot;Usuario creado exitosamente: uid={}, username={}, role={}, ecommerce={}&quot;, </span>
+<span class="fc" id="L164">                saved.getId(), saved.getUsername(), saved.getRoleId(), saved.getEcommerceId());</span>
+        
+        // 9. Registrar auditoría
+<span class="fc" id="L167">        auditService.auditUserCreation(saved, currentUserUid);</span>
+        
+        // 10. Retornar UserResponse
+<span class="fc" id="L170">        return toResponse(saved);</span>
+    }
+    
+    private UserResponse toResponse(UserEntity user) {
+<span class="fc" id="L174">        return new UserResponse(</span>
+<span class="fc" id="L175">                user.getId(),</span>
+<span class="fc" id="L176">                user.getUsername(),</span>
+<span class="fc" id="L177">                user.getRoleId(),</span>
+<span class="pc bpc" id="L178" title="1 of 2 branches missed.">                user.getRole() != null ? user.getRole().getName() : null,</span>
+<span class="fc" id="L179">                user.getEmail(),</span>
+<span class="fc" id="L180">                user.getEcommerceId(),</span>
+<span class="fc" id="L181">                user.getIsActive(),</span>
+<span class="fc" id="L182">                user.getCreatedAt(),</span>
+<span class="fc" id="L183">                user.getUpdatedAt()</span>
+        );
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ApiKeyController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.presentation.controller</a> &gt; <span class="el_source">ApiKeyController.java</span></div><h1>ApiKeyController.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.presentation.controller;
+
+import com.loyalty.service_admin.application.dto.apikey.*;
+import com.loyalty.service_admin.application.port.in.ApiKeyUseCase;
+import com.loyalty.service_admin.infrastructure.exception.AuthorizationException;
+import com.loyalty.service_admin.infrastructure.security.SecurityContextHelper;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.UUID;
+
+@RestController
+@RequestMapping(&quot;/api/v1/ecommerces/{ecommerceId}/api-keys&quot;)
+<span class="fc" id="L18">@Slf4j</span>
+@PreAuthorize(&quot;isAuthenticated()&quot;)
+public class ApiKeyController {
+    
+    private final ApiKeyUseCase apiKeyUseCase;
+    private final SecurityContextHelper securityContextHelper;
+    
+<span class="fc" id="L25">    public ApiKeyController(ApiKeyUseCase apiKeyUseCase, SecurityContextHelper securityContextHelper) {</span>
+<span class="fc" id="L26">        this.apiKeyUseCase = apiKeyUseCase;</span>
+<span class="fc" id="L27">        this.securityContextHelper = securityContextHelper;</span>
+<span class="fc" id="L28">    }</span>
+    
+    /**
+     * Crear nueva API Key para un ecommerce
+     * @param ecommerceId ecommerce identifier
+     * @param request empty body
+     * @return HTTP 201 Created with ApiKeyCreatedResponse (key sin enmascarar)
+     */
+    @PostMapping
+    public ResponseEntity&lt;ApiKeyCreatedResponse&gt; createApiKey(
+        @PathVariable UUID ecommerceId,
+        @RequestBody(required = false) ApiKeyCreateRequest request
+    ) {
+        // Validar autorización: STORE_ADMIN solo puede crear en su propio ecommerce
+<span class="fc" id="L42">        validateEcommerceAccess(ecommerceId);</span>
+        
+<span class="fc" id="L44">        ApiKeyCreatedResponse response = apiKeyUseCase.createApiKey(ecommerceId);</span>
+<span class="fc" id="L45">        return ResponseEntity.status(HttpStatus.CREATED).body(response);</span>
+    }
+    
+    /**
+     * Listar API Keys de un ecommerce
+     * @param ecommerceId ecommerce identifier
+     * @return HTTP 200 OK with list of ApiKeyListResponse
+     */
+    @GetMapping
+    public ResponseEntity&lt;List&lt;ApiKeyListResponse&gt;&gt; getApiKeys(
+        @PathVariable UUID ecommerceId
+    ) {
+        // Validar autorización: STORE_ADMIN solo puede listar su propio ecommerce
+<span class="fc" id="L58">        validateEcommerceAccess(ecommerceId);</span>
+        
+<span class="fc" id="L60">        List&lt;ApiKeyListResponse&gt; keys = apiKeyUseCase.getApiKeysByEcommerce(ecommerceId);</span>
+<span class="fc" id="L61">        return ResponseEntity.ok(keys);</span>
+    }
+    
+    /**
+     * Eliminar una API Key
+     * @param ecommerceId ecommerce owner identifier
+     * @param keyId API key identifier to delete
+     * @return HTTP 204 No Content
+     */
+    @DeleteMapping(&quot;/{keyId}&quot;)
+    public ResponseEntity&lt;Void&gt; deleteApiKey(
+        @PathVariable UUID ecommerceId,
+        @PathVariable UUID keyId
+    ) {
+        // Validar autorización: STORE_ADMIN solo puede eliminar keys de su propio ecommerce
+<span class="fc" id="L76">        validateEcommerceAccess(ecommerceId);</span>
+        
+<span class="fc" id="L78">        apiKeyUseCase.deleteApiKey(ecommerceId, keyId);</span>
+<span class="fc" id="L79">        return ResponseEntity.noContent().build();</span>
+    }
+    
+    /**
+     * Valida que el usuario actual tiene acceso al ecommerce especificado.
+     * SUPER_ADMIN: acceso a todos
+     * STORE_ADMIN: acceso solo a su propio ecommerce
+     */
+    private void validateEcommerceAccess(UUID ecommerceId) {
+<span class="fc" id="L88">        String currentRole = securityContextHelper.getCurrentUserRole();</span>
+        
+<span class="fc bfc" id="L90" title="All 2 branches covered.">        if (!&quot;SUPER_ADMIN&quot;.equals(currentRole)) {</span>
+<span class="fc" id="L91">            UUID userEcommerceId = securityContextHelper.getCurrentUserEcommerceId();</span>
+<span class="fc bfc" id="L92" title="All 4 branches covered.">            if (userEcommerceId == null || !userEcommerceId.equals(ecommerceId)) {</span>
+<span class="fc" id="L93">                throw new AuthorizationException(</span>
+                    &quot;No tienes permiso para acceder a las API keys de este ecommerce&quot;
+                );
+            }
+        }
+<span class="fc" id="L98">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

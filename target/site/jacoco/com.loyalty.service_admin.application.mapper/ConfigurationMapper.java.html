@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ConfigurationMapper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.application.mapper</a> &gt; <span class="el_source">ConfigurationMapper.java</span></div><h1>ConfigurationMapper.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.application.mapper;
+
+import com.loyalty.service_admin.application.dto.configuration.ConfigurationCreateRequest;
+import com.loyalty.service_admin.application.dto.configuration.ConfigurationPatchRequest;
+import com.loyalty.service_admin.application.dto.configuration.ConfigurationUpdatedEvent;
+import com.loyalty.service_admin.application.dto.configuration.ConfigurationWriteData;
+import com.loyalty.service_admin.domain.entity.DiscountSettingsEntity;
+import com.loyalty.service_admin.domain.entity.DiscountPriorityEntity;
+import org.springframework.stereotype.Component;
+
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+
+@Component
+<span class="fc" id="L17">public class ConfigurationMapper {</span>
+
+    public DiscountSettingsEntity toEntity(ConfigurationCreateRequest request) {
+<span class="fc" id="L20">        DiscountSettingsEntity entity = new DiscountSettingsEntity();</span>
+<span class="fc" id="L21">        entity.setEcommerceId(request.ecommerceId());</span>
+<span class="fc" id="L22">        entity.setCurrencyCode(request.currency());</span>
+<span class="fc" id="L23">        entity.setRoundingRule(request.roundingRule().name());</span>
+<span class="fc" id="L24">        entity.setIsActive(true);</span>
+<span class="fc" id="L25">        entity.setVersion(1L);</span>
+<span class="fc" id="L26">        entity.setCreatedAt(Instant.now());</span>
+<span class="fc" id="L27">        entity.setUpdatedAt(Instant.now());</span>
+        
+        // Crear prioridades
+<span class="fc" id="L30">        List&lt;DiscountPriorityEntity&gt; priorities = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L31" title="All 2 branches covered.">        if (request.priority() != null) {</span>
+<span class="fc bfc" id="L32" title="All 2 branches covered.">            for (var priorityReq : request.priority()) {</span>
+<span class="fc" id="L33">                DiscountPriorityEntity priority = new DiscountPriorityEntity();</span>
+<span class="fc" id="L34">                priority.setDiscountTypeId(UUID.nameUUIDFromBytes(priorityReq.type().getBytes()));</span>
+<span class="fc" id="L35">                priority.setPriorityLevel(priorityReq.order());</span>
+<span class="fc" id="L36">                priority.setIsActive(true);</span>
+<span class="fc" id="L37">                priority.setCreatedAt(Instant.now());</span>
+<span class="fc" id="L38">                priority.setUpdatedAt(Instant.now());</span>
+<span class="fc" id="L39">                priorities.add(priority);</span>
+<span class="fc" id="L40">            }</span>
+        }
+<span class="fc" id="L42">        entity.setPriorities(priorities);</span>
+        
+<span class="fc" id="L44">        return entity;</span>
+    }
+
+    public void applyPatch(DiscountSettingsEntity entity, ConfigurationPatchRequest request) {
+<span class="fc bfc" id="L48" title="All 2 branches covered.">        if (request.currency() != null) {</span>
+<span class="fc" id="L49">            entity.setCurrencyCode(request.currency());</span>
+        }
+<span class="fc bfc" id="L51" title="All 2 branches covered.">        if (request.roundingRule() != null) {</span>
+<span class="fc" id="L52">            entity.setRoundingRule(request.roundingRule().name());</span>
+        }
+<span class="pc bpc" id="L54" title="1 of 4 branches missed.">        if (request.priority() != null &amp;&amp; !request.priority().isEmpty()) {</span>
+<span class="fc" id="L55">            List&lt;DiscountPriorityEntity&gt; priorities = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L56" title="All 2 branches covered.">            for (var priorityReq : request.priority()) {</span>
+<span class="fc" id="L57">                DiscountPriorityEntity priority = new DiscountPriorityEntity();</span>
+<span class="fc" id="L58">                priority.setDiscountTypeId(UUID.nameUUIDFromBytes(priorityReq.type().getBytes()));</span>
+<span class="fc" id="L59">                priority.setPriorityLevel(priorityReq.order());</span>
+<span class="fc" id="L60">                priority.setIsActive(true);</span>
+<span class="fc" id="L61">                priority.setCreatedAt(Instant.now());</span>
+<span class="fc" id="L62">                priority.setUpdatedAt(Instant.now());</span>
+<span class="fc" id="L63">                priorities.add(priority);</span>
+<span class="fc" id="L64">            }</span>
+<span class="fc" id="L65">            entity.replacePriorities(priorities);</span>
+        }
+<span class="fc" id="L67">        entity.setVersion(entity.getVersion() + 1);</span>
+<span class="fc" id="L68">        entity.setUpdatedAt(Instant.now());</span>
+<span class="fc" id="L69">    }</span>
+
+    public ConfigurationWriteData toWriteData(DiscountSettingsEntity entity) {
+<span class="fc" id="L72">        return new ConfigurationWriteData(entity.getId(), entity.getVersion());</span>
+    }
+
+    public ConfigurationUpdatedEvent toUpdatedEvent(DiscountSettingsEntity entity) {
+<span class="fc" id="L76">        return new ConfigurationUpdatedEvent(</span>
+                &quot;CONFIG_UPDATED&quot;,
+<span class="fc" id="L78">                entity.getId(),</span>
+<span class="fc" id="L79">                entity.getEcommerceId(),</span>
+<span class="fc" id="L80">                entity.getVersion(),</span>
+<span class="fc" id="L81">                entity.getCurrencyCode(),</span>
+                null,
+                null,
+                null,
+                null,
+                new ArrayList&lt;&gt;(),
+<span class="fc" id="L87">                entity.getUpdatedAt()</span>
+        );
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

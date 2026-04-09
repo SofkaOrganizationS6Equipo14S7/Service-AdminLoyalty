@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: com.loyalty.service_admin.infrastructure.security.JwtProviderTest
+-------------------------------------------------------------------------------
+Tests run: 23, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 3.384 s -- in com.loyalty.service_admin.infrastructure.security.JwtProviderTest

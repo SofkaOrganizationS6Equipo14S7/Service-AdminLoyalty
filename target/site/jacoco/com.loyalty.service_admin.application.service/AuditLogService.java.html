@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AuditLogService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.application.service</a> &gt; <span class="el_source">AuditLogService.java</span></div><h1>AuditLogService.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.application.service;
+
+import com.loyalty.service_admin.application.dto.auditlog.AuditLogResponse;
+import com.loyalty.service_admin.domain.entity.AuditLogEntity;
+import com.loyalty.service_admin.domain.repository.AuditLogRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.UUID;
+
+/**
+ * Servicio de consulta de audit logs (SOLO LECTURA).
+ * Implementa CRITERIO-9.1 y CRITERIO-9.2.
+ * 
+ * CRITERIO-9.4: No permite modificación (sin PUT/DELETE endpoints).
+ */
+@Service
+@RequiredArgsConstructor
+<span class="fc" id="L24">@Slf4j</span>
+public class AuditLogService {
+    
+    private final AuditLogRepository auditLogRepository;
+    
+    /**
+     * CRITERIO-9.1: Lista audit logs con filtros por entityName, ecommerceId y paginación.
+     * 
+     * @param entityName filtro opcional (ej. &quot;app_user&quot;, &quot;ecommerce&quot;)
+     * @param ecommerceId filtro obligatorio para STORE_ADMIN
+     * @param page número de página (0-indexed)
+     * @param size tamaño de página
+     * @return Page&lt;AuditLogResponse&gt; con logs filtrados
+     */
+    @Transactional(readOnly = true)
+    public Page&lt;AuditLogResponse&gt; listAuditLogs(String entityName, UUID ecommerceId, int page, int size) {
+<span class="fc" id="L40">        log.info(&quot;Listando audit logs: entityName={}, ecommerceId={}, page={}, size={}&quot;, </span>
+<span class="fc" id="L41">                entityName, ecommerceId, page, size);</span>
+        
+<span class="fc" id="L43">        Pageable pageable = PageRequest.of(page, size);</span>
+        
+        Page&lt;AuditLogEntity&gt; logs;
+<span class="fc bfc" id="L46" title="All 4 branches covered.">        if (entityName != null &amp;&amp; !entityName.isBlank()) {</span>
+<span class="fc bfc" id="L47" title="All 2 branches covered.">            if (ecommerceId != null) {</span>
+<span class="fc" id="L48">                logs = auditLogRepository.findByEntityNameAndEcommerceId(entityName, ecommerceId, pageable);</span>
+            } else {
+<span class="fc" id="L50">                logs = auditLogRepository.findByEntityName(entityName, pageable);</span>
+            }
+        } else {
+<span class="fc bfc" id="L53" title="All 2 branches covered.">            if (ecommerceId != null) {</span>
+<span class="fc" id="L54">                logs = auditLogRepository.findByEcommerceId(ecommerceId, pageable);</span>
+            } else {
+<span class="fc" id="L56">                logs = auditLogRepository.findAll(pageable);</span>
+            }
+        }
+        
+<span class="fc" id="L60">        return logs.map(this::toResponse);</span>
+    }
+    
+    /**
+     * CRITERIO-9.2: Obtiene detalles de un registro de auditoría específico.
+     * 
+     * @param logId UUID del log a recuperar
+     * @return AuditLogResponse completa (incluye oldValue y newValue como JSON)
+     */
+    @Transactional(readOnly = true)
+    public AuditLogResponse getAuditLogById(UUID logId) {
+<span class="fc" id="L71">        log.info(&quot;Obteniendo audit log: logId={}&quot;, logId);</span>
+        
+<span class="fc" id="L73">        AuditLogEntity entity = auditLogRepository.findById(logId)</span>
+<span class="fc" id="L74">                .orElseThrow(() -&gt; {</span>
+<span class="fc" id="L75">                    log.warn(&quot;Audit log no encontrado: logId={}&quot;, logId);</span>
+<span class="fc" id="L76">                    return new com.loyalty.service_admin.infrastructure.exception.ResourceNotFoundException(</span>
+                        &quot;Audit log no encontrado&quot;
+                    );
+                });
+        
+<span class="fc" id="L81">        return toResponse(entity);</span>
+    }
+    
+    /**
+     * Convierte AuditLogEntity a AuditLogResponse.
+     */
+    private AuditLogResponse toResponse(AuditLogEntity entity) {
+<span class="fc" id="L88">        return new AuditLogResponse(</span>
+<span class="fc" id="L89">            entity.getId(),</span>
+<span class="fc" id="L90">            entity.getUserId(),</span>
+<span class="fc" id="L91">            entity.getEcommerceId(),</span>
+<span class="fc" id="L92">            entity.getAction(),</span>
+<span class="fc" id="L93">            entity.getEntityName(),</span>
+<span class="fc" id="L94">            entity.getEntityId(),</span>
+<span class="fc" id="L95">            entity.getOldValue(),</span>
+<span class="fc" id="L96">            entity.getNewValue(),</span>
+<span class="fc" id="L97">            entity.getCreatedAt()</span>
+        );
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

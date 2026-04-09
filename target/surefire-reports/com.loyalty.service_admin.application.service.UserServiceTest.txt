@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: com.loyalty.service_admin.application.service.UserServiceTest
+-------------------------------------------------------------------------------
+Tests run: 34, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.128 s -- in com.loyalty.service_admin.application.service.UserServiceTest

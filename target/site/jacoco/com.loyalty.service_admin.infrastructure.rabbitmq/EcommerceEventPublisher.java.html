@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EcommerceEventPublisher.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.infrastructure.rabbitmq</a> &gt; <span class="el_source">EcommerceEventPublisher.java</span></div><h1>EcommerceEventPublisher.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.infrastructure.rabbitmq;
+
+import com.loyalty.service_admin.application.dto.ecommerce.EcommerceStatusChangedEvent;
+import com.loyalty.service_admin.application.dto.ecommerce.EcommerceCreatedEvent;
+import com.loyalty.service_admin.domain.model.ecommerce.EcommerceStatus;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
+import java.time.Instant;
+import java.util.UUID;
+
+@Component
+<span class="fc" id="L16">@Slf4j</span>
+public class EcommerceEventPublisher {
+    
+    private final RabbitTemplate rabbitTemplate;
+    private final ObjectMapper objectMapper;
+    
+    @Value(&quot;${rabbitmq.exchange.events:loyalty.events}&quot;)
+    private String exchangeName;
+    
+<span class="fc" id="L25">    public EcommerceEventPublisher(RabbitTemplate rabbitTemplate, ObjectMapper objectMapper) {</span>
+<span class="fc" id="L26">        this.rabbitTemplate = rabbitTemplate;</span>
+<span class="fc" id="L27">        this.objectMapper = objectMapper;</span>
+<span class="fc" id="L28">    }</span>
+    
+    /**
+     * Publica evento cuando se crea un nuevo ecommerce.
+     * 
+     * @param ecommerceId UUID del nuevo ecommerce
+     * @param name nombre del ecommerce
+     * @param slug slug único del ecommerce
+     * @throws RuntimeException si falla la publicación (revierte transacción)
+     */
+    public void publishEcommerceCreated(UUID ecommerceId, String name, String slug) {
+<span class="fc" id="L39">        log.info(&quot;Publicando evento de creación de ecommerce: ecommerceId={}, name={}, slug={}&quot;, </span>
+                ecommerceId, name, slug);
+        
+<span class="fc" id="L42">        EcommerceCreatedEvent event = new EcommerceCreatedEvent(</span>
+                &quot;ECOMMERCE_CREATED&quot;,
+<span class="fc" id="L44">                ecommerceId.toString(),</span>
+                name,
+                slug,
+                &quot;ACTIVE&quot;,
+<span class="fc" id="L48">                Instant.now()</span>
+        );
+        
+<span class="fc" id="L51">        publishEvent(event);</span>
+<span class="fc" id="L52">        log.info(&quot;Evento de creación de ecommerce publicado exitosamente: ecommerceId={}&quot;, ecommerceId);</span>
+<span class="fc" id="L53">    }</span>
+     
+    /**
+     * @param ecommerceId    UUID del ecommerce
+     * @param newStatus      nuevo estado (ACTIVE/INACTIVE)
+     * @throws RuntimeException si falla la publicación (revierte transacción)
+     */
+    public void publishEcommerceStatusChanged(UUID ecommerceId, EcommerceStatus newStatus) {
+<span class="fc" id="L61">        log.info(&quot;Publicando evento de cambio de status: ecommerceId={}, newStatus={}&quot;, </span>
+                ecommerceId, newStatus);
+        
+<span class="fc" id="L64">        EcommerceStatusChangedEvent event = new EcommerceStatusChangedEvent(</span>
+                &quot;ECOMMERCE_STATUS_CHANGED&quot;,
+<span class="fc" id="L66">                ecommerceId.toString(),</span>
+<span class="fc" id="L67">                newStatus.name(),</span>
+                null,
+<span class="fc" id="L69">                Instant.now()</span>
+        );
+        
+<span class="fc" id="L72">        publishEvent(event);</span>
+<span class="fc" id="L73">        log.info(&quot;Evento de cambio de status publicado exitosamente: ecommerceId={}, newStatus={}&quot;, </span>
+                ecommerceId, newStatus);
+<span class="fc" id="L75">    }</span>
+    
+    /**
+     * @param event payload del evento (puede ser EcommerceCreatedEvent, EcommerceStatusChangedEvent, etc.)
+     * @throws RuntimeException si falla la serialización o el envío
+     */
+    private void publishEvent(Object event) {
+        try {
+<span class="fc" id="L83">            String payload = objectMapper.writeValueAsString(event);</span>
+<span class="fc" id="L84">            rabbitTemplate.convertAndSend(exchangeName, &quot;&quot;, payload);</span>
+<span class="fc" id="L85">            log.debug(&quot;Evento serializado y enviado: payload={}&quot;, payload);</span>
+<span class="fc" id="L86">        } catch (Exception e) {</span>
+<span class="fc" id="L87">            log.error(&quot;Error publicando evento de ecommerce: event={}&quot;, event, e);</span>
+<span class="fc" id="L88">            throw new RuntimeException(&quot;Error publicando evento de ecommerce&quot;, e);</span>
+<span class="fc" id="L89">        }</span>
+<span class="fc" id="L90">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

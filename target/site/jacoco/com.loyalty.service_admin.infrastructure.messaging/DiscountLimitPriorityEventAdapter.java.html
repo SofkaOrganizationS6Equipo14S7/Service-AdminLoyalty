@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DiscountLimitPriorityEventAdapter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.infrastructure.messaging</a> &gt; <span class="el_source">DiscountLimitPriorityEventAdapter.java</span></div><h1>DiscountLimitPriorityEventAdapter.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.infrastructure.messaging;
+
+import com.loyalty.service_admin.application.port.out.DiscountLimitPriorityEventPort;
+import com.loyalty.service_admin.domain.entity.DiscountPriorityEntity;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.stereotype.Component;
+
+import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
+/**
+ * DiscountLimitPriorityEventAdapter - Adapter de eventos para DiscountLimitPriorityService.
+ *
+ * Implementa DiscountLimitPriorityEventPort publicando eventos a RabbitMQ.
+ */
+@Component
+@RequiredArgsConstructor
+<span class="fc" id="L22">@Slf4j</span>
+public class DiscountLimitPriorityEventAdapter implements DiscountLimitPriorityEventPort {
+
+    private final RabbitTemplate rabbitTemplate;
+
+    @Override
+    public void publishPriorityUpdated(DiscountPriorityEntity priority, UUID ecommerceId) {
+        try {
+<span class="fc" id="L30">            Map&lt;String, Object&gt; eventData = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L31">            eventData.put(&quot;priorityId&quot;, priority.getId());</span>
+<span class="fc" id="L32">            eventData.put(&quot;ecommerceId&quot;, ecommerceId);</span>
+<span class="fc" id="L33">            eventData.put(&quot;discountTypeId&quot;, priority.getDiscountTypeId());</span>
+<span class="fc" id="L34">            eventData.put(&quot;priorityLevel&quot;, priority.getPriorityLevel());</span>
+<span class="fc" id="L35">            eventData.put(&quot;discountSettingId&quot;, priority.getDiscountSettingId());</span>
+<span class="fc" id="L36">            eventData.put(&quot;eventType&quot;, &quot;DISCOUNT_PRIORITY_UPDATED&quot;);</span>
+<span class="fc" id="L37">            eventData.put(&quot;timestamp&quot;, Instant.now());</span>
+
+<span class="fc" id="L39">            rabbitTemplate.convertAndSend(&quot;discount-exchange&quot;, &quot;discount.config.updated&quot;, eventData);</span>
+<span class="fc" id="L40">            log.info(&quot;Published DISCOUNT_PRIORITY_UPDATED event: priorityId={}, ecommerceId={}&quot;, priority.getId(), ecommerceId);</span>
+<span class="fc" id="L41">        } catch (Exception ex) {</span>
+<span class="fc" id="L42">            log.error(&quot;Failed to publish DISCOUNT_PRIORITY_UPDATED event: priorityId={}, ecommerceId={}&quot;, priority.getId(), ecommerceId, ex);</span>
+<span class="fc" id="L43">        }</span>
+<span class="fc" id="L44">    }</span>
+
+    @Override
+    public void publishPriorityDeleted(UUID priorityId, UUID ecommerceId) {
+        try {
+<span class="fc" id="L49">            Map&lt;String, Object&gt; eventData = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L50">            eventData.put(&quot;priorityId&quot;, priorityId);</span>
+<span class="fc" id="L51">            eventData.put(&quot;ecommerceId&quot;, ecommerceId);</span>
+<span class="fc" id="L52">            eventData.put(&quot;eventType&quot;, &quot;DISCOUNT_PRIORITY_DELETED&quot;);</span>
+<span class="fc" id="L53">            eventData.put(&quot;timestamp&quot;, Instant.now());</span>
+
+<span class="fc" id="L55">            rabbitTemplate.convertAndSend(&quot;discount-exchange&quot;, &quot;discount.config.updated&quot;, eventData);</span>
+<span class="fc" id="L56">            log.info(&quot;Published DISCOUNT_PRIORITY_DELETED event: priorityId={}, ecommerceId={}&quot;, priorityId, ecommerceId);</span>
+<span class="fc" id="L57">        } catch (Exception ex) {</span>
+<span class="fc" id="L58">            log.error(&quot;Failed to publish DISCOUNT_PRIORITY_DELETED event: priorityId={}, ecommerceId={}&quot;, priorityId, ecommerceId, ex);</span>
+<span class="fc" id="L59">        }</span>
+<span class="fc" id="L60">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

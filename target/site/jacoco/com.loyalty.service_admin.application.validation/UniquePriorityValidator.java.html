@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UniquePriorityValidator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.application.validation</a> &gt; <span class="el_source">UniquePriorityValidator.java</span></div><h1>UniquePriorityValidator.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.application.validation;
+
+import com.loyalty.service_admin.domain.entity.RuleAttributeEntity;
+import com.loyalty.service_admin.domain.entity.RuleAttributeValueEntity;
+import com.loyalty.service_admin.domain.entity.RuleEntity;
+import com.loyalty.service_admin.domain.repository.RuleAttributeRepository;
+import com.loyalty.service_admin.domain.repository.RuleAttributeValueRepository;
+import com.loyalty.service_admin.infrastructure.exception.ConflictException;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+
+import java.util.List;
+import java.util.UUID;
+
+/**
+ * HU-08.3: Valida que priority no se repita en el ecommerce.
+ * 
+ * Lógica:
+ * 1. Obtener todas las reglas activas de clasificación del ecommerce
+ * 2. Extraer priorities existentes (excluyendo la regla siendo actualizada)
+ * 3. Si nueva priority ∈ existentes → error 409
+ * 4. Si nueva priority ∉ existentes → OK
+ */
+@Component
+@RequiredArgsConstructor
+<span class="fc" id="L27">@Slf4j</span>
+public class UniquePriorityValidator {
+
+    private final RuleAttributeValueRepository ruleAttributeValueRepository;
+    private final RuleAttributeRepository ruleAttributeRepository;
+
+    /**
+     * Valida que priority sea única en el ecommerce.
+     * 
+     * @param activeRules lista de reglas activas de clasificación del ecommerce
+     * @param newPriority nuevo valor de priority
+     * @param excludeRuleId UUID de la regla siendo actualizada (null si es creación)
+     * @throws ConflictException si priority ya existe en otra regla del ecommerce
+     */
+    public void validateUniquePriority(
+            List&lt;RuleEntity&gt; activeRules,
+            Integer newPriority,
+            UUID excludeRuleId
+    ) {
+<span class="fc" id="L46">        log.debug(&quot;Validating uniqueness of priority {}&quot;, newPriority);</span>
+
+        // Filtrar reglas activas y excluir la regla siendo actualizada
+<span class="fc" id="L49">        List&lt;RuleEntity&gt; rulesToCheck = activeRules.stream()</span>
+<span class="pc bpc" id="L50" title="1 of 4 branches missed.">                .filter(r -&gt; excludeRuleId == null || !r.getId().equals(excludeRuleId))</span>
+<span class="fc" id="L51">                .toList();</span>
+
+<span class="fc bfc" id="L53" title="All 2 branches covered.">        if (rulesToCheck.isEmpty()) {</span>
+<span class="fc" id="L54">            log.debug(&quot;No existing rules with priority to check against; priority {} is unique&quot;, newPriority);</span>
+<span class="fc" id="L55">            return;  // No hay conflicto</span>
+        }
+
+        // Buscar si la priority ya existe
+<span class="fc" id="L59">        boolean priorityExists = rulesToCheck.stream()</span>
+<span class="fc" id="L60">                .map(this::extractPriorityFromRule)</span>
+<span class="fc" id="L61">                .anyMatch(p -&gt; p.equals(newPriority));</span>
+
+<span class="fc bfc" id="L63" title="All 2 branches covered.">        if (priorityExists) {</span>
+<span class="fc" id="L64">            throw new ConflictException(</span>
+                    &quot;Duplicate hierarchy_level: priority (&quot; + newPriority +
+                            &quot;) already exists for this ecommerce&quot;
+            );
+        }
+
+<span class="fc" id="L70">        log.debug(&quot;Uniqueness validation passed for priority {}&quot;, newPriority);</span>
+<span class="fc" id="L71">    }</span>
+
+    /**
+     * Extrae el valor de priority de los atributos de una regla.
+     */
+    private Integer extractPriorityFromRule(RuleEntity rule) {
+<span class="fc" id="L77">        List&lt;RuleAttributeValueEntity&gt; attrs = ruleAttributeValueRepository.findByRuleIdOrderByCreatedAtAsc(rule.getId());</span>
+
+<span class="fc" id="L79">        return attrs.stream()</span>
+<span class="fc" id="L80">                .filter(a -&gt; isAttributeNamed(a, &quot;priority&quot;))</span>
+<span class="fc" id="L81">                .findFirst()</span>
+<span class="fc" id="L82">                .map(a -&gt; Integer.parseInt(a.getValue()))</span>
+<span class="pc" id="L83">                .orElseThrow(() -&gt; new IllegalStateException(&quot;priority not found for rule &quot; + rule.getId()));</span>
+    }
+
+    /**
+     * Verifica si un atributo tiene el nombre esperado.
+     */
+    private boolean isAttributeNamed(RuleAttributeValueEntity attrValue, String expectedName) {
+<span class="fc" id="L90">        RuleAttributeEntity attr = ruleAttributeRepository.findById(attrValue.getAttributeId()).orElse(null);</span>
+<span class="pc bpc" id="L91" title="2 of 4 branches missed.">        return attr != null &amp;&amp; expectedName.equals(attr.getAttributeName());</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

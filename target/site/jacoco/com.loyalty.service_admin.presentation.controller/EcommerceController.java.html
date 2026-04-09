@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EcommerceController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.presentation.controller</a> &gt; <span class="el_source">EcommerceController.java</span></div><h1>EcommerceController.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.presentation.controller;
+
+import com.loyalty.service_admin.application.dto.ecommerce.EcommerceCreateRequest;
+import com.loyalty.service_admin.application.dto.ecommerce.EcommerceResponse;
+import com.loyalty.service_admin.application.dto.ecommerce.EcommerceUpdateStatusRequest;
+import com.loyalty.service_admin.application.port.in.EcommerceUseCase;
+import com.loyalty.service_admin.infrastructure.exception.AuthorizationException;
+import com.loyalty.service_admin.infrastructure.security.SecurityContextHelper;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.UUID;
+
+@RestController
+@RequestMapping(&quot;/api/v1/ecommerces&quot;)
+@RequiredArgsConstructor
+<span class="fc" id="L23">@Slf4j</span>
+@PreAuthorize(&quot;isAuthenticated()&quot;)
+public class EcommerceController {
+    
+    private final EcommerceUseCase ecommerceUseCase;
+    private final SecurityContextHelper securityContextHelper;
+    
+    /**
+     * @param request ecommerce data (name, slug)
+     * @return HTTP 201 Created with EcommerceResponse
+     */
+    @PostMapping
+    @PreAuthorize(&quot;hasRole('SUPER_ADMIN')&quot;)
+    public ResponseEntity&lt;EcommerceResponse&gt; createEcommerce(
+            @Valid @RequestBody EcommerceCreateRequest request) {
+<span class="fc" id="L38">        EcommerceResponse response = ecommerceUseCase.createEcommerce(request);</span>
+<span class="fc" id="L39">        return ResponseEntity.status(HttpStatus.CREATED).body(response);</span>
+    }
+    
+    /**
+     * @param status status filter (optional)
+     * @param page page number (default: 0)
+     * @param size page size (default: 50)
+     * @return HTTP 200 OK with paginated list of EcommerceResponse
+     */
+    @GetMapping
+    @PreAuthorize(&quot;hasRole('SUPER_ADMIN')&quot;)
+    public ResponseEntity&lt;Page&lt;EcommerceResponse&gt;&gt; listEcommerces(
+            @RequestParam(name = &quot;status&quot;, required = false) String status,
+            @RequestParam(name = &quot;page&quot;, defaultValue = &quot;0&quot;) int page,
+            @RequestParam(name = &quot;size&quot;, defaultValue = &quot;50&quot;) int size) {
+<span class="fc" id="L54">        Page&lt;EcommerceResponse&gt; response = ecommerceUseCase.listEcommerces(status, page, size);</span>
+<span class="fc" id="L55">        return ResponseEntity.ok(response);</span>
+    }
+    
+    /**
+     * @param uid ecommerce identifier
+     * @return HTTP 200 OK with EcommerceResponse
+     */
+    @GetMapping(&quot;/{uid}&quot;)
+    public ResponseEntity&lt;EcommerceResponse&gt; getEcommerceById(
+            @PathVariable UUID uid) {
+<span class="nc" id="L65">        String currentRole = securityContextHelper.getCurrentUserRole();</span>
+        
+<span class="nc bnc" id="L67" title="All 2 branches missed.">        if (!&quot;SUPER_ADMIN&quot;.equals(currentRole)) {</span>
+<span class="nc" id="L68">            UUID userEcommerceId = securityContextHelper.getCurrentUserEcommerceId();</span>
+<span class="nc bnc" id="L69" title="All 4 branches missed.">            if (userEcommerceId == null || !userEcommerceId.equals(uid)) {</span>
+<span class="nc" id="L70">                throw new AuthorizationException(</span>
+                    &quot;No tienes permiso para acceder a este ecommerce&quot;
+                );
+            }
+        }
+        
+<span class="nc" id="L76">        EcommerceResponse response = ecommerceUseCase.getEcommerceById(uid);</span>
+<span class="nc" id="L77">        return ResponseEntity.ok(response);</span>
+    }
+    
+    /**
+     * @param uid ecommerce identifier
+     * @param request status update data
+     * @return HTTP 200 OK with updated EcommerceResponse
+     */
+    @PutMapping(&quot;/{uid}/status&quot;)
+    @PreAuthorize(&quot;hasRole('SUPER_ADMIN')&quot;)
+    public ResponseEntity&lt;EcommerceResponse&gt; updateEcommerceStatus(
+            @PathVariable UUID uid,
+            @Valid @RequestBody EcommerceUpdateStatusRequest request) {
+<span class="nc" id="L90">        EcommerceResponse response = ecommerceUseCase.updateEcommerceStatus(uid, request);</span>
+<span class="nc" id="L91">        return ResponseEntity.ok(response);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

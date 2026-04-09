@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CustomerTierService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.application.service</a> &gt; <span class="el_source">CustomerTierService.java</span></div><h1>CustomerTierService.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.application.service;
+
+import com.loyalty.service_admin.application.dto.customertier.CustomerTierCreateRequest;
+import com.loyalty.service_admin.application.dto.customertier.CustomerTierUpdateRequest;
+import com.loyalty.service_admin.application.dto.customertier.CustomerTierResponse;
+import com.loyalty.service_admin.application.port.in.CustomerTierUseCase;
+import com.loyalty.service_admin.application.port.out.CustomerTierPersistencePort;
+import com.loyalty.service_admin.application.port.out.CustomerTierEventPort;
+import com.loyalty.service_admin.domain.entity.CustomerTierEntity;
+import com.loyalty.service_admin.infrastructure.exception.BadRequestException;
+import com.loyalty.service_admin.infrastructure.exception.ResourceNotFoundException;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.UUID;
+
+/**
+ * CustomerTierService - Implementación del UseCase para operaciones sobre customer tiers.
+ * Implementa CustomerTierUseCase e inyecta puertos (interfaces) en lugar de implementaciones concretas.
+ */
+@Service
+<span class="fc" id="L27">@Slf4j</span>
+@RequiredArgsConstructor
+@Transactional
+public class CustomerTierService implements CustomerTierUseCase {
+
+    private final CustomerTierPersistencePort persistencePort;
+    private final CustomerTierEventPort eventPort;
+
+    @Override
+    public CustomerTierResponse create(CustomerTierCreateRequest request) {
+<span class="fc" id="L37">        log.info(&quot;Creating customer tier: ecommerceId={}, name={}, hierarchyLevel={}&quot;, </span>
+<span class="fc" id="L38">            request.ecommerceId(), request.name(), request.hierarchyLevel());</span>
+
+        // Validar unicidad solo contra tiers ACTIVOS
+<span class="fc bfc" id="L41" title="All 2 branches covered.">        if (persistencePort.existsActiveTierWithNameAndEcommerce(request.ecommerceId(), request.name())) {</span>
+<span class="fc" id="L42">            throw new BadRequestException(&quot;Tier with name '&quot; + request.name() + &quot;' already exists for this ecommerce&quot;);</span>
+        }
+
+<span class="fc" id="L45">        CustomerTierEntity entity = CustomerTierEntity.builder()</span>
+<span class="fc" id="L46">            .ecommerceId(request.ecommerceId())</span>
+<span class="fc" id="L47">            .name(request.name())</span>
+<span class="fc" id="L48">            .hierarchyLevel(request.hierarchyLevel())</span>
+<span class="fc" id="L49">            .isActive(true)</span>
+<span class="fc" id="L50">            .build();</span>
+
+<span class="fc" id="L52">        CustomerTierEntity saved = persistencePort.saveTier(entity);</span>
+<span class="fc" id="L53">        log.info(&quot;Customer tier created: id={}&quot;, saved.getId());</span>
+
+        // Publicar evento
+<span class="fc" id="L56">        eventPort.publishTierCreated(saved, request.ecommerceId());</span>
+
+<span class="fc" id="L58">        return mapToResponse(saved);</span>
+    }
+
+    @Override
+    public CustomerTierResponse getById(UUID id) {
+<span class="fc" id="L63">        CustomerTierEntity entity = persistencePort.findTierById(id)</span>
+<span class="fc" id="L64">            .orElseThrow(() -&gt; new ResourceNotFoundException(&quot;Customer tier not found: &quot; + id));</span>
+<span class="fc" id="L65">        return mapToResponse(entity);</span>
+    }
+
+    @Override
+    public List&lt;CustomerTierResponse&gt; listActive() {
+<span class="fc" id="L70">        return persistencePort.findActivetiersOrderedByHierarchy().stream()</span>
+<span class="fc" id="L71">            .map(this::mapToResponse)</span>
+<span class="fc" id="L72">            .toList();</span>
+    }
+
+    @Override
+    public List&lt;CustomerTierResponse&gt; listAll() {
+<span class="fc" id="L77">        return persistencePort.findAllTiersOrderedByHierarchy().stream()</span>
+<span class="fc" id="L78">            .map(this::mapToResponse)</span>
+<span class="fc" id="L79">            .toList();</span>
+    }
+
+    @Override
+    public void delete(UUID id) {
+<span class="fc" id="L84">        CustomerTierEntity entity = persistencePort.findTierById(id)</span>
+<span class="fc" id="L85">            .orElseThrow(() -&gt; new ResourceNotFoundException(&quot;Customer tier not found: &quot; + id));</span>
+<span class="fc" id="L86">        persistencePort.deleteTier(entity);</span>
+<span class="fc" id="L87">        log.info(&quot;Customer tier soft-deleted: id={}&quot;, id);</span>
+        
+        // Publicar evento
+<span class="fc" id="L90">        eventPort.publishTierDeleted(id, entity.getEcommerceId());</span>
+<span class="fc" id="L91">    }</span>
+
+    /**
+     * CRITERIO-7.5: Listar customer tiers con paginación
+     * Opcional: filtrar por isActive si se especifica
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public Page&lt;CustomerTierResponse&gt; listPaginated(Pageable pageable, Boolean isActive) {
+<span class="fc" id="L100">        Page&lt;CustomerTierEntity&gt; page = persistencePort.findTiersPaginated(pageable, isActive);</span>
+<span class="fc" id="L101">        return page.map(this::mapToResponse);</span>
+    }
+
+    /**
+     * Actualizar un tier (name, hierarchyLevel)
+     * No permite cambiar ecommerceId ni isActive
+     * Descuentos se definen en las rules, no en el tier
+     */
+    @Override
+    @Transactional
+    public CustomerTierResponse update(UUID id, CustomerTierUpdateRequest request) {
+<span class="fc" id="L112">        CustomerTierEntity entity = persistencePort.findTierById(id)</span>
+<span class="fc" id="L113">            .orElseThrow(() -&gt; new ResourceNotFoundException(&quot;Customer tier not found: &quot; + id));</span>
+
+        // Validar unicidad de nombre si cambió (solo contra tiers ACTIVOS del mismo ecommerce)
+<span class="pc bpc" id="L116" title="1 of 2 branches missed.">        if (!entity.getName().equals(request.name()) &amp;&amp; </span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">            persistencePort.existsActiveTierWithNameAndEcommerce(entity.getEcommerceId(), request.name())) {</span>
+<span class="fc" id="L118">            throw new BadRequestException(&quot;Tier with name '&quot; + request.name() + &quot;' already exists for this ecommerce&quot;);</span>
+        }
+
+<span class="fc" id="L121">        entity.setName(request.name());</span>
+<span class="fc" id="L122">        entity.setHierarchyLevel(request.hierarchyLevel());</span>
+
+<span class="fc" id="L124">        CustomerTierEntity updated = persistencePort.saveTier(entity);</span>
+<span class="fc" id="L125">        log.info(&quot;Customer tier updated: id={}&quot;, id);</span>
+
+        // Publicar evento
+<span class="fc" id="L128">        eventPort.publishTierUpdated(updated, entity.getEcommerceId());</span>
+
+<span class="fc" id="L130">        return mapToResponse(updated);</span>
+    }
+
+    @Override
+    @Transactional
+    public CustomerTierResponse activate(UUID id) {
+<span class="fc" id="L136">        CustomerTierEntity entity = persistencePort.findTierById(id)</span>
+<span class="fc" id="L137">            .orElseThrow(() -&gt; new ResourceNotFoundException(&quot;Customer tier not found: &quot; + id));</span>
+
+<span class="fc" id="L139">        entity.setIsActive(true);</span>
+<span class="fc" id="L140">        CustomerTierEntity updated = persistencePort.saveTier(entity);</span>
+<span class="fc" id="L141">        log.info(&quot;Customer tier activated: id={}&quot;, id);</span>
+
+        // Publicar evento
+<span class="fc" id="L144">        eventPort.publishTierActivated(updated, entity.getEcommerceId());</span>
+
+<span class="fc" id="L146">        return mapToResponse(updated);</span>
+    }
+
+    private CustomerTierResponse mapToResponse(CustomerTierEntity entity) {
+<span class="fc" id="L150">        return new CustomerTierResponse(</span>
+<span class="fc" id="L151">            entity.getId(),</span>
+<span class="fc" id="L152">            entity.getEcommerceId(),</span>
+<span class="fc" id="L153">            entity.getName(),</span>
+<span class="fc" id="L154">            entity.getHierarchyLevel(),</span>
+<span class="fc" id="L155">            entity.getIsActive(),</span>
+<span class="fc" id="L156">            entity.getCreatedAt(),</span>
+<span class="fc" id="L157">            entity.getUpdatedAt()</span>
+        );
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

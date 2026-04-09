@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ApiKeyEventPublisher.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.infrastructure.rabbitmq</a> &gt; <span class="el_source">ApiKeyEventPublisher.java</span></div><h1>ApiKeyEventPublisher.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.infrastructure.rabbitmq;
+
+import com.loyalty.service_admin.application.dto.apikey.ApiKeyEventPayload;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
+@Component
+<span class="fc" id="L12">@Slf4j</span>
+public class ApiKeyEventPublisher {
+    
+    private final RabbitTemplate rabbitTemplate;
+    private final ObjectMapper objectMapper;
+    
+    @Value(&quot;${rabbitmq.exchange.config:loyalty.config.exchange}&quot;)
+    private String exchangeName;
+
+    @Value(&quot;${rabbitmq.routing.api-keys:}&quot;)
+    private String routingKey;
+
+    @Value(&quot;${rabbitmq.exchange.config-dlx:loyalty.config.dlx}&quot;)
+    private String deadLetterExchange;
+
+    @Value(&quot;${rabbitmq.routing.api-keys-dlq:api.keys.dlq}&quot;)
+    private String deadLetterRoutingKey;
+    
+<span class="fc" id="L30">    public ApiKeyEventPublisher(RabbitTemplate rabbitTemplate, ObjectMapper objectMapper) {</span>
+<span class="fc" id="L31">        this.rabbitTemplate = rabbitTemplate;</span>
+<span class="fc" id="L32">        this.objectMapper = objectMapper;</span>
+<span class="fc" id="L33">    }</span>
+    
+    /**
+     * Publica evento de creación de API Key.
+     */
+    public void publishApiKeyCreated(ApiKeyEventPayload event) {
+<span class="fc" id="L39">        publishEvent(event);</span>
+<span class="fc" id="L40">        log.info(&quot;event=api_key_created_published keyId={} ecommerceId={}&quot;,</span>
+<span class="fc" id="L41">            event.keyId(), event.ecommerceId());</span>
+<span class="fc" id="L42">    }</span>
+    
+    /**
+     * Publica evento de eliminación de API Key.
+     */
+    public void publishApiKeyDeleted(ApiKeyEventPayload event) {
+<span class="fc" id="L48">        publishEvent(event);</span>
+<span class="fc" id="L49">        log.info(&quot;event=api_key_deleted_published keyId={} ecommerceId={}&quot;,</span>
+<span class="fc" id="L50">            event.keyId(), event.ecommerceId());</span>
+<span class="fc" id="L51">    }</span>
+    
+    /**
+     * Publica un evento en el exchange de configuración.
+     */
+    private void publishEvent(ApiKeyEventPayload event) {
+<span class="fc" id="L57">        String eventId = event.eventType() + &quot;:&quot; + event.keyId() + &quot;:&quot; + event.timestamp();</span>
+        try {
+<span class="fc" id="L59">            String payload = objectMapper.writeValueAsString(event);</span>
+<span class="pc" id="L60">            rabbitTemplate.convertAndSend(exchangeName, routingKey, payload, message -&gt; withHeaders(message, event, eventId));</span>
+<span class="fc" id="L61">            log.info(&quot;event=api_key_event_published eventId={} type={} keyId={} ecommerceId={} exchange={} routingKey={}&quot;,</span>
+<span class="fc" id="L62">                    eventId, event.eventType(), event.keyId(), event.ecommerceId(), exchangeName, routingKey);</span>
+<span class="fc" id="L63">        } catch (Exception e) {</span>
+<span class="fc" id="L64">            log.error(&quot;event=api_key_event_publish_failed eventId={} type={} keyId={} ecommerceId={}&quot;,</span>
+<span class="fc" id="L65">                    eventId, event.eventType(), event.keyId(), event.ecommerceId(), e);</span>
+<span class="fc" id="L66">            rabbitTemplate.convertAndSend(deadLetterExchange, deadLetterRoutingKey, event,</span>
+<span class="nc" id="L67">                    message -&gt; withHeaders(message, event, eventId));</span>
+<span class="fc" id="L68">        }</span>
+<span class="fc" id="L69">    }</span>
+
+    private Message withHeaders(Message message, ApiKeyEventPayload event, String eventId) {
+<span class="nc" id="L72">        message.getMessageProperties().setHeader(&quot;x-event-id&quot;, eventId);</span>
+<span class="nc" id="L73">        message.getMessageProperties().setHeader(&quot;x-event-type&quot;, event.eventType());</span>
+<span class="nc" id="L74">        message.getMessageProperties().setHeader(&quot;x-key-id&quot;, event.keyId());</span>
+<span class="nc" id="L75">        message.getMessageProperties().setHeader(&quot;x-ecommerce-id&quot;, event.ecommerceId());</span>
+<span class="nc" id="L76">        return message;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

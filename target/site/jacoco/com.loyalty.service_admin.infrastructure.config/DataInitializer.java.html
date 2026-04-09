@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DataInitializer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.infrastructure.config</a> &gt; <span class="el_source">DataInitializer.java</span></div><h1>DataInitializer.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.infrastructure.config;
+
+import com.loyalty.service_admin.domain.entity.RoleEntity;
+import com.loyalty.service_admin.domain.entity.UserEntity;
+import com.loyalty.service_admin.domain.repository.RoleRepository;
+import com.loyalty.service_admin.domain.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.mindrot.jbcrypt.BCrypt;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+import java.util.UUID;
+
+/**
+ * Inicializador de datos para la base de datos.
+ * Crea un usuario por defecto si la tabla está vacía.
+ */
+@Configuration
+@RequiredArgsConstructor
+<span class="nc" id="L23">@Slf4j</span>
+public class DataInitializer {
+
+    /**
+     * Bean que se ejecuta al iniciar la aplicación.
+     * Crea un usuario administrador por defecto.
+     */
+    @Bean
+    public CommandLineRunner initDatabase(
+            UserRepository userRepository,
+            RoleRepository roleRepository,
+            @Value(&quot;${app.bootstrap.admin-ecommerce-id:00000000-0000-0000-0000-000000000001}&quot;) UUID adminEcommerceId
+    ) {
+<span class="nc" id="L36">        return args -&gt; {</span>
+            // Verificar si ya existen usuarios
+<span class="nc bnc" id="L38" title="All 2 branches missed.">            if (userRepository.count() == 0) {</span>
+                // Obtener el rol SUPER_ADMIN
+<span class="nc" id="L40">                RoleEntity superAdminRole = roleRepository.findByName(&quot;SUPER_ADMIN&quot;)</span>
+<span class="nc" id="L41">                        .orElseThrow(() -&gt; new RuntimeException(&quot;SUPER_ADMIN role not found&quot;));</span>
+                
+<span class="nc" id="L43">                String hashedPassword = BCrypt.hashpw(&quot;admin123&quot;, BCrypt.gensalt());</span>
+                
+<span class="nc" id="L45">                UserEntity adminUser = UserEntity.builder()</span>
+<span class="nc" id="L46">                        .username(&quot;admin&quot;)</span>
+<span class="nc" id="L47">                        .email(&quot;admin@system.local&quot;)</span>
+<span class="nc" id="L48">                        .passwordHash(hashedPassword)</span>
+<span class="nc" id="L49">                        .role(superAdminRole)</span>
+<span class="nc" id="L50">                        .isActive(true)</span>
+<span class="nc" id="L51">                        .build();</span>
+                
+<span class="nc" id="L53">                userRepository.save(adminUser);</span>
+<span class="nc" id="L54">                log.info(&quot;Usuario administrador creado: admin (ecommerceId={})&quot;, adminEcommerceId);</span>
+<span class="nc" id="L55">            } else {</span>
+<span class="nc" id="L56">                log.info(&quot;Base de datos ya contiene usuarios, no se crea usuario por defecto&quot;);</span>
+            }
+<span class="nc" id="L58">        };</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

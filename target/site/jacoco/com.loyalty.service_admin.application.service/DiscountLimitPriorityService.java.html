@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DiscountLimitPriorityService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.application.service</a> &gt; <span class="el_source">DiscountLimitPriorityService.java</span></div><h1>DiscountLimitPriorityService.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.application.service;
+
+import com.loyalty.service_admin.application.dto.rules.discount.DiscountLimitPriorityRequest;
+import com.loyalty.service_admin.application.dto.rules.discount.DiscountLimitPriorityResponse;
+import com.loyalty.service_admin.application.port.in.DiscountLimitPriorityUseCase;
+import com.loyalty.service_admin.application.port.out.DiscountLimitPriorityPersistencePort;
+import com.loyalty.service_admin.application.port.out.DiscountLimitPriorityEventPort;
+import com.loyalty.service_admin.application.validation.DiscountPriorityValidator;
+import com.loyalty.service_admin.domain.entity.DiscountPriorityEntity;
+import com.loyalty.service_admin.domain.entity.DiscountTypeEntity;
+import com.loyalty.service_admin.domain.model.DiscountType;
+import com.loyalty.service_admin.domain.repository.DiscountTypeRepository;
+import com.loyalty.service_admin.infrastructure.exception.BadRequestException;
+import com.loyalty.service_admin.infrastructure.exception.ResourceNotFoundException;
+import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+/**
+ * Servicio de lógica de negocio para prioridades de descuentos.
+ * Valida y persiste el orden de aplicación de descuentos.
+ */
+@Service
+<span class="fc" id="L30">@Slf4j</span>
+@RequiredArgsConstructor
+@Transactional
+public class DiscountLimitPriorityService implements DiscountLimitPriorityUseCase {
+
+    private final DiscountLimitPriorityPersistencePort persistencePort;
+    private final DiscountLimitPriorityEventPort eventPort;
+    private final DiscountTypeRepository discountTypeRepository;
+    private final DiscountPriorityValidator priorityValidator;
+
+    @Override
+    @Transactional
+    public DiscountLimitPriorityResponse savePriorities(DiscountLimitPriorityRequest request) {
+        // Validar request
+<span class="fc" id="L44">        priorityValidator.validatePriorities(request);</span>
+
+<span class="fc" id="L46">        UUID configId = request.discountSettingId();</span>
+
+        // Obtener prioridades anteriores para borrarlas
+<span class="fc" id="L49">        List&lt;DiscountPriorityEntity&gt; oldPriorities = persistencePort.findPrioritiesByConfig(configId);</span>
+<span class="fc bfc" id="L50" title="All 2 branches covered.">        for (DiscountPriorityEntity old : oldPriorities) {</span>
+<span class="fc" id="L51">            persistencePort.deletePriority(old.getId());</span>
+<span class="fc" id="L52">        }</span>
+<span class="fc" id="L53">        log.info(&quot;Cleared previous priorities for config: {}&quot;, configId);</span>
+
+<span class="fc" id="L55">        List&lt;DiscountPriorityEntity&gt; saved = request.priorities()</span>
+<span class="fc" id="L56">            .stream()</span>
+<span class="fc" id="L57">            .map(dto -&gt; {</span>
+<span class="fc" id="L58">                DiscountPriorityEntity entity = new DiscountPriorityEntity();</span>
+<span class="fc" id="L59">                entity.setDiscountSettingId(configId);</span>
+                // Validar que discountTypeId existe
+<span class="fc" id="L61">                discountTypeRepository.findById(dto.discountTypeId())</span>
+<span class="fc" id="L62">                    .orElseThrow(() -&gt; new BadRequestException(&quot;Tipo de descuento no encontrado: &quot; + dto.discountTypeId()));</span>
+<span class="fc" id="L63">                entity.setDiscountTypeId(dto.discountTypeId());</span>
+<span class="fc" id="L64">                entity.setPriorityLevel(dto.priorityLevel());</span>
+<span class="fc" id="L65">                return persistencePort.savePriority(entity);</span>
+            })
+<span class="fc" id="L67">            .collect(Collectors.toList());</span>
+<span class="fc" id="L68">        log.info(&quot;Saved {} priorities for config: {}&quot;, saved.size(), configId);</span>
+
+        // Publish event - need to get ecommerceId from config (use pragmatic default for now)
+<span class="pc bpc" id="L71" title="1 of 2 branches missed.">        if (!saved.isEmpty()) {</span>
+            try {
+<span class="fc" id="L73">                UUID defaultEcommerceId = UUID.fromString(&quot;00000000-0000-0000-0000-000000000000&quot;);</span>
+<span class="fc" id="L74">                eventPort.publishPriorityUpdated(saved.get(0), defaultEcommerceId);</span>
+<span class="fc" id="L75">            } catch (Exception ex) {</span>
+<span class="fc" id="L76">                log.error(&quot;Failed to publish priority event: {}&quot;, ex.getMessage());</span>
+<span class="fc" id="L77">            }</span>
+        }
+
+<span class="fc" id="L80">        return toResponse(configId, saved);</span>
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public DiscountLimitPriorityResponse getPriorities(UUID configId) {
+<span class="fc" id="L86">        List&lt;DiscountPriorityEntity&gt; priorities = persistencePort.findPrioritiesByConfig(configId);</span>
+
+<span class="fc bfc" id="L88" title="All 2 branches covered.">        if (priorities.isEmpty()) {</span>
+<span class="fc" id="L89">            throw new ResourceNotFoundException(</span>
+                &quot;No existen prioridades configuradas para: &quot; + configId
+            );
+        }
+
+<span class="fc" id="L94">        return toResponse(configId, priorities);</span>
+    }
+
+    /**
+     * Convierte entidades a DTO response.
+     */
+    private DiscountLimitPriorityResponse toResponse(UUID configId, List&lt;DiscountPriorityEntity&gt; entities) {
+        // Obtener el primer entity para uid (si existe), o generar un UUID único para el grupo
+<span class="pc bpc" id="L102" title="1 of 2 branches missed.">        UUID responseUid = entities.isEmpty() ? UUID.randomUUID() : entities.get(0).getId();</span>
+<span class="fc" id="L103">        Instant now = Instant.now();</span>
+        
+<span class="fc" id="L105">        List&lt;DiscountLimitPriorityResponse.PriorityEntry&gt; entries = entities</span>
+<span class="fc" id="L106">            .stream()</span>
+<span class="fc" id="L107">            .map(entity -&gt; new DiscountLimitPriorityResponse.PriorityEntry(</span>
+<span class="fc" id="L108">                entity.getDiscountTypeId(),</span>
+<span class="fc" id="L109">                entity.getPriorityLevel(),</span>
+<span class="fc" id="L110">                entity.getCreatedAt()</span>
+            ))
+<span class="fc" id="L112">            .collect(Collectors.toList());</span>
+
+<span class="fc" id="L114">        return new DiscountLimitPriorityResponse(</span>
+            responseUid,
+            configId,
+            entries,
+            now,
+            now
+        );
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

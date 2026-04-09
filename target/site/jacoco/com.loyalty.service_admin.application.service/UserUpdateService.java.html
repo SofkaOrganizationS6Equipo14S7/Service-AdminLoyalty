@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserUpdateService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.application.service</a> &gt; <span class="el_source">UserUpdateService.java</span></div><h1>UserUpdateService.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.application.service;
+
+import com.loyalty.service_admin.application.dto.user.UserResponse;
+import com.loyalty.service_admin.application.dto.user.UserUpdateRequest;
+import com.loyalty.service_admin.application.port.in.UserUpdateUseCase;
+import com.loyalty.service_admin.application.port.out.UserUpdatePersistencePort;
+import com.loyalty.service_admin.domain.entity.RoleEntity;
+import com.loyalty.service_admin.domain.entity.UserEntity;
+import com.loyalty.service_admin.domain.repository.RoleRepository;
+import com.loyalty.service_admin.infrastructure.exception.AuthorizationException;
+import com.loyalty.service_admin.infrastructure.exception.BadRequestException;
+import com.loyalty.service_admin.infrastructure.exception.ConflictException;
+import com.loyalty.service_admin.infrastructure.exception.ResourceNotFoundException;
+import com.loyalty.service_admin.infrastructure.exception.UnauthorizedException;
+import com.loyalty.service_admin.infrastructure.security.SecurityContextHelper;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.UUID;
+
+/**
+ * Implementación del caso de uso: Actualización de Usuarios.
+ *
+ * Responsabilidades:
+ * - Validar autenticación
+ * - Validar existencia del usuario
+ * - Validar autorización según rol
+ * - Validar cambios (email, username, role)
+ * - Registrar auditoría de cambios
+ * - Retornar UserResponse actualizado
+ *
+ * Patrón: Inyecta puertos (NO implementaciones concretas).
+ */
+@Service
+@RequiredArgsConstructor
+<span class="fc" id="L39">@Slf4j</span>
+public class UserUpdateService implements UserUpdateUseCase {
+    
+    private final UserUpdatePersistencePort userUpdatePersistencePort;
+    private final SecurityContextHelper securityContextHelper;
+    private final RoleRepository roleRepository;
+    private final EcommerceService ecommerceService;
+    private final AuditService auditService;
+    private final PasswordValidator passwordValidator;
+    private final BCryptPasswordEncoder passwordEncoder;
+    
+    /**
+     * Actualiza datos de un usuario existente.
+     *
+     * Workflow:
+     * 1. Validar usuario autenticado
+     * 2. Recuperar usuario target
+     * 3. Validar autorización
+     * 4. Validar cambios (email, username, role)
+     * 5. Ejecutar update
+     * 6. Registrar auditoría
+     * 7. Retornar UserResponse actualizado
+     *
+     * @param uid UUID del usuario a actualizar
+     * @param request datos a actualizar
+     * @return UserResponse con datos actualizados
+     * @throws UnauthorizedException si usuario no autenticado
+     * @throws ResourceNotFoundException si usuario no existe
+     * @throws AuthorizationException si sin permisos
+     * @throws BadRequestException si validación falla
+     * @throws ConflictException si email/username existen
+     */
+    @Transactional
+    @Override
+    public UserResponse updateUser(UUID uid, UserUpdateRequest request) {
+        // 1. Validar usuario autenticado
+        String currentRole;
+        UUID currentUserUid;
+        UUID currentUserEcommerceId;
+        
+        try {
+<span class="fc" id="L80">            currentRole = securityContextHelper.getCurrentUserRole();</span>
+<span class="fc" id="L81">            currentUserUid = securityContextHelper.getCurrentUserUid();</span>
+<span class="fc" id="L82">            currentUserEcommerceId = securityContextHelper.getCurrentUserEcommerceId();</span>
+<span class="fc" id="L83">        } catch (Exception e) {</span>
+<span class="fc" id="L84">            log.warn(&quot;Error obteniendo usuario autenticado: {}&quot;, e.getMessage());</span>
+<span class="fc" id="L85">            throw new UnauthorizedException(&quot;Usuario no autenticado&quot;);</span>
+<span class="fc" id="L86">        }</span>
+        
+<span class="fc bfc" id="L88" title="All 2 branches covered.">        if (currentRole == null) {</span>
+<span class="fc" id="L89">            log.warn(&quot;Usuario autenticado sin rol válido&quot;);</span>
+<span class="fc" id="L90">            throw new UnauthorizedException(&quot;Usuario no autenticado&quot;);</span>
+        }
+        
+        // 2. Recuperar usuario target
+<span class="fc" id="L94">        UserEntity targetUser = userUpdatePersistencePort.findById(uid)</span>
+<span class="fc" id="L95">                .orElseThrow(() -&gt; {</span>
+<span class="fc" id="L96">                    log.warn(&quot;Intento de actualizar usuario inexistente: {}&quot;, uid);</span>
+<span class="fc" id="L97">                    return new ResourceNotFoundException(&quot;Usuario no encontrado&quot;);</span>
+                });
+        
+        // 3. Validar autorización
+<span class="fc" id="L101">        boolean canAct = securityContextHelper.canActOnUser(targetUser.getEcommerceId(), uid);</span>
+<span class="fc bfc" id="L102" title="All 2 branches covered.">        if (!canAct) {</span>
+<span class="fc" id="L103">            log.warn(&quot;Intento de acceso prohibido a usuario. Current: role={}, uid={}. Target: uid={}, ecommerce={}&quot;, </span>
+<span class="fc" id="L104">                    currentRole, currentUserUid, uid, targetUser.getEcommerceId());</span>
+<span class="fc" id="L105">            throw new AuthorizationException(&quot;No tiene permiso para editar este usuario&quot;);</span>
+        }
+        
+        // 4. Validar cambios
+        // 4.1 Validar que NO se cambie roleId
+<span class="fc bfc" id="L110" title="All 2 branches covered.">        if (request.roleId() != null) {</span>
+<span class="fc" id="L111">            log.warn(&quot;Intento de cambiar roleId del usuario uid={}. New roleId={}. Operación RECHAZADA.&quot;, </span>
+<span class="fc" id="L112">                    uid, request.roleId());</span>
+<span class="fc" id="L113">            throw new BadRequestException(&quot;No se puede cambiar el roleId de un usuario. El rol es inmutable.&quot;);</span>
+        }
+        
+        // 4.2 Validar que STORE_ADMIN no cambie su propio role (implícitamente no puede cambiar roleId)
+        // Ya validado arriba
+        
+        // 4.3 Validar cambios de ecommerceId (solo SUPER_ADMIN)
+<span class="pc bpc" id="L120" title="1 of 4 branches missed.">        if (request.ecommerceId() != null &amp;&amp; !request.ecommerceId().equals(targetUser.getEcommerceId())) {</span>
+<span class="pc bpc" id="L121" title="1 of 2 branches missed.">            if (!&quot;SUPER_ADMIN&quot;.equals(currentRole)) {</span>
+<span class="fc" id="L122">                log.warn(&quot;Intento de cambiar ecommerce_id by user with role={}. UID={}&quot;, currentRole, currentUserUid);</span>
+<span class="fc" id="L123">                throw new AuthorizationException(&quot;No puede cambiar su ecommerce_id&quot;);</span>
+            }
+<span class="nc" id="L125">            ecommerceService.validateEcommerceExists(request.ecommerceId());</span>
+<span class="nc" id="L126">            targetUser.setEcommerceId(request.ecommerceId());</span>
+<span class="nc" id="L127">            log.info(&quot;Ecommerce cambiado para usuario uid={}: {} -&gt; {}&quot;, </span>
+<span class="nc" id="L128">                    uid, targetUser.getEcommerceId(), request.ecommerceId());</span>
+        }
+        
+        // 4.4 Validar cambios de estado activo (solo SUPER_ADMIN)
+<span class="pc bpc" id="L132" title="1 of 4 branches missed.">        if (request.active() != null &amp;&amp; !request.active().equals(targetUser.getIsActive())) {</span>
+<span class="pc bpc" id="L133" title="1 of 2 branches missed.">            if (!&quot;SUPER_ADMIN&quot;.equals(currentRole)) {</span>
+<span class="fc" id="L134">                log.warn(&quot;Intento de cambiar active by user with role={}. UID={}&quot;, currentRole, currentUserUid);</span>
+<span class="fc" id="L135">                throw new AuthorizationException(&quot;No puede cambiar su estado de activación&quot;);</span>
+            }
+<span class="nc" id="L137">            targetUser.setIsActive(request.active());</span>
+        }
+        
+        // 4.5 Validar cambio de username (debe ser único)
+<span class="pc bpc" id="L141" title="1 of 4 branches missed.">        if (request.username() != null &amp;&amp; !request.username().isEmpty() &amp;&amp;</span>
+<span class="pc bpc" id="L142" title="1 of 2 branches missed.">                !request.username().equals(targetUser.getUsername())) {</span>
+<span class="fc bfc" id="L143" title="All 2 branches covered.">            if (userUpdatePersistencePort.existsByUsernameExcludingUid(request.username(), uid)) {</span>
+<span class="fc" id="L144">                log.warn(&quot;Intento de cambiar a username duplicado: {}&quot;, request.username());</span>
+<span class="fc" id="L145">                throw new ConflictException(&quot;Username ya existe en el sistema&quot;);</span>
+            }
+<span class="fc" id="L147">            targetUser.setUsername(request.username());</span>
+        }
+        
+        // 4.6 Validar cambio de email (debe ser único)
+<span class="pc bpc" id="L151" title="1 of 4 branches missed.">        if (request.email() != null &amp;&amp; !request.email().isEmpty() &amp;&amp;</span>
+<span class="pc bpc" id="L152" title="1 of 2 branches missed.">                !request.email().equals(targetUser.getEmail())) {</span>
+<span class="fc bfc" id="L153" title="All 2 branches covered.">            if (userUpdatePersistencePort.existsByEmailExcludingUid(request.email(), uid)) {</span>
+<span class="fc" id="L154">                log.warn(&quot;Intento de cambiar a email duplicado: {}&quot;, request.email());</span>
+<span class="fc" id="L155">                throw new ConflictException(&quot;Email ya existe en el sistema&quot;);</span>
+            }
+<span class="fc" id="L157">            targetUser.setEmail(request.email());</span>
+        }
+        
+        // 4.7 Validar cambio de password
+<span class="pc bpc" id="L161" title="1 of 4 branches missed.">        if (request.password() != null &amp;&amp; !request.password().isEmpty()) {</span>
+<span class="fc bfc" id="L162" title="All 2 branches covered.">            if (!passwordValidator.isValid(request.password())) {</span>
+<span class="fc" id="L163">                String errorMsg = passwordValidator.getErrorMessage(request.password());</span>
+<span class="fc" id="L164">                log.warn(&quot;Intento de cambiar a contraseña débil: {}. UID: {}&quot;, errorMsg, uid);</span>
+<span class="fc" id="L165">                throw new BadRequestException(errorMsg);</span>
+            }
+<span class="fc" id="L167">            targetUser.setPasswordHash(passwordEncoder.encode(request.password()));</span>
+        }
+        
+        // 5. Ejecutar update
+<span class="fc" id="L171">        UserEntity updated = userUpdatePersistencePort.save(targetUser);</span>
+<span class="fc" id="L172">        log.info(&quot;Usuario actualizado exitosamente: uid={}, username={}&quot;, updated.getId(), updated.getUsername());</span>
+        
+        // 6. Registrar auditoría
+<span class="fc" id="L175">        auditService.auditUserUpdate(targetUser, currentUserUid);</span>
+        
+        // 7. Retornar UserResponse actualizado
+<span class="fc" id="L178">        return toResponse(updated);</span>
+    }
+    
+    private UserResponse toResponse(UserEntity user) {
+<span class="fc" id="L182">        return new UserResponse(</span>
+<span class="fc" id="L183">                user.getId(),</span>
+<span class="fc" id="L184">                user.getUsername(),</span>
+<span class="fc" id="L185">                user.getRoleId(),</span>
+<span class="pc bpc" id="L186" title="1 of 2 branches missed.">                user.getRole() != null ? user.getRole().getName() : null,</span>
+<span class="fc" id="L187">                user.getEmail(),</span>
+<span class="fc" id="L188">                user.getEcommerceId(),</span>
+<span class="fc" id="L189">                user.getIsActive(),</span>
+<span class="fc" id="L190">                user.getCreatedAt(),</span>
+<span class="fc" id="L191">                user.getUpdatedAt()</span>
+        );
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

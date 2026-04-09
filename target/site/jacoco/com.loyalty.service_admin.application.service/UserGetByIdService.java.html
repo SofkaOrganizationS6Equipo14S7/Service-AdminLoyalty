@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserGetByIdService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.application.service</a> &gt; <span class="el_source">UserGetByIdService.java</span></div><h1>UserGetByIdService.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.application.service;
+
+import com.loyalty.service_admin.application.dto.user.UserResponse;
+import com.loyalty.service_admin.application.port.in.UserGetByIdUseCase;
+import com.loyalty.service_admin.application.port.out.UserGetPersistencePort;
+import com.loyalty.service_admin.domain.entity.UserEntity;
+import com.loyalty.service_admin.infrastructure.exception.AuthorizationException;
+import com.loyalty.service_admin.infrastructure.exception.ResourceNotFoundException;
+import com.loyalty.service_admin.infrastructure.exception.UnauthorizedException;
+import com.loyalty.service_admin.infrastructure.security.SecurityContextHelper;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.UUID;
+
+/**
+ * Implementación del caso de uso: Obtener Usuario por ID.
+ *
+ * Responsabilidades:
+ * - Validar autenticación
+ * - Validar existencia del usuario
+ * - Validar autorización según rol
+ * - Retornar UserResponse
+ *
+ * Patrón: Inyecta puertos (NO implementaciones concretas).
+ */
+@Service
+@RequiredArgsConstructor
+<span class="fc" id="L31">@Slf4j</span>
+public class UserGetByIdService implements UserGetByIdUseCase {
+    
+    private final UserGetPersistencePort userGetPersistencePort;
+    private final SecurityContextHelper securityContextHelper;
+    
+    /**
+     * Obtiene un usuario específico por su UID.
+     *
+     * Workflow:
+     * 1. Validar usuario autenticado
+     * 2. Recuperar usuario target
+     * 3. Validar autorización según rol:
+     *    - SUPER_ADMIN: acceso a cualquier usuario
+     *    - STORE_ADMIN: solo de su ecommerce
+     *    - STANDARD: solo acceso a sí mismo
+     * 4. Retornar UserResponse
+     *
+     * @param uid UUID del usuario a obtener
+     * @return UserResponse con datos del usuario
+     * @throws UnauthorizedException si usuario no autenticado
+     * @throws ResourceNotFoundException si usuario no existe
+     * @throws AuthorizationException si sin permisos
+     */
+    @Transactional(readOnly = true)
+    @Override
+    public UserResponse getUserById(UUID uid) {
+        // 1. Validar usuario autenticado
+        String currentRole;
+        UUID currentUserUid;
+        UUID currentUserEcommerceId;
+        
+        try {
+<span class="fc" id="L64">            currentRole = securityContextHelper.getCurrentUserRole();</span>
+<span class="fc" id="L65">            currentUserUid = securityContextHelper.getCurrentUserUid();</span>
+<span class="fc" id="L66">            currentUserEcommerceId = securityContextHelper.getCurrentUserEcommerceId();</span>
+<span class="fc" id="L67">        } catch (Exception e) {</span>
+<span class="fc" id="L68">            log.warn(&quot;Error obteniendo usuario autenticado: {}&quot;, e.getMessage());</span>
+<span class="fc" id="L69">            throw new UnauthorizedException(&quot;Usuario no autenticado&quot;);</span>
+<span class="fc" id="L70">        }</span>
+        
+<span class="fc bfc" id="L72" title="All 2 branches covered.">        if (currentRole == null) {</span>
+<span class="fc" id="L73">            log.warn(&quot;Usuario autenticado sin rol válido&quot;);</span>
+<span class="fc" id="L74">            throw new UnauthorizedException(&quot;Usuario no autenticado&quot;);</span>
+        }
+        
+        // 2. Recuperar usuario target
+<span class="fc" id="L78">        UserEntity targetUser = userGetPersistencePort.findById(uid)</span>
+<span class="fc" id="L79">                .orElseThrow(() -&gt; {</span>
+<span class="fc" id="L80">                    log.warn(&quot;Intento de acceder a usuario inexistente: {}&quot;, uid);</span>
+<span class="fc" id="L81">                    return new ResourceNotFoundException(&quot;Usuario no encontrado&quot;);</span>
+                });
+        
+        // 3. Validar autorización según rol
+<span class="fc bfc" id="L85" title="All 2 branches covered.">        if (&quot;SUPER_ADMIN&quot;.equals(currentRole)) {</span>
+            // SUPER_ADMIN: acceso a cualquier usuario
+            // No hay restricción
+<span class="fc bfc" id="L88" title="All 2 branches covered.">        } else if (&quot;STORE_ADMIN&quot;.equals(currentRole)) {</span>
+            // STORE_ADMIN: solo usuarios de su ecommerce
+<span class="fc bfc" id="L90" title="All 2 branches covered.">            if (!currentUserEcommerceId.equals(targetUser.getEcommerceId())) {</span>
+<span class="fc" id="L91">                log.warn(&quot;STORE_ADMIN intenta acceso a usuario de otro ecommerce: user ecommerce={}, target ecommerce={}&quot;, </span>
+<span class="fc" id="L92">                        currentUserEcommerceId, targetUser.getEcommerceId());</span>
+<span class="fc" id="L93">                throw new AuthorizationException(&quot;No tiene permiso para acceder a este usuario&quot;);</span>
+            }
+        } else {
+            // STANDARD: solo acceso a sí mismo
+<span class="fc bfc" id="L97" title="All 2 branches covered.">            if (!currentUserUid.equals(targetUser.getId())) {</span>
+<span class="fc" id="L98">                log.warn(&quot;Usuario STANDARD intenta acceso a otro usuario: current uid={}, target uid={}&quot;, </span>
+                        currentUserUid, uid);
+<span class="fc" id="L100">                throw new AuthorizationException(&quot;No tiene permiso para acceder a este usuario&quot;);</span>
+            }
+        }
+        
+        // 4. Retornar UserResponse
+<span class="fc" id="L105">        return toResponse(targetUser);</span>
+    }
+    
+    private UserResponse toResponse(UserEntity user) {
+<span class="fc" id="L109">        return new UserResponse(</span>
+<span class="fc" id="L110">                user.getId(),</span>
+<span class="fc" id="L111">                user.getUsername(),</span>
+<span class="fc" id="L112">                user.getRoleId(),</span>
+<span class="pc bpc" id="L113" title="1 of 2 branches missed.">                user.getRole() != null ? user.getRole().getName() : null,</span>
+<span class="fc" id="L114">                user.getEmail(),</span>
+<span class="fc" id="L115">                user.getEcommerceId(),</span>
+<span class="fc" id="L116">                user.getIsActive(),</span>
+<span class="fc" id="L117">                user.getCreatedAt(),</span>
+<span class="fc" id="L118">                user.getUpdatedAt()</span>
+        );
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ApiKeyResponse.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.application.dto.apikey</a> &gt; <span class="el_source">ApiKeyResponse.java</span></div><h1>ApiKeyResponse.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.application.dto.apikey;
+
+import java.time.Instant;
+import java.util.UUID;
+
+/**
+ * Response al crear una API Key.
+ * @param uid ID único de la API Key
+ * @param maskedKey Formato ****XXXX (últimos 4 caracteres)
+ * @param expiresAt Timestamp de expiración (UTC)
+ * @param ecommerceId ID del ecommerce propietario
+ * @param createdAt Timestamp de creación (UTC)
+ * @param updatedAt Timestamp de actualización (UTC)
+ */
+<span class="nc" id="L15">public record ApiKeyResponse(</span>
+    UUID uid,
+    String maskedKey,
+    Instant expiresAt,
+    UUID ecommerceId,
+    Instant createdAt,
+    Instant updatedAt
+) {
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

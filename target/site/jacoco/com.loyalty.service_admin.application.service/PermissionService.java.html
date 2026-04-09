@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PermissionService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.application.service</a> &gt; <span class="el_source">PermissionService.java</span></div><h1>PermissionService.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.application.service;
+
+import com.loyalty.service_admin.domain.entity.RolePermissionEntity;
+import com.loyalty.service_admin.domain.repository.RolePermissionRepository;
+import com.loyalty.service_admin.infrastructure.security.SecurityContextHelper;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+/**
+ * Servicio de validación de permisos granulares.
+ * SPEC-004 RN-04: Permisos granulares configurables por STORE_ADMIN.
+ * 
+ * Responsabilidades:
+ * - Obtener permisos de un rol
+ * - Validar si un usuario tiene un permiso específico
+ * - Cache en memoria (Caffeine) para permisos frecuentes
+ * - Inicializar permisos en contexto de seguridad
+ */
+@Service
+@RequiredArgsConstructor
+<span class="fc" id="L28">@Slf4j</span>
+@Transactional(readOnly = true)
+public class PermissionService {
+    
+    private final RolePermissionRepository rolePermissionRepository;
+    private final SecurityContextHelper securityContextHelper;
+    
+    /**
+     * Obtiene todos los permisos de un rol específico.
+     * Cacheable para mejorar performance en validaciones repetidas.
+     * 
+     * @param role nombre del rol (SUPER_ADMIN, STORE_ADMIN, STORE_USER)
+     * @return Set de códigos de permiso (ej {&quot;promotion:read&quot;, &quot;promotion:write&quot;})
+     */
+    @Cacheable(value = &quot;rolePermissions&quot;, key = &quot;#role&quot;)
+    public Set&lt;String&gt; getPermissionsForRole(String role) {
+<span class="fc" id="L44">        log.debug(&quot;Obteniendo permisos para rol: {}&quot;, role);</span>
+<span class="fc" id="L45">        return rolePermissionRepository.findPermissionCodesByRoleName(role);</span>
+    }
+    
+    /**
+     * Obtiene todos los permisos del usuario actual autenticado.
+     * 
+     * @return Set de códigos de permiso del usuario actual
+     */
+    public Set&lt;String&gt; getCurrentUserPermissions() {
+<span class="fc" id="L54">        String currentRole = securityContextHelper.getCurrentUserRole();</span>
+<span class="fc" id="L55">        return getPermissionsForRole(currentRole);</span>
+    }
+    
+    /**
+     * Valida si el usuario actual tiene un permiso específico.
+     * SPEC-004 RN-04: Validar permisos en cada request.
+     * 
+     * Ejemplo:
+     * - hasPermission(&quot;promotion:read&quot;) → true si usuario puede leer promociones
+     * - hasPermission(&quot;promotion:write&quot;) → true si usuario puede crear/editar promociones
+     * 
+     * Implementación actual:
+     * - Permisos asignados por rol (tabla role_permissions)
+     * - TODO: Permitir sobrescrituras a nivel de usuario (tabla user_permissions)
+     * 
+     * @param permissionCode código del permiso a validar (ej &quot;promotion:read&quot;, &quot;user:write&quot;)
+     * @return true si usuario tiene el permiso, false en caso contrario
+     */
+    public boolean hasPermission(String permissionCode) {
+<span class="fc" id="L74">        Set&lt;String&gt; userPermissions = getCurrentUserPermissions();</span>
+<span class="fc" id="L75">        boolean hasPermission = userPermissions.contains(permissionCode);</span>
+        
+<span class="fc bfc" id="L77" title="All 2 branches covered.">        if (!hasPermission) {</span>
+<span class="fc" id="L78">            log.warn(&quot;Usuario {} intenta acceder a permiso no autorizado: {}. Permisos actuales: {}&quot;, </span>
+<span class="fc" id="L79">                    securityContextHelper.getCurrentUserUid(), permissionCode, userPermissions);</span>
+        }
+        
+<span class="fc" id="L82">        return hasPermission;</span>
+    }
+    
+    /**
+     * Valida si el usuario actual tiene TODOS los permisos en la lista.
+     * Útil para operaciones que requieren múltiples permisos.
+     * 
+     * @param permissionCodes lista de códigos de permiso a validar
+     * @return true si usuario tiene TODOS los permisos, false si falta alguno
+     */
+    public boolean hasAllPermissions(String... permissionCodes) {
+<span class="fc" id="L93">        Set&lt;String&gt; userPermissions = getCurrentUserPermissions();</span>
+<span class="fc" id="L94">        return userPermissions.containsAll(Set.of(permissionCodes));</span>
+    }
+    
+    /**
+     * Valida si el usuario actual tiene ALGUNO de los permisos en la lista.
+     * Útil para operaciones alternativas.
+     * 
+     * @param permissionCodes lista de códigos de permiso a validar
+     * @return true si usuario tiene ALGUNO de los permisos, false si no tiene ninguno
+     */
+    public boolean hasAnyPermission(String... permissionCodes) {
+<span class="fc" id="L105">        Set&lt;String&gt; userPermissions = getCurrentUserPermissions();</span>
+<span class="fc bfc" id="L106" title="All 2 branches covered.">        for (String code : permissionCodes) {</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">            if (userPermissions.contains(code)) {</span>
+<span class="fc" id="L108">                return true;</span>
+            }
+        }
+<span class="fc" id="L111">        return false;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

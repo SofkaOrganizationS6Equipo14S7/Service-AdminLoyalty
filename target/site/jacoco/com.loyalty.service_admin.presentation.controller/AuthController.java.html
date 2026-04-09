@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AuthController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.presentation.controller</a> &gt; <span class="el_source">AuthController.java</span></div><h1>AuthController.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.presentation.controller;
+
+import com.loyalty.service_admin.application.dto.auth.LoginRequest;
+import com.loyalty.service_admin.application.dto.auth.LoginResponse;
+import com.loyalty.service_admin.application.dto.user.UserResponse;
+import com.loyalty.service_admin.application.port.in.AuthUseCase;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping(&quot;/api/v1/auth&quot;)
+@RequiredArgsConstructor
+<span class="fc" id="L17">@Slf4j</span>
+public class AuthController {
+    
+    private final AuthUseCase authUseCase;
+    
+    /**
+     * @param request credentials (username, password)
+     * @return HTTP 200 OK with LoginResponse containing JWT token
+     */
+    @PostMapping(&quot;/login&quot;)
+    public ResponseEntity&lt;LoginResponse&gt; login(@Valid @RequestBody LoginRequest request) {
+<span class="fc" id="L28">        LoginResponse response = authUseCase.login(request);</span>
+<span class="fc" id="L29">        return ResponseEntity.ok(response);</span>
+    }
+    
+    /**
+     * @param authHeader Authorization header with Bearer token
+     * @return HTTP 204 No Content
+     */
+    @PostMapping(&quot;/logout&quot;)
+    public ResponseEntity&lt;Void&gt; logout(@RequestHeader(value = &quot;Authorization&quot;, required = false) String authHeader) {
+<span class="pc bpc" id="L38" title="1 of 4 branches missed.">        if (authHeader != null &amp;&amp; authHeader.startsWith(&quot;Bearer &quot;)) {</span>
+<span class="fc" id="L39">            String token = authHeader.substring(7);</span>
+<span class="fc" id="L40">            authUseCase.logout(token);</span>
+        }
+<span class="fc" id="L42">        return ResponseEntity.noContent().build();</span>
+    }
+    
+    /**
+     * @param authHeader Authorization header with Bearer token
+     * @return HTTP 200 OK with user data or 401 if unauthorized
+     */
+    @GetMapping(&quot;/me&quot;)
+    public ResponseEntity&lt;UserResponse&gt; getCurrentUser(@RequestHeader(value = &quot;Authorization&quot;, required = false) String authHeader) {
+<span class="pc bpc" id="L51" title="1 of 4 branches missed.">        if (authHeader == null || !authHeader.startsWith(&quot;Bearer &quot;)) {</span>
+<span class="fc" id="L52">            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();</span>
+        }
+        
+<span class="fc" id="L55">        String token = authHeader.substring(7);</span>
+<span class="fc" id="L56">        UserResponse user = authUseCase.getCurrentUser(token);</span>
+<span class="fc" id="L57">        return ResponseEntity.ok(user);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

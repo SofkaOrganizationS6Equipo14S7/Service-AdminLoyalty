@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ClassificationRuleCreateRequest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.application.dto.classificationrule</a> &gt; <span class="el_source">ClassificationRuleCreateRequest.java</span></div><h1>ClassificationRuleCreateRequest.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.application.dto.classificationrule;
+
+import jakarta.validation.constraints.*;
+
+import java.math.BigDecimal;
+
+/**
+ * CRITERIO-7.3, 7.4: Request para crear classification_rule vinculada a customer-tier
+ * Internamente crea un RuleEntity con type=CLASSIFICATION
+ * 
+ * Atributos almacenados en rule_attributes:
+ * - metricType: total_spent, order_count, loyalty_points, custom
+ * - minValue, maxValue: rango de clasificación (validado en service-engine)
+ * - priority: orden de evaluación
+ */
+public record ClassificationRuleCreateRequest(
+        @NotNull(message = &quot;discountPriorityId is required&quot;)
+        String discountPriorityId,  // UUID string para vincular a discount_priority
+        
+        @NotBlank(message = &quot;name is required&quot;)
+        @Size(min = 3, max = 100)
+        String name,
+        
+        @Size(max = 500)
+        String description,
+        
+        @NotNull(message = &quot;discountPercentage is required&quot;)
+        @DecimalMin(&quot;0.01&quot;)
+        @DecimalMax(&quot;100.00&quot;)
+        BigDecimal discountPercentage,
+        
+        // Atributos de clasificación
+        @NotBlank(message = &quot;metricType is required (total_spent|order_count|loyalty_points|custom)&quot;)
+        String metricType,
+        
+        @NotNull(message = &quot;minValue is required&quot;)
+        @DecimalMin(&quot;0.00&quot;)
+        BigDecimal minValue,
+        
+        @NotNull(message = &quot;maxValue is required&quot;)
+        @DecimalMin(&quot;0.01&quot;)
+        BigDecimal maxValue,
+        
+        @NotNull(message = &quot;priority is required&quot;)
+        @Min(1)
+        Integer priority
+) {
+    /**
+     * Validar estructura de metricType
+     */
+<span class="fc" id="L51">    public ClassificationRuleCreateRequest {</span>
+        // Validar que minValue &lt; maxValue
+<span class="pc bpc" id="L53" title="2 of 6 branches missed.">        if (minValue != null &amp;&amp; maxValue != null &amp;&amp; minValue.compareTo(maxValue) &gt;= 0) {</span>
+<span class="fc" id="L54">            throw new IllegalArgumentException(&quot;minValue must be less than maxValue (CRITERIO-7.3)&quot;);</span>
+        }
+        
+        // Validar que metricType está en enum permitido
+<span class="pc bpc" id="L58" title="2 of 4 branches missed.">        if (metricType != null &amp;&amp; !metricType.isBlank()) {</span>
+<span class="fc" id="L59">            String upper = metricType.toUpperCase();</span>
+<span class="pc bpc" id="L60" title="3 of 4 branches missed.">            if (!(&quot;TOTAL_SPENT&quot;.equals(upper) || &quot;ORDER_COUNT&quot;.equals(upper) || </span>
+<span class="nc bnc" id="L61" title="All 4 branches missed.">                  &quot;LOYALTY_POINTS&quot;.equals(upper) || &quot;CUSTOM&quot;.equals(upper))) {</span>
+<span class="nc" id="L62">                throw new IllegalArgumentException(&quot;metricType must be one of: total_spent, order_count, loyalty_points, custom (CRITERIO-7.4)&quot;);</span>
+            }
+        }
+<span class="fc" id="L65">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

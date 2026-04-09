@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DiscountConfigService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.application.service</a> &gt; <span class="el_source">DiscountConfigService.java</span></div><h1>DiscountConfigService.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.application.service;
+
+import com.loyalty.service_admin.application.dto.rules.discount.DiscountConfigCreateRequest;
+import com.loyalty.service_admin.application.dto.rules.discount.DiscountConfigResponse;
+import com.loyalty.service_admin.application.port.in.DiscountConfigUseCase;
+import com.loyalty.service_admin.application.port.out.DiscountConfigPersistencePort;
+import com.loyalty.service_admin.application.port.out.DiscountConfigEventPort;
+import com.loyalty.service_admin.domain.entity.DiscountSettingsEntity;
+import com.loyalty.service_admin.domain.repository.DiscountLimitPriorityRepository;
+import com.loyalty.service_admin.infrastructure.exception.BadRequestException;
+import com.loyalty.service_admin.infrastructure.exception.ResourceNotFoundException;
+import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import java.time.Instant;
+import java.util.UUID;
+
+/**
+ * Servicio de lógica de negocio para configuración de límite de descuentos.
+ * Implementa DiscountConfigUseCase con puertos para persistencia y eventos.
+ */
+@Service
+<span class="fc" id="L27">@Slf4j</span>
+@RequiredArgsConstructor
+@Transactional
+public class DiscountConfigService implements DiscountConfigUseCase {
+
+    private final DiscountConfigPersistencePort persistencePort;
+    private final DiscountConfigEventPort eventPort;
+    private final DiscountLimitPriorityRepository priorityRepository;
+
+    @Override
+    @Transactional
+    public DiscountConfigResponse updateConfig(DiscountConfigCreateRequest request) {
+        // Validar currencyCode (ISO 4217)
+<span class="fc" id="L40">        validateCurrencyCode(request.currencyCode());</span>
+        
+<span class="fc" id="L42">        UUID ecommerceId = request.ecommerceId();</span>
+
+        // Marcar anterior config como inactiva
+<span class="fc" id="L45">        persistencePort.findActiveConfigByEcommerce(ecommerceId)</span>
+<span class="fc" id="L46">            .ifPresent(oldConfig -&gt; {</span>
+<span class="fc" id="L47">                oldConfig.setIsActive(false);</span>
+<span class="fc" id="L48">                persistencePort.saveConfig(oldConfig);</span>
+<span class="fc" id="L49">                log.info(&quot;Marked previous config as inactive for ecommerce: {}&quot;, ecommerceId);</span>
+<span class="fc" id="L50">            });</span>
+
+        // Crear nueva config con todos los campos
+<span class="fc" id="L53">        DiscountSettingsEntity newConfig = new DiscountSettingsEntity();</span>
+<span class="fc" id="L54">        newConfig.setEcommerceId(ecommerceId);</span>
+<span class="fc" id="L55">        newConfig.setMaxDiscountCap(request.maxDiscountCap());</span>
+<span class="pc bpc" id="L56" title="1 of 2 branches missed.">        newConfig.setCurrencyCode(request.currencyCode() != null ? request.currencyCode().toUpperCase() : &quot;USD&quot;);</span>
+<span class="fc bfc" id="L57" title="All 2 branches covered.">        newConfig.setAllowStacking(request.allowStacking() != null ? request.allowStacking() : true);</span>
+<span class="fc bfc" id="L58" title="All 2 branches covered.">        newConfig.setRoundingRule(request.roundingRule() != null ? request.roundingRule() : &quot;ROUND_HALF_UP&quot;);</span>
+<span class="fc" id="L59">        newConfig.setIsActive(true);</span>
+<span class="fc" id="L60">        newConfig.setVersion(1L);</span>
+
+<span class="fc" id="L62">        DiscountSettingsEntity saved = persistencePort.saveConfig(newConfig);</span>
+<span class="fc" id="L63">        log.info(&quot;Discount config created for ecommerce: {}&quot;, ecommerceId);</span>
+
+        // Publicar evento via puerto
+<span class="fc" id="L66">        eventPort.publishConfigUpdated(saved, ecommerceId);</span>
+
+<span class="fc" id="L68">        return toResponse(saved);</span>
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public DiscountConfigResponse getActiveConfig(UUID ecommerceId) {
+<span class="fc" id="L74">        DiscountSettingsEntity config = persistencePort.findActiveConfigByEcommerce(ecommerceId)</span>
+<span class="fc" id="L75">            .orElseThrow(() -&gt; new ResourceNotFoundException(</span>
+                &quot;No existe configuración activa de descuentos para el ecommerce: &quot; + ecommerceId
+            ));
+
+<span class="fc" id="L79">        return toResponse(config);</span>
+    }
+
+    /**
+     * Obtiene la entidad de configuración activa (para uso interno).
+     */
+    @Transactional(readOnly = true)
+    public DiscountSettingsEntity getActiveConfigEntity(UUID ecommerceId) {
+<span class="fc" id="L87">        return persistencePort.findActiveConfigByEcommerce(ecommerceId)</span>
+<span class="fc" id="L88">            .orElseThrow(() -&gt; new ResourceNotFoundException(</span>
+                &quot;No existe configuración activa de descuentos para el ecommerce: &quot; + ecommerceId
+            ));
+    }
+
+    /**
+     * Valida que currencyCode sea un código ISO 4217 válido (3 caracteres).
+     */
+    private void validateCurrencyCode(String currencyCode) {
+<span class="fc bfc" id="L97" title="All 4 branches covered.">        if (currencyCode == null || currencyCode.length() != 3) {</span>
+<span class="fc" id="L98">            throw new BadRequestException(&quot;currencyCode debe ser un código ISO 4217 válido (3 caracteres)&quot;);</span>
+        }
+<span class="fc" id="L100">    }</span>
+
+    /**
+     * Convierte una entidad a DTO response.
+     */
+    private DiscountConfigResponse toResponse(DiscountSettingsEntity entity) {
+<span class="fc" id="L106">        return new DiscountConfigResponse(</span>
+<span class="fc" id="L107">            entity.getId(),</span>
+<span class="fc" id="L108">            entity.getEcommerceId(),</span>
+<span class="fc" id="L109">            entity.getMaxDiscountCap(),</span>
+<span class="fc" id="L110">            entity.getCurrencyCode(),</span>
+<span class="fc" id="L111">            entity.getAllowStacking(),</span>
+<span class="fc" id="L112">            entity.getRoundingRule(),</span>
+<span class="fc" id="L113">            entity.getIsActive(),</span>
+<span class="fc" id="L114">            entity.getVersion(),</span>
+<span class="fc" id="L115">            entity.getCreatedAt(),</span>
+<span class="fc" id="L116">            entity.getUpdatedAt()</span>
+        );
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

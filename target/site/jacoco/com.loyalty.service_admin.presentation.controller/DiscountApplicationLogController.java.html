@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DiscountApplicationLogController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.presentation.controller</a> &gt; <span class="el_source">DiscountApplicationLogController.java</span></div><h1>DiscountApplicationLogController.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.presentation.controller;
+
+import com.loyalty.service_admin.application.dto.discountlog.DiscountApplicationLogResponse;
+import com.loyalty.service_admin.application.service.DiscountApplicationLogService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.UUID;
+
+/**
+ * Controller read-only para logs de descuentos aplicados (HU-09).
+ * 
+ * CRITERIO-9.4: No tiene endpoints PUT/DELETE — retorna HTTP 405 Method Not Allowed.
+ */
+@RestController
+@RequestMapping(&quot;/api/v1/discount-logs&quot;)
+@RequiredArgsConstructor
+<span class="fc" id="L23">@Slf4j</span>
+@PreAuthorize(&quot;isAuthenticated()&quot;)
+public class DiscountApplicationLogController {
+    
+    private final DiscountApplicationLogService discountLogService;
+    
+    /**
+     * CRITERIO-9.3: Lista registros de descuentos aplicados con filtros.
+     * 
+     * @param ecommerceId filtro opcional por tenant
+     * @param externalOrderId filtro opcional (ej. #ORDER-12345)
+     * @param page número de página (default: 0)
+     * @param size tamaño de página (default: 50)
+     * @return HTTP 200 OK con Page&lt;DiscountApplicationLogResponse&gt;
+     */
+    @GetMapping
+    public ResponseEntity&lt;Page&lt;DiscountApplicationLogResponse&gt;&gt; listDiscountLogs(
+            @RequestParam(name = &quot;ecommerceId&quot;, required = false) UUID ecommerceId,
+            @RequestParam(name = &quot;externalOrderId&quot;, required = false) String externalOrderId,
+            @RequestParam(name = &quot;page&quot;, defaultValue = &quot;0&quot;) int page,
+            @RequestParam(name = &quot;size&quot;, defaultValue = &quot;50&quot;) int size
+    ) {
+<span class="fc" id="L45">        log.info(&quot;GET /api/v1/discount-logs: ecommerceId={}, externalOrderId={}, page={}, size={}&quot;, </span>
+<span class="fc" id="L46">                ecommerceId, externalOrderId, page, size);</span>
+        
+<span class="fc" id="L48">        Page&lt;DiscountApplicationLogResponse&gt; logs = discountLogService.listDiscountLogs(</span>
+            ecommerceId, externalOrderId, page, size);
+<span class="fc" id="L50">        return ResponseEntity.ok(logs);</span>
+    }
+    
+    /**
+     * Obtiene detalles de un registro de descuento específico.
+     * 
+     * @param logId UUID del registro
+     * @return HTTP 200 OK con DiscountApplicationLogResponse
+     */
+    @GetMapping(&quot;/{logId}&quot;)
+    public ResponseEntity&lt;DiscountApplicationLogResponse&gt; getDiscountLogById(@PathVariable UUID logId) {
+<span class="fc" id="L61">        log.info(&quot;GET /api/v1/discount-logs/{}: logId={}&quot;, logId, logId);</span>
+        
+<span class="fc" id="L63">        DiscountApplicationLogResponse log = discountLogService.getDiscountLogById(logId);</span>
+<span class="fc" id="L64">        return ResponseEntity.ok(log);</span>
+    }
+    
+    /**
+     * CRITERIO-9.4: No permite PUT en logs (immutable).
+     */
+    @PutMapping
+    public ResponseEntity&lt;Void&gt; methodNotAllowed() {
+<span class="fc" id="L72">        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).build();</span>
+    }
+    
+    /**
+     * CRITERIO-9.4: No permite DELETE en logs (immutable).
+     */
+    @DeleteMapping
+    public ResponseEntity&lt;Void&gt; methodNotAllowedDelete() {
+<span class="fc" id="L80">        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).build();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

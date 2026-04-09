@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AuditLogEntity.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.domain.entity</a> &gt; <span class="el_source">AuditLogEntity.java</span></div><h1>AuditLogEntity.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.domain.entity;
+
+import com.loyalty.service_admin.infrastructure.persistence.JsonbConverter;
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
+import java.time.Instant;
+import java.util.UUID;
+
+@Entity
+@Table(name = &quot;audit_log&quot;, indexes = {
+    @Index(name = &quot;idx_audit_log_ecommerce&quot;, columnList = &quot;ecommerce_id&quot;),
+})
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class AuditLogEntity {
+    
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+    
+    @Column(name = &quot;user_id&quot;)
+    private UUID userId;
+    
+    @Column(name = &quot;ecommerce_id&quot;)
+    private UUID ecommerceId;
+    
+    @Column(name = &quot;action&quot;, nullable = false, length = 50)
+    private String action;
+    
+    @Column(name = &quot;entity_name&quot;, nullable = false, length = 100)
+    private String entityName;
+    
+    @Column(name = &quot;entity_id&quot;)
+    private UUID entityId;
+    
+    @Column(name = &quot;old_value&quot;, columnDefinition = &quot;jsonb&quot;)
+    @JdbcTypeCode(SqlTypes.JSON)
+    private String oldValue;
+    
+    @Column(name = &quot;new_value&quot;, columnDefinition = &quot;jsonb&quot;)
+    @JdbcTypeCode(SqlTypes.JSON)
+    private String newValue;
+    
+    @Column(name = &quot;created_at&quot;, nullable = false, updatable = false)
+    private Instant createdAt;
+    
+    @PrePersist
+    protected void onCreate() {
+<span class="fc" id="L57">        createdAt = Instant.now();</span>
+<span class="fc" id="L58">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PermissionAspect.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.infrastructure.security</a> &gt; <span class="el_source">PermissionAspect.java</span></div><h1>PermissionAspect.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.infrastructure.security;
+
+import com.loyalty.service_admin.application.service.PermissionService;
+import com.loyalty.service_admin.infrastructure.exception.AuthorizationException;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.aspectj.lang.ProceedingJoinPoint;
+import org.aspectj.lang.annotation.Around;
+import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.reflect.MethodSignature;
+import org.springframework.stereotype.Component;
+
+import java.lang.reflect.Method;
+
+/**
+ * Aspect que intercepta métodos anotados con @RequirePermission y valida permisos.
+ * SPEC-004 RN-04: Validar permisos granulares en cada request.
+ * 
+ * Flujo:
+ * 1. Controlador recibe request
+ * 2. Spring intercepta método anotado con @RequirePermission
+ * 3. PermissionAspect extrae annotation y llama a PermissionService
+ * 4. Si usuario NO tiene permiso → 403 Forbidden
+ * 5. Si usuario SÍ tiene permiso → ejecuta el método original
+ * 
+ * Ejemplo de uso en controlador:
+ * 
+ * @RequirePermission(&quot;promotion:write&quot;)
+ * @PostMapping(&quot;/promotions&quot;)
+ * public ResponseEntity&lt;PromoResponse&gt; create(...) { 
+ *     // Código aquí solo se ejecuta si usuario tiene &quot;promotion:write&quot;
+ * }
+ */
+@Aspect
+@Component
+@RequiredArgsConstructor
+<span class="fc" id="L37">@Slf4j</span>
+public class PermissionAspect {
+    
+    private final PermissionService permissionService;
+    private final SecurityContextHelper securityContextHelper;
+    
+    /**
+     * Intercepta llamadas a métodos anotados con @RequirePermission.
+     * 
+     * @param joinPoint punto de ejecución (método interceptado)
+     * @param requirePermission anotación con permisos requeridos
+     * @return resultado de la ejecución del método si validación pasa
+     * @throws AuthorizationException si usuario no tiene permisos requeridos
+     */
+    @Around(&quot;@annotation(requirePermission)&quot;)
+    public Object validatePermission(ProceedingJoinPoint joinPoint, RequirePermission requirePermission) throws Throwable {
+<span class="fc" id="L53">        String[] requiredPermissions = requirePermission.value();</span>
+        
+        // Si no se especifican permisos, permitir acceso
+<span class="fc bfc" id="L56" title="All 2 branches covered.">        if (requiredPermissions.length == 0) {</span>
+<span class="fc" id="L57">            return joinPoint.proceed();</span>
+        }
+        
+        // Obtener información del método para logging
+<span class="fc" id="L61">        MethodSignature signature = (MethodSignature) joinPoint.getSignature();</span>
+<span class="fc" id="L62">        Method method = signature.getMethod();</span>
+<span class="fc" id="L63">        String methodName = method.getDeclaringClass().getSimpleName() + &quot;.&quot; + method.getName();</span>
+        
+        // Validar permisos  según lógica requireAll
+<span class="fc" id="L66">        boolean hasPermission = validatePermissions(requiredPermissions, requirePermission.requireAll());</span>
+        
+<span class="fc bfc" id="L68" title="All 2 branches covered.">        if (!hasPermission) {</span>
+<span class="fc" id="L69">            String userUid = securityContextHelper.getCurrentUserUid().toString();</span>
+<span class="fc" id="L70">            String requiredPermsStr = String.join(&quot;, &quot;, requiredPermissions);</span>
+<span class="fc" id="L71">            log.warn(&quot;Acceso denegado: usuario {} intenta acceder a {} sin permisos. Requeridos: {}&quot;,</span>
+                    userUid, methodName, requiredPermsStr);
+            
+<span class="fc" id="L74">            throw new AuthorizationException(</span>
+<span class="fc" id="L75">                    String.format(&quot;No tienes permiso para ejecutar esta acción. Requeridos: %s&quot;, requiredPermsStr)</span>
+            );
+        }
+        
+<span class="fc" id="L79">        log.debug(&quot;Acceso permitido: usuario {} ejecutando {}. Permisos validados: {}&quot;,</span>
+<span class="fc" id="L80">                securityContextHelper.getCurrentUserUid(), methodName, String.join(&quot;, &quot;, requiredPermissions));</span>
+        
+<span class="fc" id="L82">        return joinPoint.proceed();</span>
+    }
+    
+    /**
+     * Valida si el usuario actual tiene los permisos requeridos.
+     * 
+     * @param permissions array de códigos de permiso
+     * @param requireAll si true valida TODOS, si false valida ALGUNO
+     * @return true si validación pasa, false en caso contrario
+     */
+    private boolean validatePermissions(String[] permissions, boolean requireAll) {
+<span class="fc bfc" id="L93" title="All 2 branches covered.">        if (requireAll) {</span>
+<span class="fc" id="L94">            return permissionService.hasAllPermissions(permissions);</span>
+        } else {
+<span class="fc" id="L96">            return permissionService.hasAnyPermission(permissions);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

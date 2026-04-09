@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ConfigurationService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.application.service</a> &gt; <span class="el_source">ConfigurationService.java</span></div><h1>ConfigurationService.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.application.service;
+
+import com.loyalty.service_admin.application.dto.configuration.ConfigurationCreateRequest;
+import com.loyalty.service_admin.application.dto.configuration.ConfigurationPatchRequest;
+import com.loyalty.service_admin.application.dto.configuration.ConfigurationUpdatedEvent;
+import com.loyalty.service_admin.application.dto.configuration.ConfigurationWriteData;
+import com.loyalty.service_admin.application.mapper.ConfigurationMapper;
+import com.loyalty.service_admin.application.port.in.ConfigurationUseCase;
+import com.loyalty.service_admin.application.port.out.ConfigurationEventPort;
+import com.loyalty.service_admin.application.port.out.ConfigurationPersistencePort;
+import com.loyalty.service_admin.application.port.out.CurrentUserPort;
+import com.loyalty.service_admin.application.validation.ConfigurationBusinessValidator;
+import com.loyalty.service_admin.domain.entity.DiscountSettingsEntity;
+import com.loyalty.service_admin.infrastructure.exception.AuthorizationException;
+import com.loyalty.service_admin.infrastructure.exception.ConfigurationAlreadyExistsException;
+import com.loyalty.service_admin.infrastructure.exception.ConfigurationNotFoundException;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Objects;
+import java.util.UUID;
+
+@Service
+@RequiredArgsConstructor
+<span class="fc" id="L27">@Slf4j</span>
+public class ConfigurationService implements ConfigurationUseCase {
+
+    private final ConfigurationPersistencePort configurationRepository;
+    private final ConfigurationMapper mapper;
+    private final ConfigurationEventPort eventPublisher;
+    private final CurrentUserPort currentUserPort;
+    private final ConfigurationBusinessValidator validator;
+
+    @Override
+    @Transactional
+    public ConfigurationWriteData createConfiguration(ConfigurationCreateRequest request) {
+<span class="fc" id="L39">        validator.validateCreate(request);</span>
+<span class="fc" id="L40">        assertUserCanAccessEcommerce(request.ecommerceId());</span>
+
+<span class="fc bfc" id="L42" title="All 2 branches covered.">        if (configurationRepository.existsByEcommerceId(request.ecommerceId())) {</span>
+<span class="fc" id="L43">            throw new ConfigurationAlreadyExistsException(&quot;Configuration already exists for ecommerce&quot;);</span>
+        }
+
+<span class="fc" id="L46">        DiscountSettingsEntity entity = mapper.toEntity(request);</span>
+<span class="fc" id="L47">        DiscountSettingsEntity saved = configurationRepository.save(entity);</span>
+<span class="fc" id="L48">        publishUpdatedEvent(saved);</span>
+<span class="fc" id="L49">        return mapper.toWriteData(saved);</span>
+    }
+
+    @Override
+    @Transactional
+    public ConfigurationWriteData patchConfiguration(UUID ecommerceId, ConfigurationPatchRequest request) {
+<span class="fc" id="L55">        validator.validatePatch(request);</span>
+<span class="fc" id="L56">        assertUserCanAccessEcommerce(ecommerceId);</span>
+
+<span class="fc" id="L58">        DiscountSettingsEntity entity = configurationRepository.findByEcommerceId(ecommerceId)</span>
+<span class="fc" id="L59">                .orElseThrow(() -&gt; new ConfigurationNotFoundException(&quot;Configuration not found for ecommerce&quot;));</span>
+
+<span class="fc" id="L61">        mapper.applyPatch(entity, request);</span>
+<span class="fc" id="L62">        validator.validateEntityState(entity);</span>
+
+<span class="fc" id="L64">        DiscountSettingsEntity saved = configurationRepository.save(entity);</span>
+<span class="fc" id="L65">        publishUpdatedEvent(saved);</span>
+<span class="fc" id="L66">        return mapper.toWriteData(saved);</span>
+    }
+
+    private void publishUpdatedEvent(DiscountSettingsEntity saved) {
+<span class="fc" id="L70">        ConfigurationUpdatedEvent event = mapper.toUpdatedEvent(saved);</span>
+<span class="fc" id="L71">        eventPublisher.publishConfigUpdated(event);</span>
+<span class="fc" id="L72">        log.info(&quot;Configuration updated event published for ecommerce={} version={}&quot;, saved.getEcommerceId(), saved.getVersion());</span>
+<span class="fc" id="L73">    }</span>
+
+    private void assertUserCanAccessEcommerce(UUID ecommerceId) {
+<span class="fc bfc" id="L76" title="All 2 branches covered.">        if (currentUserPort.isSuperAdmin()) {</span>
+<span class="fc" id="L77">            return;</span>
+        }
+
+<span class="fc" id="L80">        UUID currentEcommerceId = currentUserPort.getCurrentUserEcommerceId();</span>
+<span class="pc bpc" id="L81" title="1 of 2 branches missed.">        if (!Objects.equals(currentEcommerceId, ecommerceId)) {</span>
+<span class="fc" id="L82">            throw new AuthorizationException(&quot;No puedes acceder a configuraciones de otro ecommerce&quot;);</span>
+        }
+<span class="nc" id="L84">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

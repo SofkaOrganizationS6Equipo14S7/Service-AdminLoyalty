@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: com.loyalty.service_admin.application.service.ConfigurationServiceTest
+-------------------------------------------------------------------------------
+Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.671 s -- in com.loyalty.service_admin.application.service.ConfigurationServiceTest

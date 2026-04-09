@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RabbitMQConfig.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.infrastructure.config</a> &gt; <span class="el_source">RabbitMQConfig.java</span></div><h1>RabbitMQConfig.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.infrastructure.config;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.core.Binding;
+import org.springframework.amqp.core.BindingBuilder;
+import org.springframework.amqp.core.DirectExchange;
+import org.springframework.amqp.core.FanoutExchange;
+import org.springframework.amqp.core.Queue;
+import org.springframework.amqp.rabbit.connection.ConnectionFactory;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
+import org.springframework.amqp.support.converter.MessageConverter;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.retry.backoff.ExponentialBackOffPolicy;
+import org.springframework.retry.policy.SimpleRetryPolicy;
+import org.springframework.retry.support.RetryTemplate;
+
+import java.util.Map;
+
+@Configuration
+<span class="nc" id="L26">@Slf4j</span>
+<span class="nc" id="L27">public class RabbitMQConfig {</span>
+    
+    @Value(&quot;${rabbitmq.exchange.config:loyalty.config.exchange}&quot;)
+    private String configExchange;
+
+    @Value(&quot;${rabbitmq.exchange.config-dlx:loyalty.config.dlx}&quot;)
+    private String configDeadLetterExchange;
+
+    @Value(&quot;${rabbitmq.queue.config-updated:loyalty.config.updated.queue}&quot;)
+    private String configUpdatedQueue;
+
+    @Value(&quot;${rabbitmq.queue.config-updated-dlq:loyalty.config.updated.dlq}&quot;)
+    private String configUpdatedDlq;
+
+    @Value(&quot;${rabbitmq.routing.config-updated:config.updated}&quot;)
+    private String configUpdatedRoutingKey;
+
+    @Value(&quot;${rabbitmq.routing.config-updated-dlq:config.updated.dlq}&quot;)
+    private String configUpdatedDlqRoutingKey;
+
+    // Seasonal Rules exchange and queue
+    @Value(&quot;${rabbitmq.exchange.seasonal:loyalty.seasonal.exchange}&quot;)
+    private String seasonalExchange;
+
+    @Value(&quot;${rabbitmq.exchange.seasonal-dlx:loyalty.seasonal.dlx}&quot;)
+    private String seasonalDeadLetterExchange;
+
+    @Value(&quot;${rabbitmq.queue.seasonal-rules:loyalty.seasonal.rules.queue}&quot;)
+    private String seasonalRulesQueue;
+
+    @Value(&quot;${rabbitmq.queue.seasonal-rules-dlq:loyalty.seasonal.rules.dlq}&quot;)
+    private String seasonalRulesDlq;
+
+    @Value(&quot;${rabbitmq.routing.seasonal-created:seasonal.rule.created}&quot;)
+    private String seasonalCreatedRoutingKey;
+
+    @Value(&quot;${rabbitmq.routing.seasonal-updated:seasonal.rule.updated}&quot;)
+    private String seasonalUpdatedRoutingKey;
+
+    @Value(&quot;${rabbitmq.routing.seasonal-deleted:seasonal.rule.deleted}&quot;)
+    private String seasonalDeletedRoutingKey;
+
+    @Value(&quot;${rabbitmq.routing.seasonal-dlq:seasonal.rule.dlq}&quot;)
+    private String seasonalDlqRoutingKey;
+
+    @Value(&quot;${rabbitmq.retry.max-attempts:5}&quot;)
+    private int maxAttempts;
+
+    @Value(&quot;${rabbitmq.retry.initial-interval-ms:500}&quot;)
+    private long initialIntervalMs;
+
+    @Value(&quot;${rabbitmq.retry.multiplier:2.0}&quot;)
+    private double retryMultiplier;
+
+    @Value(&quot;${rabbitmq.retry.max-interval-ms:5000}&quot;)
+    private long maxIntervalMs;
+    
+    /**
+     * Fanout Exchange para propagación de cambios de configuración.
+     * Admin Service publica eventos aquí, Engine Service consume.
+     */
+    @Bean
+    public DirectExchange configExchange() {
+<span class="nc" id="L90">        return new DirectExchange(configExchange, true, false);</span>
+    }
+
+    @Bean
+    public DirectExchange configDeadLetterExchange() {
+<span class="nc" id="L95">        return new DirectExchange(configDeadLetterExchange, true, false);</span>
+    }
+
+    @Bean
+    public Queue configUpdatedQueue() {
+<span class="nc" id="L100">        return new Queue(configUpdatedQueue, true, false, false, Map.of(</span>
+                &quot;x-dead-letter-exchange&quot;, configDeadLetterExchange,
+                &quot;x-dead-letter-routing-key&quot;, configUpdatedDlqRoutingKey
+        ));
+    }
+
+    @Bean
+    public Queue configUpdatedDlq() {
+<span class="nc" id="L108">        return new Queue(configUpdatedDlq, true);</span>
+    }
+
+    @Bean
+    public Binding configUpdatedBinding(DirectExchange configExchange, Queue configUpdatedQueue) {
+<span class="nc" id="L113">        return BindingBuilder.bind(configUpdatedQueue).to(configExchange).with(configUpdatedRoutingKey);</span>
+    }
+
+    @Bean
+    public Binding configUpdatedDlqBinding(DirectExchange configDeadLetterExchange, Queue configUpdatedDlq) {
+<span class="nc" id="L118">        return BindingBuilder.bind(configUpdatedDlq).to(configDeadLetterExchange).with(configUpdatedDlqRoutingKey);</span>
+    }
+    
+    // ============================================================================
+    // Seasonal Rules Exchange, Queues, and Bindings
+    // ============================================================================
+    
+    /**
+     * Fanout Exchange for seasonal rule events
+     * Admin Service publishes: CREATED, UPDATED, DELETED events
+     * Engine Service consumes from this exchange
+     */
+    @Bean
+    public FanoutExchange seasonalExchange() {
+<span class="nc" id="L132">        return new FanoutExchange(seasonalExchange, true, false);</span>
+    }
+
+    @Bean
+    public DirectExchange seasonalDeadLetterExchange() {
+<span class="nc" id="L137">        return new DirectExchange(seasonalDeadLetterExchange, true, false);</span>
+    }
+
+    /**
+     * Queue for seasonal rules events (consumed by Service-Engine)
+     * Dead Letter: seasonal-rules-dlq with DLX configured
+     */
+    @Bean
+    public Queue seasonalRulesQueue() {
+<span class="nc" id="L146">        return new Queue(seasonalRulesQueue, true, false, false, Map.of(</span>
+                &quot;x-dead-letter-exchange&quot;, seasonalDeadLetterExchange,
+                &quot;x-dead-letter-routing-key&quot;, seasonalDlqRoutingKey
+        ));
+    }
+
+    @Bean
+    public Queue seasonalRulesDlq() {
+<span class="nc" id="L154">        return new Queue(seasonalRulesDlq, true);</span>
+    }
+
+    /**
+     * Bindings for seasonal rule events (Fanout - no routing keys needed)
+     */
+    @Bean
+    public Binding seasonalCreatedBinding(FanoutExchange seasonalExchange, Queue seasonalRulesQueue) {
+<span class="nc" id="L162">        return BindingBuilder.bind(seasonalRulesQueue).to(seasonalExchange);</span>
+    }
+
+    @Bean
+    public Binding seasonalUpdatedBinding(FanoutExchange seasonalExchange, Queue seasonalRulesQueue) {
+<span class="nc" id="L167">        return BindingBuilder.bind(seasonalRulesQueue).to(seasonalExchange);</span>
+    }
+
+    @Bean
+    public Binding seasonalDeletedBinding(FanoutExchange seasonalExchange, Queue seasonalRulesQueue) {
+<span class="nc" id="L172">        return BindingBuilder.bind(seasonalRulesQueue).to(seasonalExchange);</span>
+    }
+
+    @Bean
+    public Binding seasonalDlqBinding(DirectExchange seasonalDeadLetterExchange, Queue seasonalRulesDlq) {
+<span class="nc" id="L177">        return BindingBuilder.bind(seasonalRulesDlq).to(seasonalDeadLetterExchange).with(seasonalDlqRoutingKey);</span>
+    }
+    
+    /**
+     * Converter JSON para mensajes.
+     */
+    @Bean
+    public MessageConverter jsonMessageConverter(ObjectMapper objectMapper) {
+<span class="nc" id="L185">        return new Jackson2JsonMessageConverter();</span>
+    }
+    
+    /**
+     * RabbitTemplate para enviar mensajes.
+     */
+    @Bean
+    public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory, MessageConverter messageConverter) {
+<span class="nc" id="L193">        RabbitTemplate template = new RabbitTemplate(connectionFactory);</span>
+<span class="nc" id="L194">        template.setMessageConverter(messageConverter);</span>
+<span class="nc" id="L195">        template.setRetryTemplate(retryTemplate());</span>
+<span class="nc" id="L196">        template.setMandatory(true);</span>
+<span class="nc" id="L197">        template.setConfirmCallback((correlationData, ack, cause) -&gt; {</span>
+<span class="nc bnc" id="L198" title="All 2 branches missed.">            if (!ack) {</span>
+<span class="nc" id="L199">                log.error(&quot;event=rabbit_publish_nack correlationId={} cause={}&quot;,</span>
+<span class="nc bnc" id="L200" title="All 2 branches missed.">                        correlationData != null ? correlationData.getId() : &quot;n/a&quot;,</span>
+                        cause);
+            }
+<span class="nc" id="L203">        });</span>
+<span class="nc" id="L204">        template.setReturnsCallback(returned -&gt; log.error(</span>
+                &quot;event=rabbit_returned exchange={} routingKey={} replyCode={} replyText={}&quot;,
+<span class="nc" id="L206">                returned.getExchange(),</span>
+<span class="nc" id="L207">                returned.getRoutingKey(),</span>
+<span class="nc" id="L208">                returned.getReplyCode(),</span>
+<span class="nc" id="L209">                returned.getReplyText()</span>
+        ));
+<span class="nc" id="L211">        return template;</span>
+    }
+
+    @Bean
+    public RetryTemplate retryTemplate() {
+<span class="nc" id="L216">        RetryTemplate retryTemplate = new RetryTemplate();</span>
+
+<span class="nc" id="L218">        SimpleRetryPolicy retryPolicy = new SimpleRetryPolicy(maxAttempts);</span>
+<span class="nc" id="L219">        ExponentialBackOffPolicy backOffPolicy = new ExponentialBackOffPolicy();</span>
+<span class="nc" id="L220">        backOffPolicy.setInitialInterval(initialIntervalMs);</span>
+<span class="nc" id="L221">        backOffPolicy.setMultiplier(retryMultiplier);</span>
+<span class="nc" id="L222">        backOffPolicy.setMaxInterval(maxIntervalMs);</span>
+
+<span class="nc" id="L224">        retryTemplate.setRetryPolicy(retryPolicy);</span>
+<span class="nc" id="L225">        retryTemplate.setBackOffPolicy(backOffPolicy);</span>
+<span class="nc" id="L226">        return retryTemplate;</span>
+    }
+    
+    /**
+     * ObjectMapper para serialización/deserialización JSON.
+     */
+    @Bean
+    public ObjectMapper objectMapper() {
+<span class="nc" id="L234">        ObjectMapper mapper = new ObjectMapper();</span>
+<span class="nc" id="L235">        mapper.registerModule(new JavaTimeModule());</span>
+<span class="nc" id="L236">        mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);</span>
+<span class="nc" id="L237">        return mapper;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

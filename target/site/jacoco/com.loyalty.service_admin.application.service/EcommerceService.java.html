@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EcommerceService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.application.service</a> &gt; <span class="el_source">EcommerceService.java</span></div><h1>EcommerceService.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.application.service;
+
+import com.loyalty.service_admin.application.dto.apikey.ApiKeyEventPayload;
+import com.loyalty.service_admin.application.dto.ecommerce.EcommerceCreateRequest;
+import com.loyalty.service_admin.application.dto.ecommerce.EcommerceResponse;
+import com.loyalty.service_admin.application.dto.ecommerce.EcommerceUpdateStatusRequest;
+import com.loyalty.service_admin.application.port.in.EcommerceUseCase;
+import com.loyalty.service_admin.application.port.out.EcommercePersistencePort;
+import com.loyalty.service_admin.application.port.out.EcommerceEventPort;
+import com.loyalty.service_admin.application.port.out.ApiKeyEventPort;
+import com.loyalty.service_admin.domain.entity.EcommerceEntity;
+import com.loyalty.service_admin.domain.entity.UserEntity;
+import com.loyalty.service_admin.domain.entity.ApiKeyEntity;
+import com.loyalty.service_admin.domain.model.ecommerce.EcommerceStatus;
+import com.loyalty.service_admin.infrastructure.exception.BadRequestException;
+import com.loyalty.service_admin.infrastructure.exception.ConflictException;
+import com.loyalty.service_admin.infrastructure.exception.EcommerceNotFoundException;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+
+@Service
+@RequiredArgsConstructor
+<span class="fc" id="L32">@Slf4j</span>
+public class EcommerceService implements EcommerceUseCase {
+    
+    private final EcommercePersistencePort persistencePort;
+    private final EcommerceEventPort eventPort;
+    private final ApiKeyEventPort apiKeyEventPort;
+    
+    /**
+     * @param request EcommerceCreateRequest (name, slug)
+     * @return EcommerceResponse con ecommerce creado
+     * @throws ConflictException si slug ya existe
+     * @throws BadRequestException si datos inválidos
+     */
+    @Override
+    @Transactional
+    public EcommerceResponse createEcommerce(EcommerceCreateRequest request) {
+<span class="fc" id="L48">        log.info(&quot;Creando ecommerce: name={}, slug={}&quot;, request.name(), request.slug());</span>
+        
+<span class="fc bfc" id="L50" title="All 2 branches covered.">        if (persistencePort.existsBySlug(request.slug())) {</span>
+<span class="fc" id="L51">            log.warn(&quot;Intento de crear ecommerce con slug duplicado: {}&quot;, request.slug());</span>
+<span class="fc" id="L52">            throw new ConflictException(</span>
+<span class="fc" id="L53">                String.format(&quot;El slug '%s' ya está en uso. Elige uno diferente.&quot;, request.slug())</span>
+            );
+        }
+
+<span class="fc" id="L57">        EcommerceEntity entity = EcommerceEntity.builder()</span>
+<span class="fc" id="L58">                .name(request.name())</span>
+<span class="fc" id="L59">                .slug(request.slug())</span>
+<span class="fc" id="L60">                .build();</span>
+        
+<span class="fc" id="L62">        EcommerceEntity saved = persistencePort.save(entity);</span>
+<span class="fc" id="L63">        log.info(&quot;Ecommerce creado exitosamente: uid={}, slug={}, status={}&quot;, </span>
+<span class="fc" id="L64">                saved.getId(), saved.getSlug(), saved.getStatus());</span>
+        
+        try {
+<span class="fc" id="L67">            eventPort.publishEcommerceCreated(saved.getId(), saved.getName(), saved.getSlug());</span>
+<span class="fc" id="L68">            log.info(&quot;Evento de creación de ecommerce publicado: uid={}&quot;, saved.getId());</span>
+<span class="fc" id="L69">        } catch (Exception e) {</span>
+<span class="fc" id="L70">            log.error(&quot;Error al publicar evento RabbitMQ: uid={}, name={}, slug={}&quot;, </span>
+<span class="fc" id="L71">                    saved.getId(), saved.getName(), saved.getSlug(), e);</span>
+<span class="fc" id="L72">            throw new RuntimeException(&quot;No se pudo publicar evento de creación de ecommerce&quot;, e);</span>
+<span class="fc" id="L73">        }</span>
+        
+<span class="fc" id="L75">        return toResponse(saved);</span>
+    }
+    
+    /**
+     * @param status filtro opcional (ACTIVE/INACTIVE); null = todos
+     * @param page número de página (0-indexed)
+     * @param size tamaño de la página
+     * @return Page&lt;EcommerceResponse&gt; con ecommerces
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public Page&lt;EcommerceResponse&gt; listEcommerces(String status, int page, int size) {
+<span class="fc" id="L87">        log.info(&quot;Listando ecommerces: status={}, page={}, size={}&quot;, status, page, size);</span>
+        
+<span class="fc" id="L89">        Pageable pageable = PageRequest.of(page, size);</span>
+        Page&lt;EcommerceEntity&gt; entities;
+        
+<span class="pc bpc" id="L92" title="1 of 4 branches missed.">        if (status != null &amp;&amp; !status.isBlank()) {</span>
+            try {
+<span class="fc" id="L94">                EcommerceStatus statusEnum = EcommerceStatus.valueOf(status.toUpperCase());</span>
+<span class="fc" id="L95">                entities = persistencePort.findAll(</span>
+<span class="nc" id="L96">                    (root, query, cb) -&gt; cb.equal(root.get(&quot;status&quot;), statusEnum),</span>
+                    pageable
+                );
+<span class="fc" id="L99">            } catch (IllegalArgumentException e) {</span>
+<span class="fc" id="L100">                throw new BadRequestException(&quot;Status inválido: &quot; + status);</span>
+<span class="fc" id="L101">            }</span>
+        } else {
+<span class="fc" id="L103">            entities = persistencePort.findAll(null, pageable);</span>
+        }
+
+<span class="fc" id="L106">        return entities.map(this::toResponse);</span>
+    }
+    
+    /**
+     * @param uid identificador único del ecommerce
+     * @return EcommerceResponse
+     * @throws EcommerceNotFoundException si no existe
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public EcommerceResponse getEcommerceById(UUID uid) {
+<span class="fc" id="L117">        log.info(&quot;Obteniendo ecommerce por uid: {}&quot;, uid);</span>
+        
+<span class="fc" id="L119">        EcommerceEntity entity = persistencePort.findById(uid)</span>
+<span class="fc" id="L120">                .orElseThrow(() -&gt; {</span>
+<span class="fc" id="L121">                    log.warn(&quot;Ecommerce no encontrado: uid={}&quot;, uid);</span>
+<span class="fc" id="L122">                    return new EcommerceNotFoundException(</span>
+<span class="fc" id="L123">                        String.format(&quot;El ecommerce con uid '%s' no existe.&quot;, uid)</span>
+                    );
+                });
+        
+<span class="fc" id="L127">        return toResponse(entity);</span>
+    }
+    
+    /**
+     * @param uid identificador único del ecommerce
+     * @param request EcommerceUpdateStatusRequest (status)
+     * @return EcommerceResponse actualizado
+     * @throws EcommerceNotFoundException si no existe
+     * @throws BadRequestException si status inválido
+     */
+    @Override
+    @Transactional
+    public EcommerceResponse updateEcommerceStatus(UUID uid, EcommerceUpdateStatusRequest request) {
+<span class="fc" id="L140">        log.info(&quot;Actualizando status de ecommerce: uid={}, newStatus={}&quot;, uid, request.status());</span>
+        
+<span class="fc" id="L142">        EcommerceEntity entity = persistencePort.findById(uid)</span>
+<span class="fc" id="L143">                .orElseThrow(() -&gt; {</span>
+<span class="fc" id="L144">                    log.warn(&quot;Ecommerce no encontrado para actualización: uid={}&quot;, uid);</span>
+<span class="fc" id="L145">                    return new EcommerceNotFoundException(</span>
+<span class="fc" id="L146">                        String.format(&quot;El ecommerce con uid '%s' no existe.&quot;, uid)</span>
+                    );
+                });
+        
+        EcommerceStatus newStatus;
+
+        try {
+<span class="fc" id="L153">            newStatus = EcommerceStatus.valueOf(request.status());</span>
+<span class="fc" id="L154">        } catch (IllegalArgumentException e) {</span>
+<span class="fc" id="L155">            log.warn(&quot;Status inválido para ecommerce: {}&quot;, request.status());</span>
+<span class="fc" id="L156">            throw new BadRequestException(&quot;Status inválido: &quot; + request.status());</span>
+<span class="fc" id="L157">        }</span>
+        
+<span class="fc" id="L159">        EcommerceStatus oldStatus = entity.getStatus();</span>
+        
+<span class="fc bfc" id="L161" title="All 2 branches covered.">        if (oldStatus == newStatus) {</span>
+<span class="fc" id="L162">            log.info(&quot;Status no cambió: uid={}, status={}&quot;, uid, oldStatus);</span>
+<span class="fc" id="L163">            return toResponse(entity);</span>
+        }
+        
+<span class="fc" id="L166">        entity.setStatus(newStatus);</span>
+<span class="fc" id="L167">        EcommerceEntity updated = persistencePort.save(entity);</span>
+        
+        // Cascada de acciones si cambia a INACTIVE
+<span class="pc bpc" id="L170" title="1 of 2 branches missed.">        if (newStatus == EcommerceStatus.INACTIVE) {</span>
+<span class="fc" id="L171">            log.info(&quot;Ecommerce cambiado a INACTIVE: uid={}. Ejecutando cascada de acciones.&quot;, uid);</span>
+<span class="fc" id="L172">            executeCascadeActions(uid);</span>
+        }
+        
+        try {
+<span class="fc" id="L176">            eventPort.publishEcommerceStatusChanged(entity.getId(), newStatus.name());</span>
+<span class="fc" id="L177">            log.info(&quot;Evento de cambio de status publicado: uid={}, newStatus={}&quot;, uid, newStatus);</span>
+<span class="nc" id="L178">        } catch (Exception e) {</span>
+<span class="nc" id="L179">            log.error(&quot;Error al publicar evento RabbitMQ: uid={}, newStatus={}&quot;, uid, newStatus, e);</span>
+<span class="nc" id="L180">            throw new RuntimeException(&quot;No se pudo publicar evento de cambio de status&quot;, e);</span>
+<span class="fc" id="L181">        }</span>
+        
+<span class="fc" id="L183">        log.info(&quot;Ecommerce actualizado exitosamente: uid={}, oldStatus={}, newStatus={}&quot;, </span>
+                uid, oldStatus, newStatus);
+        
+<span class="fc" id="L186">        return toResponse(updated);</span>
+    }
+    
+    /**
+     * Ejecuta cascada de acciones cuando un ecommerce se inactiva:
+     *
+     * @param ecommerceId UUID del ecommerce que se inactivó
+     */
+    private void executeCascadeActions(UUID ecommerceId) {
+        // 1. Inactivar usuarios vinculados
+<span class="fc" id="L196">        List&lt;UserEntity&gt; users = persistencePort.findUsersByEcommerceId(ecommerceId);</span>
+<span class="fc bfc" id="L197" title="All 2 branches covered.">        if (!users.isEmpty()) {</span>
+<span class="fc" id="L198">            persistencePort.inactivateUsers(users);</span>
+<span class="fc" id="L199">            log.info(&quot;Usuarios inactivados (cascada): count={}, ecommerceId={}&quot;, users.size(), ecommerceId);</span>
+        }
+        
+        // 2. Desactivar API Keys vinculadas y publicar eventos
+<span class="fc" id="L203">        List&lt;ApiKeyEntity&gt; apiKeys = persistencePort.findApiKeysByEcommerceId(ecommerceId);</span>
+<span class="fc bfc" id="L204" title="All 2 branches covered.">        if (!apiKeys.isEmpty()) {</span>
+<span class="fc" id="L205">            persistencePort.deactivateApiKeys(apiKeys);</span>
+            
+<span class="fc bfc" id="L207" title="All 2 branches covered.">            for (ApiKeyEntity apiKey : apiKeys) {</span>
+<span class="fc" id="L208">                ApiKeyEventPayload event = new ApiKeyEventPayload(</span>
+                    &quot;API_KEY_DELETED&quot;,
+<span class="fc" id="L210">                    apiKey.getId().toString(),</span>
+<span class="fc" id="L211">                    apiKey.getHashedKey(),</span>
+<span class="fc" id="L212">                    ecommerceId.toString(),</span>
+<span class="fc" id="L213">                    Instant.now()</span>
+                );
+<span class="fc" id="L215">                apiKeyEventPort.publishApiKeyDeleted(event);</span>
+<span class="fc" id="L216">            }</span>
+            
+<span class="fc" id="L218">            log.info(&quot;API Keys desactivadas (cascada): count={}, ecommerceId={}&quot;, apiKeys.size(), ecommerceId);</span>
+        }
+        
+<span class="fc" id="L221">        log.info(&quot;Cascada de acciones completada: ecommerceId={}, usersInactivated={}, apiKeysDeactivated={}&quot;, </span>
+<span class="fc" id="L222">                ecommerceId, users.size(), apiKeys.size());</span>
+<span class="fc" id="L223">    }</span>
+    
+    /**
+     * @param ecommerceId UUID del ecommerce
+     * @throws EcommerceNotFoundException si no existe o es null
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public void validateEcommerceExists(UUID ecommerceId) {
+<span class="fc bfc" id="L232" title="All 2 branches covered.">        if (ecommerceId == null) {</span>
+<span class="fc" id="L233">            throw new EcommerceNotFoundException(&quot;Ecommerce ID no puede ser null&quot;);</span>
+        }
+        
+<span class="fc" id="L236">        boolean exists = persistencePort.existsById(ecommerceId);</span>
+<span class="fc bfc" id="L237" title="All 2 branches covered.">        if (!exists) {</span>
+<span class="fc" id="L238">            log.warn(&quot;Validación fallida: ecommerce no existe: {}&quot;, ecommerceId);</span>
+<span class="fc" id="L239">            throw new EcommerceNotFoundException(</span>
+<span class="fc" id="L240">                String.format(&quot;El ecommerce con uid '%s' no existe.&quot;, ecommerceId)</span>
+            );
+        }
+<span class="fc" id="L243">    }</span>
+    
+    /**
+     * @param entity entidad JPA
+     * @return DTO para respuesta HTTP
+     */
+    private EcommerceResponse toResponse(EcommerceEntity entity) {
+<span class="fc" id="L250">        return new EcommerceResponse(</span>
+<span class="fc" id="L251">                entity.getId(),</span>
+<span class="fc" id="L252">                entity.getName(),</span>
+<span class="fc" id="L253">                entity.getSlug(),</span>
+<span class="fc" id="L254">                entity.getStatus().name(),</span>
+<span class="fc" id="L255">                entity.getCreatedAt(),</span>
+<span class="fc" id="L256">                entity.getUpdatedAt()</span>
+        );
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

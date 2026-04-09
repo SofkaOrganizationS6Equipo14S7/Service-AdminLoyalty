@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GlobalExceptionHandler.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.infrastructure.exception</a> &gt; <span class="el_source">GlobalExceptionHandler.java</span></div><h1>GlobalExceptionHandler.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.infrastructure.exception;
+
+import io.jsonwebtoken.JwtException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.ConstraintViolationException;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+import java.time.Instant;
+import java.util.stream.Collectors;
+
+@RestControllerAdvice
+<span class="fc" id="L17">public class GlobalExceptionHandler {</span>
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity&lt;ApiErrorResponse&gt; handleMethodArgumentNotValid(MethodArgumentNotValidException e, HttpServletRequest request) {
+<span class="fc" id="L21">        String errors = e.getBindingResult()</span>
+<span class="fc" id="L22">                .getFieldErrors()</span>
+<span class="fc" id="L23">                .stream()</span>
+<span class="fc" id="L24">                .map(error -&gt; error.getField() + &quot;: &quot; + error.getDefaultMessage())</span>
+<span class="fc" id="L25">                .collect(Collectors.joining(&quot;, &quot;));</span>
+<span class="fc" id="L26">        return build(HttpStatus.BAD_REQUEST, &quot;VALIDATION_ERROR&quot;, &quot;Validation failed: &quot; + errors, request);</span>
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity&lt;ApiErrorResponse&gt; handleConstraintViolation(ConstraintViolationException e, HttpServletRequest request) {
+<span class="fc" id="L31">        String errors = e.getConstraintViolations().stream()</span>
+<span class="fc" id="L32">                .map(v -&gt; v.getPropertyPath() + &quot;: &quot; + v.getMessage())</span>
+<span class="fc" id="L33">                .collect(Collectors.joining(&quot;, &quot;));</span>
+<span class="fc" id="L34">        return build(HttpStatus.BAD_REQUEST, &quot;VALIDATION_ERROR&quot;, errors, request);</span>
+    }
+
+    @ExceptionHandler(JwtException.class)
+    public ResponseEntity&lt;ApiErrorResponse&gt; handleJwtException(JwtException e, HttpServletRequest request) {
+<span class="fc" id="L39">        return build(HttpStatus.UNAUTHORIZED, &quot;UNAUTHORIZED&quot;, &quot;Token no válido o expirado&quot;, request);</span>
+    }
+
+    @ExceptionHandler({UnauthorizedException.class, AuthenticationCredentialsNotFoundException.class})
+    public ResponseEntity&lt;ApiErrorResponse&gt; handleUnauthorized(RuntimeException e, HttpServletRequest request) {
+<span class="fc" id="L44">        return build(HttpStatus.UNAUTHORIZED, &quot;UNAUTHORIZED&quot;, e.getMessage(), request);</span>
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity&lt;ApiErrorResponse&gt; handleIllegalArgument(IllegalArgumentException e, HttpServletRequest request) {
+<span class="fc" id="L49">        return build(HttpStatus.BAD_REQUEST, &quot;BAD_REQUEST&quot;, e.getMessage(), request);</span>
+    }
+
+    @ExceptionHandler(BadRequestException.class)
+    public ResponseEntity&lt;ApiErrorResponse&gt; handleBadRequest(BadRequestException e, HttpServletRequest request) {
+<span class="pc bpc" id="L54" title="1 of 4 branches missed.">        String code = e.getMessage() != null &amp;&amp; e.getMessage().startsWith(&quot;VALIDATION_ERROR&quot;)</span>
+<span class="fc" id="L55">                ? &quot;VALIDATION_ERROR&quot;</span>
+<span class="fc" id="L56">                : &quot;BAD_REQUEST&quot;;</span>
+<span class="fc" id="L57">        return build(HttpStatus.BAD_REQUEST, code, e.getMessage(), request);</span>
+    }
+
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity&lt;ApiErrorResponse&gt; handleConflict(ConflictException e, HttpServletRequest request) {
+<span class="fc" id="L62">        return build(HttpStatus.CONFLICT, &quot;CONFLICT&quot;, e.getMessage(), request);</span>
+    }
+
+    @ExceptionHandler(ConfigurationAlreadyExistsException.class)
+    public ResponseEntity&lt;ApiErrorResponse&gt; handleConfigurationAlreadyExists(ConfigurationAlreadyExistsException e, HttpServletRequest request) {
+<span class="fc" id="L67">        return build(HttpStatus.CONFLICT, &quot;CONFIG_ALREADY_EXISTS&quot;, e.getMessage(), request);</span>
+    }
+
+    @ExceptionHandler(ConfigurationNotFoundException.class)
+    public ResponseEntity&lt;ApiErrorResponse&gt; handleConfigurationNotFound(ConfigurationNotFoundException e, HttpServletRequest request) {
+<span class="fc" id="L72">        return build(HttpStatus.NOT_FOUND, &quot;CONFIG_NOT_FOUND&quot;, e.getMessage(), request);</span>
+    }
+
+    @ExceptionHandler(AuthorizationException.class)
+    public ResponseEntity&lt;ApiErrorResponse&gt; handleAuthorization(AuthorizationException e, HttpServletRequest request) {
+<span class="fc" id="L77">        return build(HttpStatus.FORBIDDEN, &quot;FORBIDDEN&quot;, e.getMessage(), request);</span>
+    }
+
+    @ExceptionHandler({
+            ResourceNotFoundException.class,
+            ApiKeyNotFoundException.class,
+            EcommerceNotFoundException.class
+    })
+    public ResponseEntity&lt;ApiErrorResponse&gt; handleNotFound(RuntimeException e, HttpServletRequest request) {
+<span class="fc" id="L86">        return build(HttpStatus.NOT_FOUND, &quot;NOT_FOUND&quot;, e.getMessage(), request);</span>
+    }
+
+    @ExceptionHandler(ClassificationValidationException.class)
+    public ResponseEntity&lt;ApiErrorResponse&gt; handleClassificationValidation(ClassificationValidationException e, HttpServletRequest request) {
+<span class="fc" id="L91">        return build(HttpStatus.BAD_REQUEST, &quot;CLASSIFICATION_VALIDATION_ERROR&quot;, e.getMessage(), request);</span>
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity&lt;ApiErrorResponse&gt; handleGenericException(Exception e, HttpServletRequest request) {
+<span class="fc" id="L96">        return build(HttpStatus.INTERNAL_SERVER_ERROR, &quot;INTERNAL_ERROR&quot;, e.getMessage(), request);</span>
+    }
+
+    private ResponseEntity&lt;ApiErrorResponse&gt; build(HttpStatus status, String code, String message, HttpServletRequest request) {
+<span class="fc" id="L100">        return ResponseEntity.status(status).body(new ApiErrorResponse(</span>
+<span class="fc" id="L101">                Instant.now(),</span>
+<span class="fc" id="L102">                status.value(),</span>
+<span class="fc" id="L103">                status.getReasonPhrase(),</span>
+                code,
+                message,
+<span class="fc" id="L106">                request.getRequestURI()</span>
+        ));
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

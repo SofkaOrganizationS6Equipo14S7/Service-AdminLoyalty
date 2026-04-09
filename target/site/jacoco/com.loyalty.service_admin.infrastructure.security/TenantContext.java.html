@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TenantContext.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.infrastructure.security</a> &gt; <span class="el_source">TenantContext.java</span></div><h1>TenantContext.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.infrastructure.security;
+
+import java.util.UUID;
+
+/**
+ * ThreadLocal para aislar el contexto del inquilino (tenant) durante el ciclo de vida
+ * de una solicitud HTTP.
+ * 
+ * SPEC-002 CRITERIO-2.2: El interceptor añade automáticamente WHERE ecommerce_id = ?
+ * 
+ * El TenantInterceptor configura el tenant_id después de autenticación y antes de que
+ * el request se procese en los servicios. Luego, SecurityContextHelper y servicios
+ * pueden acceder al tenant actual.
+ * 
+ * La limpieza automática ocurre en el método finally() de TenantInterceptor.afterCompletion().
+ * 
+ * USAGE:
+ *   TenantContext.setCurrentTenant(UUID.fromString(&quot;550e8400-e29b-41d4-a716-446655440000&quot;));
+ *   UUID tenantId = TenantContext.getCurrentTenant();
+ *   TenantContext.clear(); // en finally block
+ */
+<span class="nc" id="L22">public class TenantContext {</span>
+    
+<span class="fc" id="L24">    private static final ThreadLocal&lt;UUID&gt; currentTenant = new ThreadLocal&lt;&gt;();</span>
+    
+    /**
+     * Establece el tenant actual para este thread.
+     * Típicamente llamado por TenantInterceptor.preHandle() después de autenticación.
+     *
+     * @param tenantId UUID del ecommerce (tenant)
+     */
+    public static void setCurrentTenant(UUID tenantId) {
+<span class="fc bfc" id="L33" title="All 2 branches covered.">        if (tenantId != null) {</span>
+<span class="fc" id="L34">            currentTenant.set(tenantId);</span>
+        }
+<span class="fc" id="L36">    }</span>
+    
+    /**
+     * Obtiene el tenant actual para este thread.
+     * Si no se ha seteado, retorna null.
+     *
+     * @return UUID del tenant actual, o null si no se ha seteado
+     */
+    public static UUID getCurrentTenant() {
+<span class="fc" id="L45">        return currentTenant.get();</span>
+    }
+    
+    /**
+     * Limpia el tenant del ThreadLocal.
+     * DEBE ser llamado en un finally block para evitar memory leaks.
+     * 
+     * TenantInterceptor.afterCompletion() se encarga de esto automáticamente.
+     */
+    public static void clear() {
+<span class="fc" id="L55">        currentTenant.remove();</span>
+<span class="fc" id="L56">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

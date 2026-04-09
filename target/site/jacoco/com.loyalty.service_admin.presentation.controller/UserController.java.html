@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.presentation.controller</a> &gt; <span class="el_source">UserController.java</span></div><h1>UserController.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.presentation.controller;
+
+import com.loyalty.service_admin.application.dto.user.UserCreateRequest;
+import com.loyalty.service_admin.application.dto.user.UserResponse;
+import com.loyalty.service_admin.application.dto.user.UserUpdateRequest;
+import com.loyalty.service_admin.application.dto.user.UpdateProfileRequest;
+import com.loyalty.service_admin.application.dto.auth.ChangePasswordRequest;
+import com.loyalty.service_admin.application.dto.auth.LoginResponse;
+import com.loyalty.service_admin.application.port.in.UserCreateUseCase;
+import com.loyalty.service_admin.application.port.in.UserListUseCase;
+import com.loyalty.service_admin.application.port.in.UserGetByIdUseCase;
+import com.loyalty.service_admin.application.port.in.UserUpdateUseCase;
+import com.loyalty.service_admin.application.port.in.UserDeleteUseCase;
+import com.loyalty.service_admin.application.service.UserService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.UUID;
+
+@RestController
+@RequestMapping(&quot;/api/v1/users&quot;)
+@RequiredArgsConstructor
+<span class="fc" id="L28">@Slf4j</span>
+public class UserController {
+    
+    private final UserCreateUseCase userCreateUseCase;
+    private final UserListUseCase userListUseCase;
+    private final UserGetByIdUseCase userGetByIdUseCase;
+    private final UserUpdateUseCase userUpdateUseCase;
+    private final UserDeleteUseCase userDeleteUseCase;
+    private final UserService userService;
+    
+    /**
+     * @param request user data (role, username, email, password, ecommerceId)
+     * @return HTTP 201 Created with UserResponse
+     */
+    @PostMapping
+    public ResponseEntity&lt;UserResponse&gt; createUser(@Valid @RequestBody UserCreateRequest request) {
+<span class="fc" id="L44">        UserResponse response = userCreateUseCase.createUser(request);</span>
+<span class="fc" id="L45">        return ResponseEntity.status(HttpStatus.CREATED).body(response);</span>
+    }
+    
+    /**
+     * @param ecommerceId filter parameter (optional)
+     * @param pageable pagination information
+     * @return HTTP 200 OK with paginated list of UserResponse
+     */
+    @GetMapping
+    public ResponseEntity&lt;org.springframework.data.domain.Page&lt;UserResponse&gt;&gt; listUsers(
+            @RequestParam(name = &quot;ecommerceId&quot;, required = false) UUID ecommerceId,
+            org.springframework.data.domain.Pageable pageable) {
+<span class="fc" id="L57">        org.springframework.data.domain.Page&lt;UserResponse&gt; users = userListUseCase.listUsers(ecommerceId, pageable);</span>
+<span class="fc" id="L58">        return ResponseEntity.ok(users);</span>
+    }
+    
+    /**
+     * @param uid user identifier
+     * @return HTTP 200 OK with UserResponse
+     */
+    @GetMapping(&quot;/{uid}&quot;)
+    public ResponseEntity&lt;UserResponse&gt; getUser(@PathVariable UUID uid) {
+<span class="fc" id="L67">        UserResponse user = userGetByIdUseCase.getUserById(uid);</span>
+<span class="fc" id="L68">        return ResponseEntity.ok(user);</span>
+    }
+    
+    /**
+     * Actualizar usuario - CRITERIO-1.3, CRITERIO-1.4
+     * @param uid user identifier
+     * @param request user data to update
+     *        Optional fields: username, email, password
+     *        SUPER_ADMIN only: ecommerceId, active
+     *        PROHIBITED (immutable): roleId → returns HTTP 400 if sent
+     * @return HTTP 200 OK with updated UserResponse
+     */
+    @PutMapping(&quot;/{uid}&quot;)
+    public ResponseEntity&lt;UserResponse&gt; updateUser(
+            @PathVariable UUID uid,
+            @Valid @RequestBody UserUpdateRequest request) {
+<span class="fc" id="L84">        UserResponse updated = userUpdateUseCase.updateUser(uid, request);</span>
+<span class="fc" id="L85">        return ResponseEntity.ok(updated);</span>
+    }
+    
+    /**
+     * Elimina permanentemente un usuario de forma física.
+     *
+     * HU-02.5: Hard Delete de Usuarios
+     * - Requiere autenticación (JWT válido)
+     * - Solo SUPER_ADMIN o STORE_ADMIN pueden eliminar usuarios
+     * - STORE_ADMIN solo puede eliminar usuarios de su ecommerce
+     * - No puede auto-eliminarse
+     *
+     * Respuestas:
+     * - 204 No Content: eliminación exitosa
+     * - 400 Bad Request: intento de auto-eliminación
+     * - 401 Unauthorized: token faltante/expirado
+     * - 403 Forbidden: rol insuficiente o ecommerce distinto
+     * - 404 Not Found: usuario no existe
+     *
+     * @param uid user identifier
+     * @return HTTP 204 No Content
+     * @throws com.loyalty.service_admin.infrastructure.exception.UnauthorizedException si token inválido
+     * @throws com.loyalty.service_admin.infrastructure.exception.BadRequestException si auto-eliminación
+     * @throws com.loyalty.service_admin.infrastructure.exception.AuthorizationException si sin permisos
+     * @throws com.loyalty.service_admin.infrastructure.exception.ResourceNotFoundException si no existe
+     */
+    @DeleteMapping(&quot;/{uid}&quot;)
+    public ResponseEntity&lt;Void&gt; deleteUser(@PathVariable UUID uid) {
+<span class="fc" id="L113">        userDeleteUseCase.hardDeleteUser(uid);</span>
+<span class="fc" id="L114">        return ResponseEntity.noContent().build();</span>
+    }
+    
+    /**
+     * @param request profile data to update (name, email)
+     * @return HTTP 200 OK with updated UserResponse
+     */
+    @PutMapping(&quot;/me&quot;)
+    public ResponseEntity&lt;UserResponse&gt; updateProfile(@Valid @RequestBody UpdateProfileRequest request) {
+<span class="fc" id="L123">        UserResponse updated = userService.updateProfile(request);</span>
+<span class="fc" id="L124">        return ResponseEntity.ok(updated);</span>
+    }
+    
+    /**
+     * @param request password change data (currentPassword, newPassword, confirmPassword)
+     * @return HTTP 200 OK with new JWT token
+     */
+    @PutMapping(&quot;/me/password&quot;)
+    public ResponseEntity&lt;LoginResponse&gt; changePassword(@Valid @RequestBody ChangePasswordRequest request) {
+<span class="fc" id="L133">        LoginResponse response = userService.changePassword(request);</span>
+<span class="fc" id="L134">        return ResponseEntity.ok(response);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

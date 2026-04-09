@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DiscountApplicationLogService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.application.service</a> &gt; <span class="el_source">DiscountApplicationLogService.java</span></div><h1>DiscountApplicationLogService.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.application.service;
+
+import com.loyalty.service_admin.application.dto.discountlog.DiscountApplicationLogResponse;
+import com.loyalty.service_admin.domain.entity.DiscountApplicationLogEntity;
+import com.loyalty.service_admin.domain.repository.DiscountApplicationLogRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.UUID;
+
+/**
+ * Servicio de consulta de discount application logs (SOLO LECTURA).
+ * Implementa CRITERIO-9.3.
+ * 
+ * CRITERIO-9.4: No permite modificación (sin PUT/DELETE endpoints).
+ */
+@Service
+@RequiredArgsConstructor
+<span class="fc" id="L24">@Slf4j</span>
+public class DiscountApplicationLogService {
+    
+    private final DiscountApplicationLogRepository discountLogRepository;
+    
+    /**
+     * CRITERIO-9.3: Lista registros de descuentos aplicados con filtros por ecommerceId y externalOrderId.
+     * 
+     * @param ecommerceId filtro opcional
+     * @param externalOrderId filtro opcional (ej. #ORDER-12345)
+     * @param page número de página (0-indexed)
+     * @param size tamaño de página
+     * @return Page&lt;DiscountApplicationLogResponse&gt; con logs de descuentos
+     */
+    @Transactional(readOnly = true)
+    public Page&lt;DiscountApplicationLogResponse&gt; listDiscountLogs(
+            UUID ecommerceId, String externalOrderId, int page, int size) {
+        
+<span class="fc" id="L42">        log.info(&quot;Listando discount application logs: ecommerceId={}, externalOrderId={}, page={}, size={}&quot;, </span>
+<span class="fc" id="L43">                ecommerceId, externalOrderId, page, size);</span>
+        
+<span class="fc" id="L45">        Pageable pageable = PageRequest.of(page, size);</span>
+        
+        Page&lt;DiscountApplicationLogEntity&gt; logs;
+<span class="pc bpc" id="L48" title="1 of 6 branches missed.">        if (ecommerceId != null &amp;&amp; externalOrderId != null &amp;&amp; !externalOrderId.isBlank()) {</span>
+<span class="fc" id="L49">            logs = discountLogRepository.findByEcommerceIdAndExternalOrderId(ecommerceId, externalOrderId, pageable);</span>
+<span class="fc bfc" id="L50" title="All 2 branches covered.">        } else if (ecommerceId != null) {</span>
+<span class="fc" id="L51">            logs = discountLogRepository.findByEcommerceId(ecommerceId, pageable);</span>
+<span class="fc bfc" id="L52" title="All 4 branches covered.">        } else if (externalOrderId != null &amp;&amp; !externalOrderId.isBlank()) {</span>
+<span class="fc" id="L53">            logs = discountLogRepository.findByExternalOrderId(externalOrderId, pageable);</span>
+        } else {
+<span class="fc" id="L55">            logs = discountLogRepository.findAll(pageable);</span>
+        }
+        
+<span class="fc" id="L58">        return logs.map(this::toResponse);</span>
+    }
+    
+    /**
+     * Obtiene detalles de un registro específico de descuento aplicado.
+     * 
+     * @param logId UUID del registro
+     * @return DiscountApplicationLogResponse completa
+     */
+    @Transactional(readOnly = true)
+    public DiscountApplicationLogResponse getDiscountLogById(UUID logId) {
+<span class="fc" id="L69">        log.info(&quot;Obteniendo discount application log: logId={}&quot;, logId);</span>
+        
+<span class="fc" id="L71">        DiscountApplicationLogEntity entity = discountLogRepository.findById(logId)</span>
+<span class="fc" id="L72">                .orElseThrow(() -&gt; {</span>
+<span class="fc" id="L73">                    log.warn(&quot;Discount log no encontrado: logId={}&quot;, logId);</span>
+<span class="fc" id="L74">                    return new com.loyalty.service_admin.infrastructure.exception.ResourceNotFoundException(</span>
+                        &quot;Discount application log no encontrado&quot;
+                    );
+                });
+        
+<span class="fc" id="L79">        return toResponse(entity);</span>
+    }
+    
+    /**
+     * Convierte DiscountApplicationLogEntity a DiscountApplicationLogResponse.
+     */
+    private DiscountApplicationLogResponse toResponse(DiscountApplicationLogEntity entity) {
+<span class="fc" id="L86">        return new DiscountApplicationLogResponse(</span>
+<span class="fc" id="L87">            entity.getId(),</span>
+<span class="fc" id="L88">            entity.getEcommerceId(),</span>
+<span class="fc" id="L89">            entity.getExternalOrderId(),</span>
+<span class="fc" id="L90">            entity.getOriginalAmount(),</span>
+<span class="fc" id="L91">            entity.getDiscountApplied(),</span>
+<span class="fc" id="L92">            entity.getFinalAmount(),</span>
+<span class="fc" id="L93">            entity.getAppliedRulesDetails(),</span>
+<span class="fc" id="L94">            entity.getCreatedAt()</span>
+        );
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

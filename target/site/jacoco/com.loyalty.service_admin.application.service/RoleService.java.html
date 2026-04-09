@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RoleService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.application.service</a> &gt; <span class="el_source">RoleService.java</span></div><h1>RoleService.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.application.service;
+
+import com.loyalty.service_admin.application.dto.role.*;
+import com.loyalty.service_admin.domain.entity.PermissionEntity;
+import com.loyalty.service_admin.domain.entity.RoleEntity;
+import com.loyalty.service_admin.domain.entity.RolePermissionEntity;
+import com.loyalty.service_admin.domain.repository.PermissionRepository;
+import com.loyalty.service_admin.domain.repository.RolePermissionRepository;
+import com.loyalty.service_admin.domain.repository.RoleRepository;
+import com.loyalty.service_admin.infrastructure.exception.ResourceNotFoundException;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+/**
+ * Servicio para gestión de roles y permisos
+ * HU-08: Roles y Permisos
+ * - CRITERIO-8.1: Listar todos los roles
+ * - CRITERIO-8.2: Obtener rol con sus permisos
+ * - CRITERIO-8.3: Listar todos los permisos
+ * - CRITERIO-8.4: Filtrar permisos por módulo
+ * - CRITERIO-8.5: Asignar permisos a un rol
+ */
+@Service
+@RequiredArgsConstructor
+<span class="fc" id="L32">@Slf4j</span>
+public class RoleService {
+
+    private final RoleRepository roleRepository;
+    private final PermissionRepository permissionRepository;
+    private final RolePermissionRepository rolePermissionRepository;
+
+    /**
+     * CRITERIO-8.1: GET /api/v1/roles - Listar todos los roles
+     */
+    @Transactional(readOnly = true)
+    public List&lt;RoleResponse&gt; listAllRoles() {
+<span class="fc" id="L44">        log.info(&quot;Listing all roles&quot;);</span>
+<span class="fc" id="L45">        return roleRepository.findAll().stream()</span>
+<span class="fc" id="L46">                .map(this::toRoleResponse)</span>
+<span class="fc" id="L47">                .collect(Collectors.toList());</span>
+    }
+
+    /**
+     * CRITERIO-8.2: GET /api/v1/roles/{roleId} - Obtener rol con sus permisos
+     */
+    @Transactional(readOnly = true)
+    public RoleWithPermissionsResponse getRoleWithPermissions(UUID roleId) {
+<span class="fc" id="L55">        log.info(&quot;Getting role with permissions: roleId={}&quot;, roleId);</span>
+        
+<span class="fc" id="L57">        RoleEntity role = roleRepository.findById(roleId)</span>
+<span class="fc" id="L58">                .orElseThrow(() -&gt; new ResourceNotFoundException(&quot;Role not found with id: &quot; + roleId));</span>
+        
+        // Obtener los permisos del rol
+<span class="fc" id="L61">        List&lt;RolePermissionEntity&gt; rolePermissions = rolePermissionRepository.findByRoleId(roleId);</span>
+<span class="fc" id="L62">        List&lt;PermissionResponse&gt; permissions = rolePermissions.stream()</span>
+<span class="fc" id="L63">                .map(rp -&gt; toPermissionResponse(rp.getPermission()))</span>
+<span class="fc" id="L64">                .collect(Collectors.toList());</span>
+        
+<span class="fc" id="L66">        return new RoleWithPermissionsResponse(</span>
+<span class="fc" id="L67">                role.getId(),</span>
+<span class="fc" id="L68">                role.getName(),</span>
+<span class="fc" id="L69">                role.getIsActive(),</span>
+                permissions,
+<span class="fc" id="L71">                role.getCreatedAt(),</span>
+<span class="fc" id="L72">                role.getUpdatedAt()</span>
+        );
+    }
+
+    /**
+     * CRITERIO-8.3: GET /api/v1/permissions - Listar todos los permisos
+     */
+    @Transactional(readOnly = true)
+    public List&lt;PermissionResponse&gt; listAllPermissions() {
+<span class="fc" id="L81">        log.info(&quot;Listing all permissions&quot;);</span>
+<span class="fc" id="L82">        return permissionRepository.findAll().stream()</span>
+<span class="fc" id="L83">                .map(this::toPermissionResponse)</span>
+<span class="fc" id="L84">                .collect(Collectors.toList());</span>
+    }
+
+    /**
+     * CRITERIO-8.4: GET /api/v1/permissions?module=X - Filtrar permisos por módulo
+     */
+    @Transactional(readOnly = true)
+    public List&lt;PermissionResponse&gt; listPermissionsByModule(String module) {
+<span class="fc" id="L92">        log.info(&quot;Listing permissions by module: module={}&quot;, module);</span>
+<span class="fc" id="L93">        return permissionRepository.findAll().stream()</span>
+<span class="fc" id="L94">                .filter(permission -&gt; permission.getModule().equalsIgnoreCase(module))</span>
+<span class="fc" id="L95">                .map(this::toPermissionResponse)</span>
+<span class="fc" id="L96">                .collect(Collectors.toList());</span>
+    }
+
+    /**
+     * CRITERIO-8.5: POST /api/v1/roles/{roleId}/permissions - Asignar permisos a un rol
+     * Reemplaza completamente los permisos del rol (acción atómica)
+     */
+    @Transactional
+    public RoleWithPermissionsResponse assignPermissionsToRole(UUID roleId, RolePermissionsAssignRequest request) {
+<span class="fc" id="L105">        log.info(&quot;Assigning permissions to role: roleId={}, permissionCount={}&quot;, roleId, request.permissionIds().size());</span>
+        
+        // Validar que el rol existe
+<span class="fc" id="L108">        RoleEntity role = roleRepository.findById(roleId)</span>
+<span class="fc" id="L109">                .orElseThrow(() -&gt; new ResourceNotFoundException(&quot;Role not found with id: &quot; + roleId));</span>
+        
+        // Validar que todos los permissionIds existen
+<span class="fc" id="L112">        Set&lt;UUID&gt; requestedPermissionIds = request.permissionIds().stream()</span>
+<span class="fc" id="L113">                .collect(Collectors.toSet());</span>
+        
+<span class="fc" id="L115">        List&lt;PermissionEntity&gt; permissions = permissionRepository.findAllById(requestedPermissionIds);</span>
+        
+<span class="fc bfc" id="L117" title="All 2 branches covered.">        if (permissions.size() != requestedPermissionIds.size()) {</span>
+<span class="fc" id="L118">            log.warn(&quot;Some permissions not found. Requested: {}, Found: {}&quot;, </span>
+<span class="fc" id="L119">                requestedPermissionIds.size(), permissions.size());</span>
+<span class="fc" id="L120">            throw new ResourceNotFoundException(</span>
+                &quot;One or more permissions not found with ids: &quot; + requestedPermissionIds
+            );
+        }
+        
+        // Eliminar los permisos existentes del rol (operación atómica)
+<span class="fc" id="L126">        List&lt;RolePermissionEntity&gt; existingPermissions = rolePermissionRepository.findByRoleId(roleId);</span>
+<span class="fc" id="L127">        rolePermissionRepository.deleteAll(existingPermissions);</span>
+<span class="fc" id="L128">        log.debug(&quot;Removed {} existing permissions from role&quot;, existingPermissions.size());</span>
+        
+        // Asignar los nuevos permisos
+<span class="fc" id="L131">        List&lt;RolePermissionEntity&gt; newRolePermissions = permissions.stream()</span>
+<span class="fc" id="L132">                .map(permission -&gt; {</span>
+<span class="fc" id="L133">                    RolePermissionEntity rp = new RolePermissionEntity();</span>
+<span class="fc" id="L134">                    rp.setRole(role);</span>
+<span class="fc" id="L135">                    rp.setPermission(permission);</span>
+<span class="fc" id="L136">                    return rp;</span>
+                })
+<span class="fc" id="L138">                .collect(Collectors.toList());</span>
+        
+<span class="fc" id="L140">        rolePermissionRepository.saveAll(newRolePermissions);</span>
+<span class="fc" id="L141">        log.info(&quot;Successfully assigned {} permissions to role {}&quot;, permissions.size(), roleId);</span>
+        
+        // Retornar el rol actualizado con los permisos
+<span class="fc" id="L144">        List&lt;PermissionResponse&gt; permissionResponses = permissions.stream()</span>
+<span class="fc" id="L145">                .map(this::toPermissionResponse)</span>
+<span class="fc" id="L146">                .collect(Collectors.toList());</span>
+        
+<span class="fc" id="L148">        return new RoleWithPermissionsResponse(</span>
+<span class="fc" id="L149">                role.getId(),</span>
+<span class="fc" id="L150">                role.getName(),</span>
+<span class="fc" id="L151">                role.getIsActive(),</span>
+                permissionResponses,
+<span class="fc" id="L153">                role.getCreatedAt(),</span>
+<span class="fc" id="L154">                role.getUpdatedAt()</span>
+        );
+    }
+
+    // ==================== MAPPERS ====================
+
+    /**
+     * Mapea RoleEntity a RoleResponse
+     */
+    private RoleResponse toRoleResponse(RoleEntity role) {
+<span class="fc" id="L164">        return new RoleResponse(</span>
+<span class="fc" id="L165">                role.getId(),</span>
+<span class="fc" id="L166">                role.getName(),</span>
+<span class="fc" id="L167">                role.getIsActive(),</span>
+<span class="fc" id="L168">                role.getCreatedAt(),</span>
+<span class="fc" id="L169">                role.getUpdatedAt()</span>
+        );
+    }
+
+    /**
+     * Mapea PermissionEntity a PermissionResponse
+     */
+    private PermissionResponse toPermissionResponse(PermissionEntity permission) {
+<span class="fc" id="L177">        return new PermissionResponse(</span>
+<span class="fc" id="L178">                permission.getId(),</span>
+<span class="fc" id="L179">                permission.getCode(),</span>
+<span class="fc" id="L180">                permission.getDescription(),</span>
+<span class="fc" id="L181">                permission.getModule(),</span>
+<span class="fc" id="L182">                permission.getCreatedAt(),</span>
+<span class="fc" id="L183">                permission.getUpdatedAt()</span>
+        );
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

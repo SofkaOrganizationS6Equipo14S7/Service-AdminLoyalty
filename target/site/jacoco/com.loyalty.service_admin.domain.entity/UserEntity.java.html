@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserEntity.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.loyalty.service_admin.domain.entity</a> &gt; <span class="el_source">UserEntity.java</span></div><h1>UserEntity.java</h1><pre class="source lang-java linenums">package com.loyalty.service_admin.domain.entity;
+
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.Instant;
+import java.util.UUID;
+
+@Entity
+@Table(name = &quot;app_user&quot;, indexes = {
+    @Index(name = &quot;idx_user_ecommerce&quot;, columnList = &quot;ecommerce_id&quot;),
+    @Index(name = &quot;idx_user_role&quot;, columnList = &quot;role_id&quot;),
+    @Index(name = &quot;idx_user_active&quot;, columnList = &quot;is_active&quot;)
+})
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class UserEntity {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+
+    @Column(name = &quot;ecommerce_id&quot;)
+    private UUID ecommerceId;
+
+    @Column(name = &quot;role_id&quot;, nullable = false, insertable = false, updatable = false)
+    private UUID roleId;
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = &quot;role_id&quot;, nullable = false)
+    private RoleEntity role;
+
+    @Column(nullable = false, unique = true, length = 100)
+    private String username;
+
+    @Column(name = &quot;password_hash&quot;, nullable = false, length = 255)
+    private String passwordHash;
+
+    @Column(length = 255)
+    private String email;
+
+    @Column(name = &quot;is_active&quot;, nullable = false)
+    private Boolean isActive = true;
+
+    @Column(name = &quot;last_login&quot;)
+    private Instant lastLogin;
+
+    @Column(name = &quot;created_at&quot;, nullable = false, updatable = false)
+    private Instant createdAt;
+
+    @Column(name = &quot;updated_at&quot;, nullable = false)
+    private Instant updatedAt;
+
+    @PrePersist
+    protected void onCreate() {
+<span class="fc" id="L61">        createdAt = Instant.now();</span>
+<span class="fc" id="L62">        updatedAt = Instant.now();</span>
+<span class="fc" id="L63">    }</span>
+
+    @PreUpdate
+    protected void onUpdate() {
+<span class="fc" id="L67">        updatedAt = Instant.now();</span>
+<span class="fc" id="L68">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>
