@@ -165,17 +165,24 @@
 						</goals>
 					</execution>
 					<execution>
-						<id>report-and-check</id>
+						<id>report</id>
 						<phase>verify</phase>
 						<goals>
 							<goal>report</goal>
+						</goals>
+					</execution>
+					<execution>
+						<id>check</id>
+						<phase>verify</phase>
+						<goals>
 							<goal>check</goal>
 						</goals>
 						<configuration>
 							<includes>
-								<include>com/loyalty/service_admin/application/service/ConfigurationService*</include>
-								<include>com/loyalty/service_admin/presentation/controller/ConfigurationController*</include>
-								<include>com/loyalty/service_admin/application/mapper/ConfigurationMapper*</include>
+								<include>com/loyalty/service_admin/application/service/**</include>
+								<include>com/loyalty/service_admin/application/validation/**</include>
+								<include>com/loyalty/service_admin/application/mapper/**</include>
+								<include>com/loyalty/service_admin/presentation/controller/**</include>
 							</includes>
 							<rules>
 								<rule>
